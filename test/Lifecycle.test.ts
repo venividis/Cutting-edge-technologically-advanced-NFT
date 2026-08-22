@@ -232,6 +232,7 @@ describe("Lifecycle — an agent's whole life", () => {
       expiry: BigInt(await p.networkHelpers.time.latest()) + 3600n,
       duration: 0n,
       nonce: 7n,
+      makerEpoch: 0n,
       expectedAccountState: accountState,
       expectedBrainRoot: root,
       expectedBrainEpoch: epoch,
@@ -250,6 +251,7 @@ describe("Lifecycle — an agent's whole life", () => {
         { name: "expiry", type: "uint64" },
         { name: "duration", type: "uint64" },
         { name: "nonce", type: "uint256" },
+        { name: "makerEpoch", type: "uint256" },
         { name: "expectedAccountState", type: "uint256" },
         { name: "expectedBrainRoot", type: "bytes32" },
         { name: "expectedBrainEpoch", type: "uint64" },
@@ -265,7 +267,7 @@ describe("Lifecycle — an agent's whole life", () => {
 
     const signature = await p.alice.signTypedData({ domain, types, primaryType: "Order", message: order });
     await p.anima.write.setApprovalForAll([p.market.address, true], { account: p.alice.account });
-    await p.market.write.fillOrder([order, signature, 0n], {
+    await p.market.write.fillOrder([order, signature], {
       account: p.deployer.account,
       value: parseEther("5"),
     });

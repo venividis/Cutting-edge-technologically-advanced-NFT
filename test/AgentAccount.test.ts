@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { getAddress, parseEther, encodeAbiParameters, parseAbiParameters, keccak256, encodeFunctionData, hashMessage, zeroAddress } from "viem";
+import { getAddress, parseEther, encodeAbiParameters, parseAbiParameters, keccak256, encodeFunctionData, hashMessage, toHex, zeroAddress } from "viem";
 import { deployProtocol, mintAgent, expectRevert, AgentStatus, ZERO32 } from "./helpers.js";
 
 const FOREVER = 2n ** 63n;
@@ -307,5 +307,113 @@ describe("AgentAccount — audit chain", () => {
     const before = await account.read.state();
     await account.write.execute([p.bob.account.address, 1n, "0x", 0], { account: p.carol.account });
     assert.equal(await account.read.state(), before + 1n);
+  });
+});
+
+describe("AgentAccount — the ERC-4337 path cannot be used to slip the leash", () => {
+  it("refuses a direct execute from the EntryPoint, forcing traffic through executeUserOp", async () => {
+    // Deploy with a real EntryPoint so the 4337 path is live. Using a wallet as the EntryPoint
+    // lets the test call in as it would.
+    const p = await deployProtocol();
+    const entryPoint = p.deployer.account.address;
+    const impl = await p.viem.deployContract("AgentAccount", [entryPoint]);
+
+    const anima = await p.viem.deployContract("AnimaAgent", [
+      "A",
+      "A",
+      p.deployer.account.address,
+      p.registry.address,
+      impl.address,
+      ZERO32,
+      p.nullVerifier.address,
+      p.keyRegistry.address,
+      p.treasury.account.address,
+      0n,
+    ]);
+
+    await anima.write.mintAgent([
+      p.alice.account.address,
+      "",
+      ZERO32,
+      { weightsRoot: ZERO32, runtimeMeasurement: ZERO32, attestationKind: 0, modelId: "" },
+      [],
+      0,
+      [],
+    ]);
+    const id = 1n;
+    await anima.write.deployAccount([id]);
+    const accountAddress = await anima.read.accountOf([id]);
+    const account = await p.viem.getContractAt("AgentAccount", accountAddress);
+
+    await anima.write.setPolicy(
+      [
+        id,
+        {
+          perTxWei: parseEther("0.01"),
+          dailyWei: parseEther("0.01"),
+          expiry: 0n,
+          allowDelegateCall: false,
+          allowUnlistedTargets: false,
+          targetsRoot: ZERO32,
+        },
+      ],
+      { account: p.alice.account }
+    );
+    await anima.write.setStatus([id, AgentStatus.Active], { account: p.alice.account });
+    await account.write.grantSession([p.carol.account.address, 0n, FOREVER, parseEther("0.01")], {
+      account: p.alice.account,
+    });
+    await p.alice.sendTransaction({ to: accountAddress, value: parseEther("100") });
+
+    // The attack: a session key's user operation points straight at `execute` instead of
+    // `executeUserOp`. The call then arrives with msg.sender == EntryPoint, which an earlier
+    // version waved through with no cap, no allowlist and no paused-agent check.
+    await expectRevert(
+      account.write.execute([p.carol.account.address, parseEther("100"), "0x", 0], {
+        account: p.deployer.account,
+      }),
+      "UseExecuteUserOp"
+    );
+    assert.equal(await p.publicClient.getBalance({ address: accountAddress }), parseEther("100"));
+
+    // The owner is likewise not privileged by arriving through the EntryPoint.
+    await expectRevert(
+      account.write.executeBatch([[{ to: p.bob.account.address, value: 1n, data: "0x" }]], {
+        account: p.deployer.account,
+      }),
+      "UseExecuteUserOp"
+    );
+  });
+});
+
+describe("AttesterQuorumVerifier — a proof is useless to anyone but the token", () => {
+  it("refuses to consume a proof presented by a stranger", async () => {
+    const p = await deployProtocol();
+    const verifier = await p.viem.deployContract("AttesterQuorumVerifier", [
+      p.deployer.account.address,
+      [p.validator.account.address],
+      1n,
+      [keccak256(toHex("enclave-v1"))],
+    ]);
+
+    const request = {
+      chainId: BigInt(await p.publicClient.getChainId()),
+      anima: p.anima.address,
+      agentId: 1n,
+      from: p.alice.account.address,
+      to: p.bob.account.address,
+      oldBrainRoot: ZERO32,
+      newBrainRoot: keccak256(toHex("new")),
+      oldEpoch: 1n,
+      recipientKeyId: keccak256(toHex("key")),
+      sealedKeysHash: keccak256(toHex("sealed")),
+    };
+
+    // Single-use proofs mean a stranger who could burn one could block a sale forever by
+    // front-running it with the seller's own proof, lifted from the mempool.
+    await expectRevert(
+      verifier.write.verifyReKey([request, "0x"], { account: p.carol.account }),
+      "NotTheRequestingToken"
+    );
   });
 });

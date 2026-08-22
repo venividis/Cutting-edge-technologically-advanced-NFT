@@ -21,6 +21,7 @@ async function signedOrder(
     expiry: now + 3600n,
     duration: 0n,
     nonce: 1n,
+    makerEpoch: 0n,
     expectedAccountState: SKIP,
     expectedBrainRoot: ZERO32,
     expectedBrainEpoch: 0n,
@@ -47,6 +48,7 @@ async function signedOrder(
         { name: "expiry", type: "uint64" },
         { name: "duration", type: "uint64" },
         { name: "nonce", type: "uint256" },
+        { name: "makerEpoch", type: "uint256" },
         { name: "expectedAccountState", type: "uint256" },
         { name: "expectedBrainRoot", type: "bytes32" },
         { name: "expectedBrainEpoch", type: "uint64" },
@@ -69,7 +71,7 @@ describe("AgentMarket — settlement", () => {
     const { order, signature } = await signedOrder(p);
     const makerBefore = await p.publicClient.getBalance({ address: p.alice.account.address });
 
-    await p.market.write.fillOrder([order, signature, 0n], {
+    await p.market.write.fillOrder([order, signature], {
       account: p.bob.account,
       value: parseEther("1"),
     });
@@ -86,12 +88,12 @@ describe("AgentMarket — settlement", () => {
     await p.anima.write.setApprovalForAll([p.market.address, true], { account: p.alice.account });
     const { order, signature } = await signedOrder(p);
 
-    await p.market.write.fillOrder([order, signature, 0n], { account: p.bob.account, value: parseEther("1") });
+    await p.market.write.fillOrder([order, signature], { account: p.bob.account, value: parseEther("1") });
     await p.anima.write.transferFrom([p.bob.account.address, p.alice.account.address, 1n], {
       account: p.bob.account,
     });
     await expectRevert(
-      p.market.write.fillOrder([order, signature, 0n], { account: p.bob.account, value: parseEther("1") }),
+      p.market.write.fillOrder([order, signature], { account: p.bob.account, value: parseEther("1") }),
       "OrderAlreadySettled"
     );
   });
@@ -103,16 +105,22 @@ describe("AgentMarket — settlement", () => {
     const { order, signature } = await signedOrder(p);
 
     await p.market.write.bumpMakerEpoch([], { account: p.alice.account });
+
+    // The epoch is inside the signed payload, so a bump genuinely kills every resting order.
+    // Taking it as a fill-time argument instead would have made cancel-all inert: a taker
+    // could simply pass whatever the current value was.
     await expectRevert(
-      p.market.write.fillOrder([order, signature, 0n], { account: p.bob.account, value: parseEther("1") }),
+      p.market.write.fillOrder([order, signature], { account: p.bob.account, value: parseEther("1") }),
       "OrderAlreadySettled"
     );
-    // The taker must pass the epoch they priced against, so a bump cannot be used to
-    // front-run a fill that was already in flight at the old epoch.
-    await p.market.write.fillOrder([order, signature, 1n], {
+
+    // Only a freshly signed order at the new epoch fills.
+    const reissued = await signedOrder(p, { makerEpoch: 1n });
+    await p.market.write.fillOrder([reissued.order, reissued.signature], {
       account: p.bob.account,
       value: parseEther("1"),
     });
+    assert.equal(getAddress(await p.anima.read.ownerOf([1n])), getAddress(p.bob.account.address));
   });
 
   it("rejects a forged signature", async () => {
@@ -148,7 +156,7 @@ describe("AgentMarket — settlement", () => {
       message: order,
     });
     await expectRevert(
-      p.market.write.fillOrder([order, forged, 0n], { account: p.bob.account, value: parseEther("1") }),
+      p.market.write.fillOrder([order, forged], { account: p.bob.account, value: parseEther("1") }),
       "BadSignature"
     );
   });
@@ -174,7 +182,7 @@ describe("AgentMarket — orders bind to the agent's substance", () => {
     });
 
     await expectRevert(
-      p.market.write.fillOrder([order, signature, 0n], { account: p.bob.account, value: parseEther("1") }),
+      p.market.write.fillOrder([order, signature], { account: p.bob.account, value: parseEther("1") }),
       "AgentStateChanged"
     );
   });
@@ -187,7 +195,7 @@ describe("AgentMarket — orders bind to the agent's substance", () => {
 
     const [accountState] = await p.market.read.currentIntegrity([id]);
     const { order, signature } = await signedOrder(p, { expectedAccountState: accountState });
-    await p.market.write.fillOrder([order, signature, 0n], { account: p.bob.account, value: parseEther("1") });
+    await p.market.write.fillOrder([order, signature], { account: p.bob.account, value: parseEther("1") });
     assert.equal(getAddress(await p.anima.read.ownerOf([id])), getAddress(p.bob.account.address));
   });
 
@@ -205,7 +213,7 @@ describe("AgentMarket — orders bind to the agent's substance", () => {
     await p.anima.write.updateBrain([id, [shard("memory", "wiped")], epoch], { account: p.alice.account });
 
     await expectRevert(
-      p.market.write.fillOrder([order, signature, 0n], { account: p.bob.account, value: parseEther("1") }),
+      p.market.write.fillOrder([order, signature], { account: p.bob.account, value: parseEther("1") }),
       "BrainChanged"
     );
   });
@@ -224,7 +232,7 @@ describe("AgentMarket — orders bind to the agent's substance", () => {
     await p.bonds.write.requestUnbond([id, 1000n], { account: p.alice.account });
 
     await expectRevert(
-      p.market.write.fillOrder([order, signature, 0n], { account: p.bob.account, value: parseEther("1") }),
+      p.market.write.fillOrder([order, signature], { account: p.bob.account, value: parseEther("1") }),
       "InsufficientCoverage"
     );
   });
@@ -236,7 +244,7 @@ describe("AgentMarket — rental", () => {
     const id = await mintAgent(p, p.alice.account.address);
     const { order, signature } = await signedOrder(p, { kind: 1, duration: 3600n, price: parseEther("0.1") });
 
-    await p.market.write.fillOrder([order, signature, 0n], {
+    await p.market.write.fillOrder([order, signature], {
       account: p.bob.account,
       value: parseEther("0.1"),
     });
@@ -258,7 +266,7 @@ describe("AgentMarket — rental", () => {
     const p = await deployProtocol();
     const id = await mintAgent(p, p.alice.account.address);
     const { order, signature } = await signedOrder(p, { kind: 1, duration: 3600n, price: parseEther("0.1") });
-    await p.market.write.fillOrder([order, signature, 0n], {
+    await p.market.write.fillOrder([order, signature], {
       account: p.bob.account,
       value: parseEther("0.1"),
     });
@@ -319,6 +327,7 @@ describe("AgentMarket — the maker gets paid last, on purpose", () => {
       expiry: now + 3600n,
       duration: 0n,
       nonce: 1n,
+      makerEpoch: 0n,
       expectedAccountState: accountState,
       expectedBrainRoot: root,
       expectedBrainEpoch: epoch,
@@ -326,7 +335,7 @@ describe("AgentMarket — the maker gets paid last, on purpose", () => {
     } as const;
 
     // An ERC-1271 maker that signs anything, so the signature bytes are irrelevant.
-    await p.market.write.fillOrder([order, "0x", 0n], {
+    await p.market.write.fillOrder([order, "0x"], {
       account: p.bob.account,
       value: parseEther("60"),
     });

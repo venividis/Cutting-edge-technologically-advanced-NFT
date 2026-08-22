@@ -81,6 +81,7 @@ contract AgentMarket is EIP712, Ownable2Step, ReentrancyGuardTransient {
         uint64 expiry;
         uint64 duration; //               rental term in seconds; ignored for a sale
         uint256 nonce;
+        uint256 makerEpoch; //            must equal the maker's current epoch at fill time
         uint256 expectedAccountState; //  type(uint256).max to skip
         bytes32 expectedBrainRoot; //     zero to skip
         uint64 expectedBrainEpoch; //     paired with the root; ignored when root is zero
@@ -92,7 +93,7 @@ contract AgentMarket is EIP712, Ownable2Step, ReentrancyGuardTransient {
     //////////////////////////////////////////////////////////////*/
 
     bytes32 private constant _ORDER_TYPEHASH = keccak256(
-        "Order(uint8 kind,address maker,address taker,uint256 agentId,address payToken,uint256 price,uint64 start,uint64 expiry,uint64 duration,uint256 nonce,uint256 expectedAccountState,bytes32 expectedBrainRoot,uint64 expectedBrainEpoch,uint256 minBondCoverage)"
+        "Order(uint8 kind,address maker,address taker,uint256 agentId,address payToken,uint256 price,uint64 start,uint64 expiry,uint64 duration,uint256 nonce,uint256 makerEpoch,uint256 expectedAccountState,bytes32 expectedBrainRoot,uint64 expectedBrainEpoch,uint256 minBondCoverage)"
     );
 
     uint256 public constant SKIP_STATE_CHECK = type(uint256).max;
@@ -197,6 +198,7 @@ contract AgentMarket is EIP712, Ownable2Step, ReentrancyGuardTransient {
                     order.expiry,
                     order.duration,
                     order.nonce,
+                    order.makerEpoch,
                     order.expectedAccountState,
                     order.expectedBrainRoot,
                     order.expectedBrainEpoch,
@@ -216,6 +218,11 @@ contract AgentMarket is EIP712, Ownable2Step, ReentrancyGuardTransient {
 
     /// @notice Invalidate every order this address has signed. The panic button for a leaked
     ///         signing key, which per-order cancellation cannot address.
+    /// @dev The epoch is part of the signed payload, not a fill-time argument. An earlier
+    ///      version took it from the taker to stop a maker front-running an in-flight fill —
+    ///      but that made the mechanism inert, since a taker could simply pass whatever the
+    ///      current value was. Cancelling your own resting order before it fills is normal
+    ///      marketplace behaviour and not an attack; an unusable cancel-all is a real one.
     function bumpMakerEpoch() external {
         uint256 next;
         unchecked {
@@ -228,21 +235,14 @@ contract AgentMarket is EIP712, Ownable2Step, ReentrancyGuardTransient {
                                    FILL
     //////////////////////////////////////////////////////////////*/
 
-    function fillOrder(Order calldata order, bytes calldata signature, uint256 makerEpoch_)
-        external
-        payable
-        nonReentrant
-    {
+    function fillOrder(Order calldata order, bytes calldata signature) external payable nonReentrant {
         bytes32 orderHash = hashOrder(order);
 
         if (cancelledOrFilled[orderHash]) revert OrderAlreadySettled(orderHash);
         if (block.timestamp < order.start) revert OrderNotStarted(order.start);
         if (block.timestamp > order.expiry) revert OrderExpired(order.expiry);
         if (order.taker != address(0) && order.taker != msg.sender) revert NotTheTaker(order.taker, msg.sender);
-        // The epoch is supplied by the taker and checked, rather than read blindly, so a
-        // maker bumping their epoch cannot be front-run into cancelling a fill in flight
-        // that the taker had already priced.
-        if (makerEpoch_ != makerEpoch[order.maker]) revert OrderAlreadySettled(orderHash);
+        if (order.makerEpoch != makerEpoch[order.maker]) revert OrderAlreadySettled(orderHash);
         if (!SignatureChecker.isValidSignatureNow(order.maker, orderHash, signature)) revert BadSignature(orderHash);
 
         address holder = IERC721(address(ANIMA)).ownerOf(order.agentId);

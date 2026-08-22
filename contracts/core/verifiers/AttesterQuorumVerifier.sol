@@ -67,6 +67,8 @@ contract AttesterQuorumVerifier is ITransferVerifier, EIP712, Ownable2Step {
     error BadSignature(address signer);
     error ProofAlreadyUsed(bytes32 digest);
     error LengthMismatch();
+    error NotTheRequestingToken(address expected, address caller);
+    error WrongChain(uint256 expected, uint256 actual);
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTION
@@ -132,6 +134,13 @@ contract AttesterQuorumVerifier is ITransferVerifier, EIP712, Ownable2Step {
 
     /// @param proof abi.encode(bytes32 enclaveMeasurement, address[] signers, bytes[] signatures)
     function verifyReKey(ReKeyRequest calldata request, bytes calldata proof) external returns (bool) {
+        // Proofs are single-use, so a stranger who could consume one could permanently block a
+        // sealed transfer by front-running it with the seller's own proof, read from the
+        // mempool. Binding consumption to the token contract named in the request makes the
+        // digest useless to anyone else.
+        if (request.anima != msg.sender) revert NotTheRequestingToken(request.anima, msg.sender);
+        if (request.chainId != block.chainid) revert WrongChain(block.chainid, request.chainId);
+
         (bytes32 measurement, address[] memory signers, bytes[] memory signatures) =
             abi.decode(proof, (bytes32, address[], bytes[]));
 

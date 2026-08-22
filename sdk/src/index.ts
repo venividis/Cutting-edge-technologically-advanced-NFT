@@ -209,6 +209,7 @@ export const ORDER_TYPES = {
     { name: "expiry", type: "uint64" },
     { name: "duration", type: "uint64" },
     { name: "nonce", type: "uint256" },
+    { name: "makerEpoch", type: "uint256" },
     { name: "expectedAccountState", type: "uint256" },
     { name: "expectedBrainRoot", type: "bytes32" },
     { name: "expectedBrainEpoch", type: "uint64" },

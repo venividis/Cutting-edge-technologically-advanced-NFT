@@ -134,6 +134,7 @@ contract AgentAccount is
     error DelegateCallNotAllowed();
     error UnsupportedOperation(uint8 operation);
     error InvalidUserOpCallData();
+    error UseExecuteUserOp();
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTION
@@ -335,6 +336,14 @@ contract AgentAccount is
         uint8 operation,
         bytes32[] memory proof
     ) private {
+        // The EntryPoint is never a principal. An earlier version waved it through here on the
+        // reasoning that `executeUserOp` had already charged the responsible session key — but
+        // nothing forced a user operation to *use* `executeUserOp`. A session key could point
+        // its callData straight at `execute`, arrive with `msg.sender == ENTRY_POINT`, and skip
+        // every cap, the target allowlist, and the paused-agent check in one move. All ERC-4337
+        // traffic must enter through `executeUserOp`, which resolves the real signer first.
+        if (ENTRY_POINT != address(0) && caller == ENTRY_POINT) revert UseExecuteUserOp();
+
         address holder = owner();
         if (holder == address(0)) revert OwnershipCycle();
 
@@ -342,11 +351,7 @@ contract AgentAccount is
         // misconfigured agent's funds without asking anyone.
         if (caller == holder) return;
 
-        if (caller != ENTRY_POINT || ENTRY_POINT == address(0)) {
-            _enforceSession(caller, to, value, data, operation, proof);
-        }
-        // When the call arrives via the EntryPoint, `executeUserOp` has already resolved and
-        // charged the responsible session key; re-checking here would double-count spend.
+        _enforceSession(caller, to, value, data, operation, proof);
     }
 
     function _enforceSession(
@@ -438,6 +443,11 @@ contract AgentAccount is
             validationData = SIG_VALIDATION_FAILED;
         } else if (signer == owner()) {
             validationData = SIG_VALIDATION_SUCCESS;
+        } else if (userOp.callData.length < 4 || bytes4(userOp.callData[:4]) != this.executeUserOp.selector) {
+            // Defence in depth alongside the guard in `_authorize`: a session key's operation
+            // must route through `executeUserOp` so the responsible signer is resolved and
+            // charged. Reject anything else at validation, before it costs the account gas.
+            validationData = SIG_VALIDATION_FAILED;
         } else {
             Session storage s = _sessions[signer];
             if (s.revoked || s.validUntil == 0) {
