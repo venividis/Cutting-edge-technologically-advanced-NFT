@@ -6,6 +6,7 @@ import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20P
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title AgentToken — a launch token with a floor under it
@@ -128,11 +129,17 @@ contract AgentToken is ERC20, ERC20Permit, ReentrancyGuardTransient {
         emit Redeemed(msg.sender, amount, payout, treasury);
     }
 
-    /// @notice Quote asset backing one whole token, scaled by 1e18. The hard floor below
-    ///         which the market price cannot durably trade.
+    /// @notice Quote-asset units backing one **whole** token, scaled by 1e18. The hard floor
+    ///         below which the market price cannot durably trade.
+    /// @dev The double scaling is load-bearing. A naive `treasury * 1e18 / totalSupply`
+    ///      silently truncates to zero for realistic parameters — a 6-decimal quote like
+    ///      USDC against a 1e27 supply puts the per-base-unit floor at 1e-20, which 1e18 of
+    ///      precision cannot represent. Quoting per whole token instead of per base unit
+    ///      recovers the missing 18 decimals. `mulDiv` carries the 512-bit intermediate so
+    ///      the extra factor cannot overflow.
     function floorPerToken() external view returns (uint256) {
         uint256 supply = totalSupply();
-        return supply == 0 ? 0 : (treasury * 1e18) / supply;
+        return supply == 0 ? 0 : Math.mulDiv(treasury, 10 ** 18 * 10 ** 18, supply);
     }
 
     function previewRedeem(uint256 amount) external view returns (uint256) {
