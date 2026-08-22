@@ -360,14 +360,19 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
         if (block.timestamp > until) revert ReviewClosed(until);
         if (j.validator == address(0)) revert ZeroAddress();
 
-        bytes32 requestHash = keccak256(abi.encode(address(this), jobId, contentHash));
+        // The registry namespaces by opener, so this key cannot be squatted by a third party
+        // watching the mempool — which would otherwise let an agent block every dispute until
+        // the review window lapsed and then collect for undelivered work.
+        bytes32 requestHash = VALIDATION.requestKeyOf(address(this), keccak256(abi.encode(jobId, contentHash)));
 
         j.state = JobState.Disputed;
         j.validationRequest = requestHash;
         jobOfValidation[requestHash] = jobId;
 
         IAnimaLocking(address(ANIMA)).setDisputed(j.agentId, true);
-        VALIDATION.validationRequestWithExpiry(j.validator, j.agentId, reasonURI, requestHash, uint64(block.timestamp + 14 days));
+        VALIDATION.validationRequestWithExpiry(
+            j.validator, j.agentId, reasonURI, keccak256(abi.encode(jobId, contentHash)), uint64(block.timestamp + 14 days)
+        );
 
         emit JobDisputed(jobId, requestHash, reasonURI);
     }

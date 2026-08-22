@@ -52,7 +52,9 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
     bool public restrictValidators;
     mapping(address validator => bool) public isValidator;
 
-    mapping(bytes32 requestHash => Request) private _requests;
+    /// @dev Keyed by `keccak256(requester, requestHash)`, never by `requestHash` alone. See
+    ///      {requestKeyOf} for why.
+    mapping(bytes32 requestKey => Request) private _requests;
     mapping(uint256 agentId => bytes32[]) private _agentRequests;
     mapping(address validator => bytes32[]) private _validatorRequests;
 
@@ -100,6 +102,22 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
                                 REQUESTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice The storage key for a request, namespaced by whoever opened it.
+    /// @dev Keying purely by `requestHash` — the obvious reading of ERC-8004 — is
+    ///      front-runnable. Request hashes are derived from public data, so anyone watching a
+    ///      pending `validationRequest` can pre-register that exact hash and make the real
+    ///      request revert as a duplicate. Against an escrow that opens a dispute this is a
+    ///      denial of service with a payout: block the dispute until the review window lapses
+    ///      and the agent collects for undelivered work with its bond untouched.
+    ///
+    ///      Namespacing by opener removes the attack outright — a squatter cannot write into
+    ///      someone else's namespace — while leaving the emitted `requestHash` exactly as
+    ///      ERC-8004 describes. Validators respond with the key, which is the value the
+    ///      `ValidationRequest` event carries.
+    function requestKeyOf(address requester, bytes32 requestHash) public pure returns (bytes32) {
+        return keccak256(abi.encode(requester, requestHash));
+    }
+
     /// @inheritdoc IValidationRegistry
     /// @dev Spec-shaped entry point; defaults to a 7 day window.
     function validationRequest(
@@ -126,7 +144,8 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
         private
     {
         if (validator == address(0)) revert ZeroAddress();
-        if (_requests[requestHash].validator != address(0)) revert RequestExists(requestHash);
+        bytes32 key = requestKeyOf(msg.sender, requestHash);
+        if (_requests[key].validator != address(0)) revert RequestExists(key);
         if (restrictValidators && !isValidator[validator]) revert ValidatorNotAllowed(validator);
 
         // Reverts for an agent that does not exist.
@@ -134,32 +153,35 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
         // An agent's own holder grading its own work is not validation, it is marketing.
         if (validator == holder) revert SelfValidation(agentId, validator);
 
-        Request storage r = _requests[requestHash];
+        Request storage r = _requests[key];
         r.validator = validator;
         r.agentId = agentId;
         r.requester = msg.sender;
         r.expiry = expiry;
         r.lastUpdate = uint64(block.timestamp);
 
-        _agentRequests[agentId].push(requestHash);
-        _validatorRequests[validator].push(requestHash);
+        _agentRequests[agentId].push(key);
+        _validatorRequests[validator].push(key);
 
-        emit ValidationRequest(validator, agentId, requestURI, requestHash);
+        // The event carries the namespaced key, which is what a validator must answer with.
+        emit ValidationRequest(validator, agentId, requestURI, key);
     }
 
     /// @inheritdoc IValidationRegistry
+    /// @param requestKey The namespaced key from the `ValidationRequest` event, not the raw
+    ///        content hash. See {requestKeyOf}.
     function validationResponse(
-        bytes32 requestHash,
+        bytes32 requestKey,
         uint8 response,
         string calldata responseURI,
         bytes32 responseHash,
         string calldata tag
     ) external {
-        Request storage r = _requests[requestHash];
-        if (r.validator == address(0)) revert NoSuchRequest(requestHash);
-        if (r.validator != msg.sender) revert NotTheValidator(requestHash, msg.sender);
-        if (r.answered) revert AlreadyAnswered(requestHash);
-        if (block.timestamp > r.expiry) revert RequestExpired(requestHash, r.expiry);
+        Request storage r = _requests[requestKey];
+        if (r.validator == address(0)) revert NoSuchRequest(requestKey);
+        if (r.validator != msg.sender) revert NotTheValidator(requestKey, msg.sender);
+        if (r.answered) revert AlreadyAnswered(requestKey);
+        if (block.timestamp > r.expiry) revert RequestExpired(requestKey, r.expiry);
         if (response > 100) revert ScoreOutOfRange(response);
 
         r.response = response;
@@ -168,7 +190,7 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
         r.tag = tag;
         r.lastUpdate = uint64(block.timestamp);
 
-        emit ValidationResponse(msg.sender, r.agentId, requestHash, response, responseURI, responseHash, tag);
+        emit ValidationResponse(msg.sender, r.agentId, requestKey, response, responseURI, responseHash, tag);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -176,7 +198,7 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IValidationRegistry
-    function getValidationStatus(bytes32 requestHash)
+    function getValidationStatus(bytes32 requestKey)
         external
         view
         returns (
@@ -188,18 +210,18 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
             uint256 lastUpdate
         )
     {
-        Request storage r = _requests[requestHash];
-        if (r.validator == address(0)) revert NoSuchRequest(requestHash);
+        Request storage r = _requests[requestKey];
+        if (r.validator == address(0)) revert NoSuchRequest(requestKey);
         return (r.validator, r.agentId, r.response, r.responseHash, r.tag, r.lastUpdate);
     }
 
-    function hasPassed(bytes32 requestHash) external view returns (bool) {
-        Request storage r = _requests[requestHash];
+    function hasPassed(bytes32 requestKey) external view returns (bool) {
+        Request storage r = _requests[requestKey];
         return r.answered && r.response >= PASS_THRESHOLD;
     }
 
-    function requestOf(bytes32 requestHash) external view returns (Request memory) {
-        return _requests[requestHash];
+    function requestOf(bytes32 requestKey) external view returns (Request memory) {
+        return _requests[requestKey];
     }
 
     /// @inheritdoc IValidationRegistry

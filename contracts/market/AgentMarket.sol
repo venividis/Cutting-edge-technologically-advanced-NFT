@@ -252,13 +252,20 @@ contract AgentMarket is EIP712, Ownable2Step, ReentrancyGuardTransient {
 
         _checkIntegrity(order);
 
-        (uint256 fee, uint256 royalty) = _settlePayment(order);
-
+        // Deliver the asset BEFORE paying. Paying first hands control to the maker — via an
+        // ETH push, or an ERC-777/1363 transfer hook — at a moment when they are still
+        // `ownerOf(agentId)`, and an owner can drain the bound account, queue the entire bond
+        // for withdrawal to themselves, and wipe the brain. Every integrity check above would
+        // have passed on the pre-callback state and the fill would still succeed, so the
+        // buyer would receive a hollowed-out agent at the price of a full one. Once the token
+        // has moved, the maker is no longer a controller and none of those calls authorise.
         if (order.kind == OrderKind.Sale) {
             IERC721(address(ANIMA)).safeTransferFrom(order.maker, msg.sender, order.agentId);
         } else {
             _startRental(order);
         }
+
+        (uint256 fee, uint256 royalty) = _settlePayment(order);
 
         emit OrderFilled(orderHash, order.agentId, msg.sender, order.maker, order.kind, order.price, fee, royalty);
     }

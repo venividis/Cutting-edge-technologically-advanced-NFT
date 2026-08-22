@@ -219,14 +219,12 @@ describe("WorkEscrow — disputes", () => {
     const contentHash = keccak256(toHex("it is wrong"));
     await p.escrow.write.dispute([jobId, contentHash, "ipfs://complaint"], { account: p.bob.account });
 
-    const requestHash = keccak256(
-      encodeAbiParameters(parseAbiParameters("address, uint256, bytes32"), [
-        p.escrow.address,
-        jobId,
-        contentHash,
-      ])
+    // The registry key is namespaced by opener, which is what stops a third party squatting it.
+    const contentCommitment = keccak256(
+      encodeAbiParameters(parseAbiParameters("uint256, bytes32"), [jobId, contentHash])
     );
-    return { id, jobId, requestHash };
+    const requestHash = await p.validation.read.requestKeyOf([p.escrow.address, contentCommitment]);
+    return { id, jobId, requestHash, contentCommitment };
   }
 
   it("locks the agent into Disputed while a verdict is pending", async () => {
@@ -291,6 +289,31 @@ describe("WorkEscrow — disputes", () => {
       }),
       "AlreadyAnswered"
     );
+  });
+
+  it("cannot be blocked by a third party squatting the validation request key", async () => {
+    const p = await deployProtocol();
+    const id = await fundedAgent(p);
+    await fundClient(p, USDC(100));
+    const jobId = await offer(p, id);
+    await p.escrow.write.acceptJob([jobId], { account: p.alice.account });
+    await p.escrow.write.deliver([jobId, keccak256(toHex("junk")), ""], { account: p.alice.account });
+
+    const contentHash = keccak256(toHex("it is wrong"));
+    const contentCommitment = keccak256(
+      encodeAbiParameters(parseAbiParameters("uint256, bytes32"), [jobId, contentHash])
+    );
+
+    // The agent front-runs, pre-registering the very hash the escrow is about to use. Under a
+    // registry keyed purely by requestHash this would revert the dispute; repeated until the
+    // review window lapsed, the agent would collect for undelivered work with its bond intact.
+    await p.validation.write.validationRequestWithExpiry(
+      [p.carol.account.address, id, "", contentCommitment, BigInt(await p.networkHelpers.time.latest()) + 100000n],
+      { account: p.alice.account }
+    );
+
+    await p.escrow.write.dispute([jobId, contentHash, "ipfs://complaint"], { account: p.bob.account });
+    assert.equal(await p.anima.read.statusOf([id]), AgentStatus.Disputed);
   });
 
   it("refuses a verdict from anyone but the named validator", async () => {
