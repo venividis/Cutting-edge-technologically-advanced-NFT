@@ -1,0 +1,149 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { keccak256, toHex, parseEther } from "viem";
+import {
+  brainRoot as sdkBrainRoot,
+  workRoot as sdkWorkRoot,
+  replayAuditLog,
+  manifestHash,
+  serialiseManifest,
+  lockedDownPolicy,
+  ShardKind,
+  type AgentManifest,
+} from "../sdk/src/index.js";
+import { deployProtocol, mintAgent, shard, AgentStatus, ZERO32 } from "./helpers.js";
+
+/**
+ * The SDK is the reference implementation of ANIMA's off-chain hashing rules. If it drifts from
+ * the Solidity by one byte, every commitment the protocol makes becomes unverifiable — so the
+ * agreement is asserted here rather than assumed.
+ */
+describe("SDK — agreement with the contracts", () => {
+  it("derives the same brain root as BrainLib", async () => {
+    const p = await deployProtocol();
+    const shards = [
+      shard("weights", "lora-adapter-v3", ShardKind.Weights),
+      shard("memory", "18 months of conversations", ShardKind.Memory),
+      shard("tools", "mcp servers", ShardKind.Tools),
+    ];
+    const id = await mintAgent(p, p.alice.account.address, { shards });
+    assert.equal(await p.anima.read.brainRoot([id]), sdkBrainRoot(shards));
+  });
+
+  it("derives the same work root as InferenceMeter", async () => {
+    const p = await deployProtocol();
+    const receipts = [
+      {
+        requestHash: keccak256(toHex("what is the price of ETH")),
+        responseHash: keccak256(toHex("$4,210")),
+        modelHash: keccak256(toHex("claude-opus-5")),
+        units: 1420n,
+        attestationKind: 2,
+        attestation: keccak256(toHex("tdx-quote")),
+      },
+      {
+        requestHash: keccak256(toHex("summarise this")),
+        responseHash: keccak256(toHex("...")),
+        modelHash: keccak256(toHex("claude-opus-5")),
+        units: 8300n,
+        attestationKind: 0,
+        attestation: ZERO32,
+      },
+    ];
+    assert.equal(await p.meter.read.workRootOf([receipts]), sdkWorkRoot(receipts));
+  });
+
+  it("replays an agent's audit log to the exact on-chain root", async () => {
+    const p = await deployProtocol();
+    const id = await mintAgent(p, p.alice.account.address);
+    await p.anima.write.deployAccount([id]);
+    const accountAddress = await p.anima.read.accountOf([id]);
+    const account = await p.viem.getContractAt("AgentAccount", accountAddress);
+
+    await p.anima.write.setPolicy(
+      [id, { ...lockedDownPolicy(), perTxWei: parseEther("1"), dailyWei: parseEther("5"), allowUnlistedTargets: true }],
+      { account: p.alice.account }
+    );
+    await p.anima.write.setStatus([id, AgentStatus.Active], { account: p.alice.account });
+    await account.write.grantSession([p.carol.account.address, 0n, 2n ** 63n, parseEther("5")], {
+      account: p.alice.account,
+    });
+    await p.alice.sendTransaction({ to: accountAddress, value: parseEther("3") });
+
+    // Three calls the agent made while its previous owner held it.
+    for (const value of [parseEther("0.1"), parseEther("0.2"), parseEther("0.3")]) {
+      await account.write.execute([p.bob.account.address, value, "0x", 0], { account: p.carol.account });
+    }
+
+    const logs = await p.publicClient.getContractEvents({
+      address: accountAddress,
+      abi: account.abi,
+      eventName: "AuditEntry",
+      fromBlock: 0n,
+    });
+    assert.equal(logs.length, 3);
+
+    const entries = [];
+    for (const log of logs) {
+      const block = await p.publicClient.getBlock({ blockNumber: log.blockNumber });
+      const a = log.args as Record<string, unknown>;
+      entries.push({
+        signer: a.signer as `0x${string}`,
+        to: a.to as `0x${string}`,
+        value: a.value as bigint,
+        selector: a.selector as `0x${string}`,
+        dataHash: a.dataHash as `0x${string}`,
+        operation: 0,
+        state: a.state as bigint,
+        timestamp: block.timestamp,
+      });
+    }
+
+    const replayed = replayAuditLog(accountAddress, BigInt(await p.publicClient.getChainId()), entries);
+    assert.equal(
+      replayed,
+      await account.read.auditRoot(),
+      "a buyer must be able to verify the history they were handed"
+    );
+
+    // Drop the middle entry, as a seller hiding something would: the chain must not close.
+    const pruned = replayAuditLog(accountAddress, BigInt(await p.publicClient.getChainId()), [
+      entries[0],
+      entries[2],
+    ]);
+    assert.notEqual(pruned, await account.read.auditRoot());
+  });
+
+  it("produces a manifest hash the contract accepts", async () => {
+    const p = await deployProtocol();
+    const manifest: AgentManifest = {
+      name: "Atlas",
+      description: "A research agent",
+      version: "1.0.0",
+      skills: [{ id: "research", name: "Research", description: "Finds and synthesises sources" }],
+      anima: {
+        registry: `eip155:${await p.publicClient.getChainId()}:${p.anima.address}`,
+        agentId: "1",
+        mcp: [{ name: "search", url: "https://atlas.example/mcp", transport: "http" }],
+        model: { modelId: "anthropic/claude-opus-5", weightsRoot: ZERO32, attestationKind: 1 },
+      },
+    };
+
+    const id = await mintAgent(p, p.alice.account.address);
+    await p.anima.write.setManifest([id, "https://atlas.example/card.json", manifestHash(manifest)], {
+      account: p.alice.account,
+    });
+
+    const served = serialiseManifest(manifest);
+    assert.equal(await p.anima.read.verifyManifest([id, toHex(served)]), true);
+
+    // Key order must not matter to the producer, because canonicalisation sorts.
+    const reordered: AgentManifest = { ...manifest, description: manifest.description };
+    assert.equal(manifestHash(reordered), manifestHash(manifest));
+
+    // But a changed endpoint must not validate.
+    const swapped = structuredClone(manifest);
+    swapped.anima.mcp![0].url = "https://evil.example/mcp";
+    assert.equal(await p.anima.read.verifyManifest([id, toHex(serialiseManifest(swapped))]), false);
+  });
+});

@@ -1,0 +1,9 @@
+{
+  "name": "@anima/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Typed helpers and reference hashing rules for the ANIMA agent token protocol",
+  "main": "src/index.ts",
+  "peerDependencies": { "viem": "^2.55.0" },
+  "license": "MIT"
+}
