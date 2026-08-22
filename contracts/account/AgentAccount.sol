@@ -94,6 +94,14 @@ contract AgentAccount is
     uint64 private _spendDay;
     uint128 private _spentToday;
 
+    /// @notice Head of a hash chain over every call this account has ever executed.
+    /// @dev Provenance is the thing a second-hand agent is missing. A buyer can be handed
+    ///      the full emitted `AuditEntry` log, replay the chain off-line, and check it ends
+    ///      exactly here — so a seller cannot prune the embarrassing entries, splice in
+    ///      flattering ones, or reorder history. One warm SSTORE per call buys a verifiable
+    ///      operating record, which is worth considerably more than the gas.
+    bytes32 public auditRoot;
+
     /*//////////////////////////////////////////////////////////////
                              EVENTS / ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -102,6 +110,16 @@ contract AgentAccount is
     event SessionRevoked(address indexed signer);
     event CallAllowed(address indexed target, bytes4 indexed selector, bool allowed);
     event Executed(address indexed signer, address indexed to, uint256 value, bytes4 selector, uint8 operation);
+    event AuditEntry(
+        bytes32 indexed root,
+        bytes32 previousRoot,
+        address indexed signer,
+        address indexed to,
+        uint256 value,
+        bytes4 selector,
+        bytes32 dataHash,
+        uint256 state
+    );
 
     error NotAuthorized(address caller);
     error NotEntryPoint(address caller);
@@ -285,7 +303,24 @@ contract AgentAccount is
                 revert(add(result, 0x20), mload(result))
             }
         }
-        emit Executed(signer, to, value, data.length >= 4 ? bytes4(data[:4]) : bytes4(0), operation);
+        bytes4 sel = data.length >= 4 ? bytes4(data[:4]) : bytes4(0);
+        _audit(signer, to, value, sel, keccak256(data), operation);
+        emit Executed(signer, to, value, sel, operation);
+    }
+
+    /// @dev Chains chainId and this address into every link so a record from one deployment
+    ///      can never be replayed as evidence about another.
+    function _audit(address signer, address to, uint256 value, bytes4 selector, bytes32 dataHash, uint8 operation)
+        private
+    {
+        bytes32 previous = auditRoot;
+        bytes32 next = keccak256(
+            abi.encode(
+                previous, block.chainid, address(this), signer, to, value, selector, dataHash, operation, _state, block.timestamp
+            )
+        );
+        auditRoot = next;
+        emit AuditEntry(next, previous, signer, to, value, selector, dataHash, _state);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -517,7 +552,9 @@ contract AgentAccount is
                 revert(add(result, 0x20), mload(result))
             }
         }
-        emit Executed(signer, to, value, _selectorOf(data), operation);
+        bytes4 sel = _selectorOf(data);
+        _audit(signer, to, value, sel, keccak256(data), operation);
+        emit Executed(signer, to, value, sel, operation);
     }
 
     function _selectorOf(bytes memory data) private pure returns (bytes4 sel) {

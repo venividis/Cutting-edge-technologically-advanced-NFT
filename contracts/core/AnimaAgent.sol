@@ -12,10 +12,11 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 
 import {IAnima, AgentStatus, SealPolicy, BrainShard, ModelIdentity, AutonomyPolicy} from "../interfaces/IAnima.sol";
 import {IIdentityRegistry, MetadataEntry} from "../interfaces/IERC8004.sol";
-import {IERC4907, IERC5192} from "../interfaces/IRentable.sol";
+import {IERC4907, IERC5192, IERC6454, IERC7572} from "../interfaces/IRentable.sol";
 import {IERC6551Registry} from "../interfaces/IERC6551.sol";
 import {ITransferVerifier, ReKeyRequest} from "../interfaces/ITransferVerifier.sol";
 import {BrainLib} from "../libraries/BrainLib.sol";
+import {EncryptionKeyRegistry} from "./EncryptionKeyRegistry.sol";
 
 /**
  * @title AnimaAgent — Sovereign Agent Token
@@ -49,6 +50,8 @@ contract AnimaAgent is
     IIdentityRegistry,
     IERC4907,
     IERC5192,
+    IERC6454,
+    IERC7572,
     IERC4906,
     ERC721,
     ERC2981,
@@ -88,6 +91,9 @@ contract AnimaAgent is
     bytes4 private constant _INTERFACE_ID_ERC4906 = 0x49064906;
     bytes4 private constant _INTERFACE_ID_ERC4907 = 0xad092b5c;
     bytes4 private constant _INTERFACE_ID_ERC5192 = 0xb45a3c0e;
+    bytes4 private constant _INTERFACE_ID_ERC6454 = 0x91a6262f;
+    /// @dev ERC-7572 publishes no interfaceId; this is the community-computed value.
+    bytes4 private constant _INTERFACE_ID_ERC7572 = 0xe8a3d485;
 
     /*//////////////////////////////////////////////////////////////
                                  STORAGE
@@ -97,6 +103,10 @@ contract AnimaAgent is
     IERC6551Registry public immutable REGISTRY;
     address public immutable ACCOUNT_IMPLEMENTATION;
     bytes32 public immutable ACCOUNT_SALT;
+
+    /// @notice Chain-wide registry of recipients' encryption keys. Shared across every
+    ///         ANIMA collection so a user publishes a key once, not once per contract.
+    EncryptionKeyRegistry public immutable KEY_REGISTRY;
 
     ITransferVerifier public verifier;
 
@@ -116,7 +126,7 @@ contract AnimaAgent is
     ///      instead of leaving dangling authorisations nobody can enumerate.
     mapping(uint256 agentId => mapping(uint64 epoch => mapping(address => bool))) private _operator;
 
-    mapping(address account => bytes) private _encryptionKey;
+    string private _contractURI;
 
     /// @notice Protocol modules (escrow, marketplace, bridge) permitted to lock agents and
     ///         move them into `Disputed`. A small, explicit allowlist — never open-ended.
@@ -148,10 +158,13 @@ contract AnimaAgent is
         address accountImplementation_,
         bytes32 accountSalt_,
         ITransferVerifier verifier_,
+        EncryptionKeyRegistry keyRegistry_,
         address royaltyReceiver_,
         uint96 royaltyBps_
     ) ERC721(name_, symbol_) EIP712("AnimaAgent", "1") Ownable(owner_) {
         if (address(registry_) == address(0) || accountImplementation_ == address(0)) revert ZeroAddress();
+        if (address(keyRegistry_) == address(0)) revert ZeroAddress();
+        KEY_REGISTRY = keyRegistry_;
         REGISTRY = registry_;
         ACCOUNT_IMPLEMENTATION = accountImplementation_;
         ACCOUNT_SALT = accountSalt_;
@@ -213,35 +226,43 @@ contract AnimaAgent is
         MetadataEntry[] calldata metadata
     ) external returns (uint256 agentId) {
         agentId = _mintAgent(to, agentURI_, manifestHash, model, shards, seal);
-        for (uint256 i; i < metadata.length; ++i) {
-            _setMetadata(agentId, metadata[i].metadataKey, metadata[i].metadataValue);
-        }
+        _applyMetadata(agentId, metadata);
     }
 
     /// @inheritdoc IIdentityRegistry
     function register(string calldata agentURI_, MetadataEntry[] calldata metadata) external returns (uint256 agentId) {
-        agentId = _mintAgent(msg.sender, agentURI_, bytes32(0), _blankModel(), _noShards(), SealPolicy.None);
-        for (uint256 i; i < metadata.length; ++i) {
-            _setMetadata(agentId, metadata[i].metadataKey, metadata[i].metadataValue);
-        }
+        agentId = _registerBare(agentURI_);
+        _applyMetadata(agentId, metadata);
     }
 
     /// @inheritdoc IIdentityRegistry
     function register(string calldata agentURI_) external returns (uint256) {
-        return _mintAgent(msg.sender, agentURI_, bytes32(0), _blankModel(), _noShards(), SealPolicy.None);
+        return _registerBare(agentURI_);
     }
 
     /// @inheritdoc IIdentityRegistry
     function register() external returns (uint256) {
-        return _mintAgent(msg.sender, "", bytes32(0), _blankModel(), _noShards(), SealPolicy.None);
+        return _registerBare("");
     }
 
-    function _blankModel() private pure returns (ModelIdentity memory) {
-        return ModelIdentity({weightsRoot: bytes32(0), runtimeMeasurement: bytes32(0), attestationKind: 0, modelId: ""});
+    /// @dev The ERC-8004 compatibility path: a bare identity with no brain, model or
+    ///      manifest commitment. Everything those overloads omit can be filled in later by
+    ///      the owner, so the shim costs nothing but also promises nothing.
+    function _registerBare(string memory agentURI_) private returns (uint256) {
+        return _mintAgent(
+            msg.sender,
+            agentURI_,
+            bytes32(0),
+            ModelIdentity({weightsRoot: bytes32(0), runtimeMeasurement: bytes32(0), attestationKind: 0, modelId: ""}),
+            new BrainShard[](0),
+            SealPolicy.None
+        );
     }
 
-    function _noShards() private pure returns (BrainShard[] memory) {
-        return new BrainShard[](0);
+    function _applyMetadata(uint256 agentId, MetadataEntry[] calldata metadata) private {
+        for (uint256 i; i < metadata.length; ++i) {
+            _setMetadata(agentId, metadata[i].metadataKey, metadata[i].metadataValue);
+        }
     }
 
     function _mintAgent(
@@ -362,25 +383,9 @@ contract AnimaAgent is
         return _model[agentId];
     }
 
-    /*//////////////////////////////////////////////////////////////
-                             ENCRYPTION KEYS
-    //////////////////////////////////////////////////////////////*/
-
     /// @inheritdoc IAnima
-    function setEncryptionKey(bytes calldata publicKey) external {
-        _encryptionKey[msg.sender] = publicKey;
-        emit EncryptionKeyRegistered(msg.sender, publicKey.length == 0 ? bytes32(0) : keccak256(publicKey));
-    }
-
-    /// @inheritdoc IAnima
-    function encryptionKeyOf(address account) external view returns (bytes memory) {
-        return _encryptionKey[account];
-    }
-
-    /// @inheritdoc IAnima
-    function encryptionKeyIdOf(address account) public view returns (bytes32) {
-        bytes memory k = _encryptionKey[account];
-        return k.length == 0 ? bytes32(0) : keccak256(k);
+    function keyRegistry() external view returns (address) {
+        return address(KEY_REGISTRY);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -425,7 +430,7 @@ contract AnimaAgent is
         // clobber each other, which is how an agent quietly forgets what it just learned.
         if (c.brainEpoch != expectedEpoch) revert BrainEpochMismatch(expectedEpoch, c.brainEpoch);
 
-        bytes32 root = BrainLib.rootOfCalldata(shards);
+        bytes32 root = BrainLib.rootOf(shards);
         _writeShards(agentId, shards);
         c.brainRoot = root;
         unchecked {
@@ -451,11 +456,11 @@ contract AnimaAgent is
         if (holder != from) revert NotOwnerOf(agentId, from);
         if (!_isAuthorized(holder, msg.sender, agentId)) revert NotOwnerOf(agentId, msg.sender);
 
-        bytes32 recipientKeyId = encryptionKeyIdOf(to);
+        bytes32 recipientKeyId = KEY_REGISTRY.keyIdOf(to);
         if (recipientKeyId == bytes32(0)) revert NoEncryptionKey(to);
 
         AgentCore storage c = _core[agentId];
-        bytes32 newRoot = BrainLib.rootOfCalldata(newShards);
+        bytes32 newRoot = BrainLib.rootOf(newShards);
 
         ITransferVerifier v = verifier;
         bool ok = v.verifyReKey(
@@ -489,6 +494,9 @@ contract AnimaAgent is
         _safeTransfer(from, to, agentId, "");
     }
 
+    /// @dev Single `memory` implementation shared by mint, update and sealed transfer.
+    ///      Duplicating it per data location is what pushed this contract over the size
+    ///      limit; the one-time calldata copy at the call boundary is the cheaper trade.
     function _writeShards(uint256 agentId, BrainShard[] memory shards) private {
         BrainShard[] storage s = _shards[agentId];
         uint256 n = shards.length;
@@ -664,6 +672,16 @@ contract AnimaAgent is
         return c.lockCount != 0 || c.status == AgentStatus.Disputed;
     }
 
+    /// @inheritdoc IERC6454
+    /// @dev The precise counterpart to `locked`: same rule, but phrased as the question a
+    ///      marketplace asks before offering a fill it would otherwise watch revert.
+    function isTransferable(uint256 tokenId, address from, address to) external view returns (bool) {
+        if (_ownerOf(tokenId) == address(0)) return false;
+        if (from == address(0)) return true; // minting is always permitted
+        to; // a burn is gated by exactly the same condition as a transfer
+        return !locked(tokenId);
+    }
+
     /// @notice Increment an agent's lock count. Module-only.
     function lockAgent(uint256 agentId) external onlyModule {
         _requireOwned(agentId);
@@ -747,6 +765,27 @@ contract AnimaAgent is
         emit ModuleSet(module, allowed);
     }
 
+    /// @inheritdoc IERC7572
+    function contractURI() external view returns (string memory) {
+        return _contractURI;
+    }
+
+    function setContractURI(string calldata newURI) external onlyOwner {
+        _contractURI = newURI;
+        emit ContractURIUpdated();
+    }
+
+    /// @dev A declaration, not an entitlement. ERC-2981's own abstract says payment "must be
+    ///      voluntary", and by 2026 that is the observed reality: OpenSea made royalties
+    ///      optional when the Operator Filter sunset (2023-08-31 for new collections,
+    ///      2024-02-29 for existing), Blur enforces only a 0.5% floor on immutable
+    ///      contracts, and only ERC-721C collections see enforcement on Magic Eden — at the
+    ///      cost of being untradeable on Blur and most aggregators.
+    ///
+    ///      ANIMA therefore does not fight the secondary-market royalty war. It captures
+    ///      value where it actually controls the chokepoint: escrow settlement fees,
+    ///      launchpad fees, and per-call metering. This hook exists so marketplaces that do
+    ///      pay have somewhere to send it, and for no stronger promise than that.
     function setDefaultRoyalty(address receiver, uint96 feeNumerator) external onlyOwner {
         _setDefaultRoyalty(receiver, feeNumerator);
     }
@@ -766,6 +805,7 @@ contract AnimaAgent is
     function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981, IERC165) returns (bool) {
         return interfaceId == type(IAnima).interfaceId || interfaceId == type(IIdentityRegistry).interfaceId
             || interfaceId == _INTERFACE_ID_ERC4906 || interfaceId == _INTERFACE_ID_ERC4907
-            || interfaceId == _INTERFACE_ID_ERC5192 || super.supportsInterface(interfaceId);
+            || interfaceId == _INTERFACE_ID_ERC5192 || interfaceId == _INTERFACE_ID_ERC6454
+            || interfaceId == _INTERFACE_ID_ERC7572 || super.supportsInterface(interfaceId);
     }
 }

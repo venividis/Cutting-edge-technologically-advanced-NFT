@@ -138,7 +138,6 @@ interface IAnima {
     event StatusChanged(uint256 indexed agentId, AgentStatus previous, AgentStatus current);
     event WalletBound(uint256 indexed agentId, address indexed wallet);
     event GuardianSet(uint256 indexed agentId, address indexed guardian);
-    event EncryptionKeyRegistered(address indexed account, bytes32 indexed keyId);
     event OperatorSet(uint256 indexed agentId, address indexed operator, bool allowed);
 
     /*//////////////////////////////////////////////////////////////
@@ -234,17 +233,11 @@ interface IAnima {
         bytes calldata proof
     ) external;
 
-    /// @notice Publish the public key that sealed content keys should be encrypted to.
-    /// @dev Sealing to a *blockchain* address is not possible in general — an address is a
-    ///      hash, and smart-account owners have no recoverable encryption key at all. So a
-    ///      buyer of a sealed agent must publish an encryption key first. Making this a
-    ///      precondition rather than an afterthought is what stops the common failure where
-    ///      an "encrypted" NFT is sold to someone who can never decrypt it.
-    function setEncryptionKey(bytes calldata publicKey) external;
-
-    function encryptionKeyOf(address account) external view returns (bytes memory);
-
-    function encryptionKeyIdOf(address account) external view returns (bytes32);
+    /// @notice The {EncryptionKeyRegistry} this collection seals to. A buyer of a sealed
+    ///         agent must have published a key there before the transfer can be proven,
+    ///         which is what stops the common failure where an "encrypted" NFT is sold to
+    ///         someone who can never decrypt it.
+    function keyRegistry() external view returns (address);
 
     /*//////////////////////////////////////////////////////////////
                               WALLET & AUTONOMY

@@ -15,6 +15,11 @@ import {BrainShard} from "../interfaces/IAnima.sol";
  *
  *      Order is significant, so re-ordering shards is a state change and produces a new
  *      root. That is deliberate: shard index is part of an agent's addressing scheme.
+ *
+ *      Every entry point takes `memory` rather than `calldata`. Solidity compiles a separate
+ *      copy of a loop for each data location, and three shard-writing call sites times two
+ *      locations was enough duplicated bytecode to push the token past the 24,576-byte
+ *      limit. Callers pass calldata arrays and the compiler converts once at the boundary.
  */
 library BrainLib {
     /// @dev Domain separator so a shard leaf can never collide with another struct's hash.
@@ -36,14 +41,8 @@ library BrainLib {
         }
     }
 
-    function rootOfCalldata(BrainShard[] calldata shards) internal pure returns (bytes32 root) {
-        root = keccak256(abi.encode(ROOT_TAG, shards.length));
-        for (uint256 i; i < shards.length; ++i) {
-            root = keccak256(abi.encode(root, leafOf(shards[i])));
-        }
-    }
-
     function hashSealedKeys(bytes[] calldata sealedKeys) internal pure returns (bytes32) {
         return keccak256(abi.encode(sealedKeys));
     }
+
 }
