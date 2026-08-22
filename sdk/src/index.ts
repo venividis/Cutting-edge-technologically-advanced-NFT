@@ -94,7 +94,58 @@ export interface AgentManifest {
     pricing?: { unit: string; amount: string; token: Address; meter?: Address };
     /** Declared model, matching the on-chain ModelIdentity. */
     model?: { modelId: string; weightsRoot: Hex; attestationKind: number };
+
+    /**
+     * Peer-to-peer mesh presence. A Sovereign Agent Mesh control plane binds a libp2p peer id
+     * to an OIDC subject; publishing the same peer id here, and attesting it in
+     * {@link AgentHandles} as `HandleKind.MeshPeer`, gives a second and permissionless way to
+     * check it — the mesh can trust the chain instead of an identity provider.
+     */
+    mesh?: { network: "sam" | "libp2p" | string; peerId: string; bootstrap?: string[] };
+
+    /**
+     * Off-chain identities this agent claims, each of which SHOULD have a corresponding
+     * attestation in the on-chain handle registry. An inbox is the load-bearing one: most of
+     * the web gates signup on receiving a code at an address.
+     */
+    handles?: Array<{ kind: HandleKindName; value: string; registry?: Address }>;
+
+    /** Derivatives the agent is permitted to trade, mirroring its on-chain desk limits. */
+    markets?: Array<{ market: string; venue: Address; maxLeverageX100: number }>;
   };
+}
+
+export type HandleKindName =
+  | "email"
+  | "domain"
+  | "did"
+  | "ens"
+  | "social"
+  | "meshPeer"
+  | "phone"
+  | "apiKeyId";
+
+/** Matches `AgentHandles.HandleKind`. */
+export const HandleKind: Record<HandleKindName, number> = {
+  email: 0,
+  domain: 1,
+  did: 2,
+  ens: 3,
+  social: 4,
+  meshPeer: 5,
+  phone: 6,
+  apiKeyId: 7,
+};
+
+/**
+ * Reproduces `AgentHandles.handleKey`.
+ *
+ * Normalise before calling: lowercase, punycode-decoded, no display name. The registry hashes
+ * the string verbatim, so two spellings of the same address are two different handles and the
+ * one-agent-per-handle guarantee would not bind.
+ */
+export function handleKey(kind: HandleKindName, value: string): Hex {
+  return keccak256(encodeAbiParameters(parseAbiParameters("uint8, string"), [HandleKind[kind], value]));
 }
 
 /**

@@ -53,12 +53,24 @@ Each is enforced in code and covered by a test.
 26. **Swap output is verified by balance delta**, never by the venue's return value.
 27. **Approvals are zeroed in the same transaction** they are granted.
 
+### Derivatives and identity
+
+28. **Leverage is derived from measured collateral and adapter-reported notional**, so an agent
+    cannot understate it by understating either half.
+29. **A position with notional and no measured collateral is refused**, not treated as infinite
+    leverage or divided by zero.
+30. **Unconsumed collateral returns to the agent in the same transaction**; the desk never holds
+    a balance between trades.
+31. **A handle binds to exactly one agent at a time**, and verification goes stale the moment the
+    agent changes hands.
+32. **Handle verifiers are authorised per kind** — an inbox provider cannot certify DNS.
+
 ### Cross-chain
 
-28. **Inbound messages require both** `msg.sender == endpoint` **and** a registered peer match.
+33. **Inbound messages require both** `msg.sender == endpoint` **and** a registered peer match.
     A zero peer is never trusted, so an unconfigured route fails closed.
-29. **Only an agent this contract sent out may return, and only from the chain it went to.**
-30. **A busy agent cannot bridge.**
+34. **Only an agent this contract sent out may return, and only from the chain it went to.**
+35. **A busy agent cannot bridge.**
 
 ## Attack classes considered
 
@@ -71,6 +83,8 @@ Each is enforced in code and covered by a test.
 | Ownership cycles | `owner()` returns zero when the account holds its own token |
 | Launchpad sniping | fair window with a per-address cap — raises a sniper's cost, does not defeat a funded sybil |
 | Bridge payload forgery | endpoint + peer authentication; `awayOn` bookkeeping rejects a return for an agent that never left |
+| Leveraged exposure escaping a spot budget | separate notional and leverage caps, verified against the venue after the trade |
+| Agent identity squatting | one handle, one agent; per-kind verifiers; attestations stale on transfer |
 | Reputation sybil | attested feedback requires a settled escrow and is weighted by value at stake |
 | Escrow griefing (either side) | timers with default winners in both directions |
 | Agent impersonation | `AgentComms` verifies control of `fromAgentId`; allowlists key on agent id, not address |

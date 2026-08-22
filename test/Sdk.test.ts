@@ -8,6 +8,7 @@ import {
   manifestHash,
   serialiseManifest,
   lockedDownPolicy,
+  handleKey as sdkHandleKey,
   ShardKind,
   type AgentManifest,
 } from "../sdk/src/index.js";
@@ -145,5 +146,24 @@ describe("SDK — agreement with the contracts", () => {
     const swapped = structuredClone(manifest);
     swapped.anima.mcp![0].url = "https://evil.example/mcp";
     assert.equal(await p.anima.read.verifyManifest([id, toHex(serialiseManifest(swapped))]), false);
+  });
+});
+
+describe("SDK — handle keys", () => {
+  it("derives the same handle key as AgentHandles", async () => {
+    const p = await deployProtocol();
+    const handles = await p.viem.deployContract("AgentHandles", [
+      p.anima.address,
+      p.deployer.account.address,
+    ]);
+    for (const [name, kind] of [
+      ["email", 0],
+      ["meshPeer", 5],
+    ] as const) {
+      assert.equal(
+        await handles.read.handleKey([kind, "atlas.agents.example"]),
+        sdkHandleKey(name, "atlas.agents.example")
+      );
+    }
   });
 });

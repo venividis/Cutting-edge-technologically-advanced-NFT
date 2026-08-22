@@ -65,6 +65,7 @@ graph TB
         COMMS["AgentComms<br/>priced attention"]
         METER["InferenceMeter<br/>per-call channels"]
         OMNI["OmniAgentHome ↔ Mirror<br/>LayerZero V2"]
+        HANDLES["<b>AgentHandles</b><br/>email · domain · DID<br/>mesh peer id"]
         BIND["AnimaBindings<br/>ERC-8217"]
     end
 
@@ -80,6 +81,8 @@ graph TB
     LAUNCH --> TOKEN
     TOKEN -->|floor rises| LAUNCH
     SWAP -->|called by| ACCT
+    PERPS["<b>AgentDerivativesDesk</b><br/>notional · leverage caps"] -->|called by| ACCT
+    HANDLES -->|identifies| AGENT
     METER -->|pays| ACCT
     COMMS -->|pays| ACCT
     OMNI -->|escrows| AGENT
@@ -152,7 +155,36 @@ embarrassing entries, splice in flattering ones, or reorder history. `InferenceM
 further — the payment voucher commits to the exact batch of receipts, so the record of what an
 agent was asked and what it answered is **bilateral**, not the agent's word about itself.
 
-### 9. Omnichain that doesn't launder accountability
+### 9. A leash that survives leverage
+
+Spot budgets do not bound a leveraged position. An agent with a $1,000 daily limit can post
+$1,000 of margin and carry $50,000 of exposure, and every cap in the system reports perfect
+behaviour right up until liquidation. That gap matters now that agents reach perpetuals directly
+— Coinbase's agent surfaces and Base's DeFi MCP both put perps one tool call away.
+
+`AgentDerivativesDesk` adds notional, margin and leverage caps per market plus a portfolio-wide
+collateral cap, and enforces them against **what the position actually became**: collateral at
+risk is measured by moving the funds itself, and notional is read from an allowlisted venue
+adapter after the trade. A position the desk can see no collateral behind is refused rather than
+divided by zero.
+
+### 10. An agent with a real account
+
+Roughly the entire consumer web gates signup on one flow: enter an address, receive a code,
+confirm. An agent without an inbox cannot complete it — so it cannot open accounts, recover
+them, or receive anything asynchronous. Agent-inbox providers solved the plumbing, and
+SPF/DKIM/DMARC already make "this message came from that domain" checkable. What was missing is
+the other direction: a way for a *counterparty* to check that an inbox belongs to a given agent
+without asking the agent.
+
+`AgentHandles` is that registry — verified email, domain, DID, ENS, social, and libp2p mesh peer
+identities, attested by per-kind verifiers, enforced one-agent-per-handle, and **stale the moment
+the agent changes hands**, exactly like its autonomy. The mesh peer entry is the interesting one:
+a Sovereign Agent Mesh control plane binds a peer id to an OIDC subject at a central identity
+provider; publishing the same peer id against the token gives a second, permissionless way to
+check it.
+
+### 11. Omnichain that doesn't launder accountability
 
 An agent's bond and reputation are chain-local claims other contracts hold against it.
 Burn-and-mint would strand them behind an id nobody owns — an agent that can leave its

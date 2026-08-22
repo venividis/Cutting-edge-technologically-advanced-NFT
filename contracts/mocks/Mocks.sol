@@ -5,6 +5,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ILiquidityDeployer} from "../market/ILiquidityDeployer.sol";
+import {IPerpVenueAdapter} from "../market/AgentDerivativesDesk.sol";
 
 contract MockERC20 is ERC20 {
     uint8 private immutable _decimals;
@@ -78,5 +79,49 @@ contract MockLiquidityDeployer is ILiquidityDeployer {
 contract RevertingReceiver {
     receive() external payable {
         revert("no");
+    }
+}
+
+/// @notice A perpetuals venue that lets a test dial the resulting position size, for exercising
+///         {AgentDerivativesDesk}'s adapter-verified caps.
+contract MockPerpVenue is IPerpVenueAdapter {
+    using SafeERC20 for IERC20;
+
+    IERC20 public immutable QUOTE;
+    /// @dev How much notional one unit of consumed margin buys. 1000 = 10x.
+    uint256 public leverageX100 = 1000;
+    uint256 public marginToConsumeBps = 10_000; // consume the whole deposit by default
+
+    mapping(address account => mapping(bytes32 market => uint256)) public notional;
+
+    constructor(IERC20 quote_) {
+        QUOTE = quote_;
+    }
+
+    function setLeverageX100(uint256 x) external {
+        leverageX100 = x;
+    }
+
+    function setMarginToConsumeBps(uint256 bps) external {
+        marginToConsumeBps = bps;
+    }
+
+    /// @dev Notional is derived from the requested size, not from what the venue actually
+    ///      charged, which is how a real cross-margined venue behaves — and lets a test set
+    ///      `marginToConsumeBps` to zero to model a position the desk can see no collateral
+    ///      behind.
+    function open(address account, bytes32 market, uint256 margin) external {
+        uint256 take = (margin * marginToConsumeBps) / 10_000;
+        if (take != 0) QUOTE.safeTransferFrom(msg.sender, address(this), take);
+        notional[account][market] += (margin * leverageX100) / 100;
+    }
+
+    function close(address account, bytes32 market, uint256 marginBack) external {
+        notional[account][market] = 0;
+        QUOTE.safeTransfer(msg.sender, marginBack);
+    }
+
+    function positionNotional(address account, bytes32 market) external view returns (uint256) {
+        return notional[account][market];
     }
 }

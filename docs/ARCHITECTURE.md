@@ -87,6 +87,16 @@ the unsold supply into an `ILiquidityDeployer`; that seam is abstract because Un
 Balancer and every L2 fork want different call shapes, and hard-coding one would date the contract
 the moment the venue changed.
 
+`AgentDerivativesDesk` covers the axis spot budgets cannot: leverage. It caps notional, margin at
+risk and leverage per market plus collateral across the whole portfolio, and checks all of it
+against what the venue reports after the trade rather than what the agent declared before it. Of
+the three quantities it tracks, only the adapter's notional is trusted — collateral at risk is
+arithmetic on funds the desk moved itself.
+
+`AgentHandles` binds verified off-chain identities to an agent: an inbox (the one that unlocks
+signup flows across the web), a DNS domain, a DID, an ENS name, a social account, a libp2p mesh
+peer id. Attestations are per-kind, one-agent-per-handle, and go stale on transfer.
+
 `AgentSwapRouter` is the only door an agent should be allowed to trade through. Allowlist *it* in
 the `AutonomyPolicy`, set per-token budgets, and the agent's reach is genuinely bounded rather than
 nominally bounded.
