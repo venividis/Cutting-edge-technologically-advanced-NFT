@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -287,10 +288,20 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
         _fileFeedback(jobId, j, rating, ratingDecimals, tag, feedbackURI, feedbackHash);
     }
 
-    /// @dev Feedback is a side effect of settlement, never a precondition for it. If the
-    ///      registry rejects the write — a self-hire, a registry swapped out from under us,
-    ///      anything — the money still moves. An escrow that can be bricked by its own
-    ///      reputation hook is worse than one with no reputation hook.
+    /// @dev Filing feedback is deliberately NOT wrapped in try/catch.
+    ///
+    ///      An earlier version was, on the reasoning that an optional side effect should
+    ///      never brick a settlement. That is sound in principle and wrong in practice:
+    ///      `eth_estimateGas` binary-searches for the *cheapest* gas at which the call
+    ///      succeeds, and with a swallowing catch the cheapest success is the one where the
+    ///      inner call runs out of gas and the feedback is skipped. Every wallet-estimated
+    ///      settlement would silently lose its reputation record, and nothing would look
+    ///      wrong. A test caught it; a production deployment might not have.
+    ///
+    ///      Instead the one condition the registry actually rejects — the agent's own holder
+    ///      posing as its customer — is checked here, explicitly. Anything else reverting is
+    ///      a misconfiguration that deserves to be loud, and even then no money is trapped:
+    ///      `claimUnreviewed` settles the same job without touching the registry.
     function _fileFeedbackSafely(
         uint256 agentId,
         address client,
@@ -302,11 +313,13 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
         uint128 weight,
         bytes32 jobRef
     ) private {
-        try REPUTATION.giveAttestedFeedback(
-            agentId, client, rating, ratingDecimals, tag, "", "", feedbackURI, feedbackHash, weight, jobRef
-        ) {} catch {
+        if (client == IERC721(address(ANIMA)).ownerOf(agentId)) {
             emit FeedbackSkipped(uint256(jobRef), agentId);
+            return;
         }
+        REPUTATION.giveAttestedFeedback(
+            agentId, client, rating, ratingDecimals, tag, "", "", feedbackURI, feedbackHash, weight, jobRef
+        );
     }
 
     /// @notice Settle in the agent's favour once the review window lapses with no response.
