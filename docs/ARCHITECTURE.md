@@ -158,6 +158,41 @@ ERC-8004 as its agent registration schema outright — its `AgentIdentity` plugi
 ERC-8004 registration JSON. Conforming to ERC-8004 rather than competing with it is what makes
 an agent legible outside EVM at all.
 
+## Final standards a research pass caught late
+
+Four were missing and each closed a real hole:
+
+- **ERC-5646 Token State Fingerprint** (Final, 2022) — `getStateFingerprint`, interfaceId
+  `0xf5112315`. The marketplace pins account state, brain root and coverage individually because
+  those are the three a buyer is most often cheated on; this is the general and standardised
+  form. It strictly dominates the ERC-6551 `state()` nonce, which sees only the bound account and
+  says nothing about the agent's memory, model, status, guardian, lease or policy.
+- **ERC-6492 Signature Validation for Predeploy Contracts** (Final, 2023). ANIMA needs this more
+  than most protocols: counterfactual accounts are not an edge case here, they are the design. An
+  ERC-6551 account has an address from the moment its token exists and is usually deployed lazily,
+  so a maker signing as their agent's own wallet could not list it at all — a `staticcall` to a
+  codeless address succeeds with no data, which reads as "invalid signature".
+- **Bridge rate limiting.** Neither ONFT721 nor HypERC721 has one, which is the difference between
+  a compromised DVN set costing one agent and costing all of them. `AnimaOApp` caps inbound
+  messages per source chain; a throttled message stays retryable, so the cap converts a drain into
+  a delay someone can notice. Off by default, so a deployment picks a number rather than inheriting
+  one.
+- **ERC-7007 Verifiable AI-Generated Content** (Final, 2023) specifies both zkML *and* opML paths
+  for proving an inference. `InferenceMeter`'s receipts already carry an `attestationKind` with an
+  optimistic value, which is the right shape; the actual challenge game is venue-specific and is
+  deliberately not in this repository.
+
+Two more were noted and consciously not implemented, because they do not fit:
+
+- **ERC-7432 Non-Fungible Token Roles** (Final) gives multi-role grants with per-role expiry and a
+  revocable flag, where ERC-4907 gives exactly one. An agent genuinely wants distinct operator,
+  payer, auditor and trainer roles. It does not fit: `AnimaAgent` compiles to 23,971 bytes against
+  a 24,576-byte limit.
+- **ERC-7656 Generalized Contract-Linked Services** (Final) is the right home for it, and for the
+  brain-commitment and lifecycle services generally — attach them to the token as linked services
+  rather than welding them into it. That is the correct next structural move for this codebase, and
+  the size wall is what forces the issue rather than taste.
+
 ## Trust boundaries
 
 | Party | Can | Cannot |

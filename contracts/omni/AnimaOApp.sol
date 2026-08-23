@@ -40,12 +40,32 @@ abstract contract AnimaOApp is ILayerZeroReceiver, Ownable2Step {
     /// @notice Trusted counterpart per destination endpoint id, as a left-padded address.
     mapping(uint32 eid => bytes32 peer) public peers;
 
+    /// @notice Inbound throughput cap per source chain.
+    /// @dev Neither LayerZero's ONFT721 nor Hyperlane's HypERC721 has one, and that is the
+    ///      difference between a compromised DVN set costing one agent and costing all of them:
+    ///      without a cap, a forged verification can release or mint every agent on the route in
+    ///      a single block. xERC20 solved this for fungibles in 2023 and it never became an EIP.
+    ///
+    ///      A throttled message is not lost. LayerZero keeps an unexecuted payload retryable, so
+    ///      the cap converts a catastrophic drain into a delay — which is the entire point: it
+    ///      buys the time in which a human notices.
+    struct RateLimit {
+        uint64 windowSeconds;
+        uint64 capacity; //     messages per window; zero disables the limit
+        uint64 windowStart;
+        uint64 used;
+    }
+
+    mapping(uint32 srcEid => RateLimit) public inboundLimit;
+
     event PeerSet(uint32 indexed eid, bytes32 peer);
+    event InboundLimitSet(uint32 indexed srcEid, uint64 windowSeconds, uint64 capacity);
 
     error OnlyEndpoint(address caller);
     error UntrustedPeer(uint32 srcEid, bytes32 sender);
     error NoPeerConfigured(uint32 dstEid);
     error IncorrectFee(uint256 expected, uint256 provided);
+    error InboundRateLimited(uint32 srcEid, uint64 used, uint64 capacity, uint64 windowEndsAt);
 
     constructor(address endpoint_, address delegate_, address owner_) Ownable(owner_) {
         ENDPOINT = ILayerZeroEndpointV2(endpoint_);
@@ -57,6 +77,42 @@ abstract contract AnimaOApp is ILayerZeroReceiver, Ownable2Step {
     function setPeer(uint32 eid, bytes32 peer) external onlyOwner {
         peers[eid] = peer;
         emit PeerSet(eid, peer);
+    }
+
+    /// @notice Cap how many messages this contract will accept from a chain per window.
+    /// @param capacity Messages per window. Zero disables the limit — the default, so that a
+    ///        deployment must opt in deliberately rather than inherit a number nobody chose.
+    function setInboundLimit(uint32 srcEid, uint64 windowSeconds, uint64 capacity) external onlyOwner {
+        RateLimit storage r = inboundLimit[srcEid];
+        r.windowSeconds = windowSeconds;
+        r.capacity = capacity;
+        r.windowStart = uint64(block.timestamp);
+        r.used = 0;
+        emit InboundLimitSet(srcEid, windowSeconds, capacity);
+    }
+
+    /// @notice Messages still accepted from this chain in the current window.
+    function inboundRemaining(uint32 srcEid) external view returns (uint64) {
+        RateLimit storage r = inboundLimit[srcEid];
+        if (r.capacity == 0) return type(uint64).max;
+        if (block.timestamp >= r.windowStart + r.windowSeconds) return r.capacity;
+        return r.used >= r.capacity ? 0 : r.capacity - r.used;
+    }
+
+    function _consumeInbound(uint32 srcEid) private {
+        RateLimit storage r = inboundLimit[srcEid];
+        if (r.capacity == 0) return;
+
+        if (block.timestamp >= r.windowStart + r.windowSeconds) {
+            r.windowStart = uint64(block.timestamp);
+            r.used = 0;
+        }
+        if (r.used >= r.capacity) {
+            revert InboundRateLimited(srcEid, r.used, r.capacity, r.windowStart + r.windowSeconds);
+        }
+        unchecked {
+            r.used += 1;
+        }
     }
 
     /// @notice Hand endpoint configuration (DVNs, executors, libraries) to another address.
@@ -91,6 +147,7 @@ abstract contract AnimaOApp is ILayerZeroReceiver, Ownable2Step {
         if (msg.sender != address(ENDPOINT)) revert OnlyEndpoint(msg.sender);
         bytes32 peer = peers[origin.srcEid];
         if (peer == bytes32(0) || peer != origin.sender) revert UntrustedPeer(origin.srcEid, origin.sender);
+        _consumeInbound(origin.srcEid);
         _lzReceive(origin, guid, message, executor, extraData);
     }
 

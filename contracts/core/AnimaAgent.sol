@@ -14,7 +14,7 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 import {IAnima, AgentStatus, SealPolicy, BrainShard, ModelIdentity, AutonomyPolicy} from "../interfaces/IAnima.sol";
 import {IIdentityRegistry, MetadataEntry} from "../interfaces/IERC8004.sol";
 import {IERC4907, IERC5192, IERC6454, IERC7572} from "../interfaces/IRentable.sol";
-import {IERC6551Registry} from "../interfaces/IERC6551.sol";
+import {IERC6551Registry, IERC6551Account} from "../interfaces/IERC6551.sol";
 import {ITransferVerifier, ReKeyRequest} from "../interfaces/ITransferVerifier.sol";
 import {BrainLib} from "../libraries/BrainLib.sol";
 import {EncryptionKeyRegistry} from "./EncryptionKeyRegistry.sol";
@@ -96,6 +96,7 @@ contract AnimaAgent is
     bytes4 private constant _INTERFACE_ID_ERC6454 = 0x91a6262f;
     /// @dev ERC-7572 publishes no interfaceId; this is the community-computed value.
     bytes4 private constant _INTERFACE_ID_ERC7572 = 0xe8a3d485;
+    bytes4 private constant _INTERFACE_ID_ERC5646 = 0xf5112315;
 
     /*//////////////////////////////////////////////////////////////
                                  STORAGE
@@ -768,6 +769,41 @@ contract AnimaAgent is
     }
 
     /*//////////////////////////////////////////////////////////////
+                       ERC-5646  TOKEN STATE FINGERPRINT
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice One hash over everything about this agent that can change without the token
+    ///         moving. interfaceId `0xf5112315`.
+    /// @dev The marketplace pins account state, brain root and coverage individually because
+    ///      those are the three a buyer is most often cheated on. This is the general form, and
+    ///      it is the standardised one: ERC-5646 has been Final since 2022 and is already used
+    ///      by NFT lending protocols to detect that collateral changed underneath them.
+    ///
+    ///      It deliberately covers more than the ERC-6551 `state()` nonce does. That nonce sees
+    ///      only the bound account; it says nothing about the agent's memory, its declared
+    ///      model, its status, its guardian, its lease, or the policy its keys run under. A
+    ///      buyer needs one number over all of it, and an integrator that checks only `state()`
+    ///      is checking the wallet while the agent is swapped out from under them.
+    ///
+    ///      Reverts for a non-existent agent, so a fingerprint is never confused with zero.
+    function getStateFingerprint(uint256 tokenId) public view returns (bytes32) {
+        address holder = _requireOwned(tokenId);
+        address account = accountOf(tokenId);
+        uint256 accountState = account.code.length == 0 ? 0 : IERC6551Account(payable(account)).state();
+        return keccak256(
+            abi.encode(
+                holder,
+                _core[tokenId],
+                _model[tokenId].weightsRoot,
+                _boundWallet[tokenId],
+                _lease[tokenId],
+                _policy[tokenId],
+                accountState
+            )
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         EXPIRING, REVOCABLE APPROVALS
     //////////////////////////////////////////////////////////////*/
 
@@ -898,6 +934,7 @@ contract AnimaAgent is
         return interfaceId == type(IAnima).interfaceId || interfaceId == type(IIdentityRegistry).interfaceId
             || interfaceId == _INTERFACE_ID_ERC4906 || interfaceId == _INTERFACE_ID_ERC4907
             || interfaceId == _INTERFACE_ID_ERC5192 || interfaceId == _INTERFACE_ID_ERC6454
-            || interfaceId == _INTERFACE_ID_ERC7572 || super.supportsInterface(interfaceId);
+            || interfaceId == _INTERFACE_ID_ERC7572 || interfaceId == _INTERFACE_ID_ERC5646
+            || super.supportsInterface(interfaceId);
     }
 }

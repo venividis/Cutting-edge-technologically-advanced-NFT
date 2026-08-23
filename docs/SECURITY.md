@@ -67,10 +67,12 @@ Each is enforced in code and covered by a test.
 
 ### Cross-chain
 
-33. **Inbound messages require both** `msg.sender == endpoint` **and** a registered peer match.
+33. **Inbound messages are rate-limited per source chain** where a limit is configured, so a
+    forged verification costs a delay rather than every agent on the route.
+34. **Inbound messages require both** `msg.sender == endpoint` **and** a registered peer match.
     A zero peer is never trusted, so an unconfigured route fails closed.
-34. **Only an agent this contract sent out may return, and only from the chain it went to.**
-35. **A busy agent cannot bridge.**
+35. **Only an agent this contract sent out may return, and only from the chain it went to.**
+36. **A busy agent cannot bridge.**
 
 ## Attack classes considered
 

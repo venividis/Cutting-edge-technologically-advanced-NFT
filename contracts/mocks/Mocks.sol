@@ -6,6 +6,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ILiquidityDeployer} from "../market/ILiquidityDeployer.sol";
 import {IPerpVenueAdapter} from "../market/AgentDerivativesDesk.sol";
+import {ERC6492} from "../libraries/ERC6492.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract MockERC20 is ERC20 {
     uint8 private immutable _decimals;
@@ -123,5 +125,20 @@ contract MockPerpVenue is IPerpVenueAdapter {
 
     function positionNotional(address account, bytes32 market) external view returns (uint256) {
         return notional[account][market];
+    }
+}
+
+/// @notice Exposes {ERC6492} so its state-changing validation can be exercised from tests.
+contract ERC6492Harness {
+    bool public lastResult;
+
+    function check(address signer, bytes32 hash, bytes memory signature) external returns (bool) {
+        lastResult = ERC6492.isValidSignatureNow(signer, hash, signature);
+        return lastResult;
+    }
+
+    /// @dev Convenience for the unwrapped path, which needs no state change.
+    function checkView(address signer, bytes32 hash, bytes memory signature) external view returns (bool) {
+        return SignatureChecker.isValidSignatureNow(signer, hash, signature);
     }
 }

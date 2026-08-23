@@ -6,7 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {ERC6492} from "../libraries/ERC6492.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
@@ -243,7 +243,10 @@ contract AgentMarket is EIP712, Ownable2Step, ReentrancyGuardTransient {
         if (block.timestamp > order.expiry) revert OrderExpired(order.expiry);
         if (order.taker != address(0) && order.taker != msg.sender) revert NotTheTaker(order.taker, msg.sender);
         if (order.makerEpoch != makerEpoch[order.maker]) revert OrderAlreadySettled(orderHash);
-        if (!SignatureChecker.isValidSignatureNow(order.maker, orderHash, signature)) revert BadSignature(orderHash);
+        // ERC-6492, not plain ERC-1271: an agent's ERC-6551 account is counterfactual by
+        // design and is often not deployed until its first use, so a maker signing as their
+        // agent's own wallet would otherwise be unable to list it at all.
+        if (!ERC6492.isValidSignatureNow(order.maker, orderHash, signature)) revert BadSignature(orderHash);
 
         address holder = IERC721(address(ANIMA)).ownerOf(order.agentId);
         if (holder != order.maker) revert MakerNotOwner(order.agentId, order.maker);

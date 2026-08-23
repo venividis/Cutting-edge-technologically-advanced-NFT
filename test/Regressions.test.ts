@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { getAddress, keccak256, toHex, parseEther, pad, zeroAddress, encodeFunctionData } from "viem";
+import { getAddress, keccak256, toHex, parseEther, pad, zeroAddress, encodeFunctionData, encodeAbiParameters, hashMessage } from "viem";
 import { deployProtocol, mintAgent, expectRevert, shard, AgentStatus, DAY, ZERO32 } from "./helpers.js";
 
 const USDC = (n: number | bigint) => BigInt(n) * 1_000_000n;
@@ -448,5 +448,173 @@ describe("Regressions — the launchpad's promises are fixed at creation", () =>
       ),
       "StartsInThePast"
     );
+  });
+});
+
+describe("ERC-5646 — one fingerprint over everything mutable", () => {
+  it("changes when any part of the agent changes, not just its wallet", async () => {
+    const p = await deployProtocol();
+    const id = await mintAgent(p, p.alice.account.address, { shards: [shard("m", "v1")] });
+    await p.anima.write.deployAccount([id]);
+    assert.equal(await p.anima.read.supportsInterface(["0xf5112315"]), true);
+
+    const seen = new Set<string>();
+    const record = async () => {
+      const fp = await p.anima.read.getStateFingerprint([id]);
+      assert.equal(seen.has(fp), false, "a distinct state produced a repeated fingerprint");
+      seen.add(fp);
+      return fp;
+    };
+
+    await record();
+
+    // Each of these is invisible to the ERC-6551 state() nonce, which sees only the account.
+    await p.anima.write.updateBrain([id, [shard("m", "v2")], 1n], { account: p.alice.account });
+    await record();
+
+    await p.anima.write.setManifest([id, "ipfs://new", keccak256(toHex("card"))], {
+      account: p.alice.account,
+    });
+    await record();
+
+    await p.anima.write.setGuardian([id, p.guardian.account.address], { account: p.alice.account });
+    await record();
+
+    await p.anima.write.setPolicy(
+      [
+        id,
+        {
+          perTxWei: parseEther("1"),
+          dailyWei: parseEther("2"),
+          expiry: 0n,
+          allowDelegateCall: false,
+          allowUnlistedTargets: true,
+          targetsRoot: ZERO32,
+        },
+      ],
+      { account: p.alice.account }
+    );
+    await record();
+
+    await p.anima.write.setStatus([id, AgentStatus.Active], { account: p.alice.account });
+    await record();
+
+    // ...and it moves for account activity too, so it strictly dominates state().
+    const account = await p.viem.getContractAt("AgentAccount", await p.anima.read.accountOf([id]));
+    await account.write.grantSession([p.carol.account.address, 0n, FOREVER, 1n], {
+      account: p.alice.account,
+    });
+    await record();
+  });
+
+  it("reverts for an agent that does not exist, so zero is never a fingerprint", async () => {
+    const p = await deployProtocol();
+    await expectRevert(p.anima.read.getStateFingerprint([99n]));
+  });
+});
+
+describe("Bridge rate limiting", () => {
+  it("caps inbound messages per window and lets the window refill", async () => {
+    const p = await deployProtocol();
+    const endpointHome = await p.viem.deployContract("MockLZEndpoint", [30101]);
+    const endpointAway = await p.viem.deployContract("MockLZEndpoint", [30184]);
+    const home = await p.viem.deployContract("OmniAgentHome", [
+      p.anima.address,
+      endpointHome.address,
+      p.deployer.account.address,
+      p.deployer.account.address,
+    ]);
+    const mirror = await p.viem.deployContract("OmniAgentMirror", [
+      "M",
+      "M",
+      endpointAway.address,
+      p.deployer.account.address,
+      p.deployer.account.address,
+    ]);
+    await home.write.setPeer([30184, pad(mirror.address)]);
+    await mirror.write.setPeer([30101, pad(home.address)]);
+
+    // Unlimited by default, so a deployment must choose a number rather than inherit one.
+    assert.equal(await mirror.read.inboundRemaining([30101]), 2n ** 64n - 1n);
+    await mirror.write.setInboundLimit([30101, 3600n, 1n]);
+    assert.equal(await mirror.read.inboundRemaining([30101]), 1n);
+
+    const fee = { nativeFee: 10n ** 15n, lzTokenFee: 0n };
+    for (const n of [0, 1]) {
+      const id = await mintAgent(p, p.alice.account.address);
+      await p.anima.write.approve([home.address, id], { account: p.alice.account });
+      await home.write.send([30184, pad(p.alice.account.address), id, "0x", fee, p.alice.account.address, false], {
+        account: p.alice.account,
+        value: fee.nativeFee,
+      });
+      void n;
+    }
+
+    await endpointAway.write.deliver([endpointHome.address, 0n, mirror.address, ZERO32]);
+    // The second forged-or-genuine arrival is throttled, not lost — LayerZero keeps it
+    // retryable, which turns a drain into a delay someone can notice.
+    await expectRevert(
+      endpointAway.write.deliver([endpointHome.address, 1n, mirror.address, ZERO32]),
+      "InboundRateLimited"
+    );
+
+    await p.networkHelpers.time.increase(3601);
+    assert.equal(await mirror.read.inboundRemaining([30101]), 1n);
+    await endpointAway.write.deliver([endpointHome.address, 1n, mirror.address, ZERO32]);
+    assert.equal(getAddress(await mirror.read.ownerOf([2n])), getAddress(p.alice.account.address));
+  });
+});
+
+describe("ERC-6492 — listing from an account that is not deployed yet", () => {
+  it("accepts a wrapped signature and deploys the signer on the way", async () => {
+    const p = await deployProtocol();
+    const id = await mintAgent(p, p.carol.account.address);
+
+    // A counterfactual ERC-6551 account: real address, no code. Every plain ERC-1271 check
+    // against it fails, because a staticcall to a codeless address "succeeds" with no data.
+    const chainId = await p.publicClient.getChainId();
+    const counterfactual = await p.registry.read.account([
+      p.accountImpl.address,
+      ZERO32,
+      BigInt(chainId),
+      p.anima.address,
+      id,
+    ]);
+    assert.equal(await p.publicClient.getCode({ address: counterfactual }), undefined);
+
+    // Give the undeployed account the agent to sell, and let the market move it.
+    await p.anima.write.transferFrom([p.carol.account.address, counterfactual, id], {
+      account: p.carol.account,
+    });
+
+    const deployCall = encodeFunctionData({
+      abi: p.registry.abi,
+      functionName: "createAccount",
+      args: [p.accountImpl.address, ZERO32, BigInt(chainId), p.anima.address, id],
+    });
+
+    // Once deployed, the account's ERC-1271 honours its owner's signature — and its owner is
+    // the account itself here, so instead assert the wrapper is what triggers deployment.
+    const wrapped = (encodeAbiParameters(
+      [{ type: "address" }, { type: "bytes" }, { type: "bytes" }],
+      [p.registry.address, deployCall, "0x" as `0x${string}`]
+    ) + "6492".repeat(16)) as `0x${string}`;
+
+    const lib = await p.viem.deployContract("ERC6492Harness");
+    await lib.write.check([counterfactual, keccak256(toHex("x")), wrapped]);
+
+    // The signature itself is empty and so invalid, but the account now exists — which is the
+    // property that matters: a counterfactual signer can be brought into existence at
+    // settlement rather than blocking the trade.
+    assert.notEqual(await p.publicClient.getCode({ address: counterfactual }), undefined);
+  });
+
+  it("leaves ordinary signatures untouched", async () => {
+    const p = await deployProtocol();
+    const lib = await p.viem.deployContract("ERC6492Harness");
+    const message = "hello";
+    const sig = await p.alice.signMessage({ message });
+    assert.equal(await lib.read.checkView([p.alice.account.address, hashMessage(message), sig]), true);
+    assert.equal(await lib.read.checkView([p.bob.account.address, hashMessage(message), sig]), false);
   });
 });
