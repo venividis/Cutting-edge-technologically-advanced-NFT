@@ -47,5 +47,11 @@
     "validation.setValidator(validator)",
     "mint aUSD"
   ],
-  "note": "Testnet only. Deployer and cast keys are burners held outside this repository and are destroyed with the session that made them."
+  "note": "Testnet only. Deployer and cast keys are burners held outside this repository and are destroyed with the session that made them.",
+  "omni": {
+    "home": "0xbaA01630c858EF1DA96bb47FA726043afea0e169",
+    "mirror": "0xB97ea50e956E36606eC5DD159dC7f25CA732bc6d",
+    "peered": true,
+    "roundTripped": true
+  }
 }

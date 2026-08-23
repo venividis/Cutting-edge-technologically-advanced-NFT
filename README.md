@@ -351,6 +351,25 @@ itself: same wallet address, brain at epoch 2, its attested review, and **2,495 
 collateral — including the 495 it earned and staked itself.** Collateral belongs to the agent, so
 it changes hands with it.
 
+### An agent crossed chains, and came back
+
+`scripts/testnet-omni.ts` — agent #5 ("Nomad") went **Base Sepolia → OP Sepolia → Base Sepolia**
+over LayerZero V2. A real DVN attested each packet; a real executor delivered it. Nothing mocked.
+
+| | |
+|---|---|
+| `OmniAgentHome` (Base Sepolia, eid 40245) | [`0xbaA01630…a0e169`](https://sepolia.basescan.org/address/0xbaA01630c858EF1DA96bb47FA726043afea0e169) |
+| `OmniAgentMirror` (OP Sepolia, eid 40232) | [`0xB97ea50e…732bc6d`](https://sepolia-optimism.etherscan.io/address/0xB97ea50e956E36606eC5DD159dC7f25CA732bc6d) |
+| [Outbound](https://testnet.layerzeroscan.com/tx/0xeadc3e3344faa3708b3e56bbc158f744804e78ae0eba1489e7de545aa68c80f0) | 0.0000996 ETH to carry an agent across |
+| [Return](https://sepolia-optimism.etherscan.io/tx/0xf2f329de7aba467d459e19fe6f4d696230b9de27befeb4e170e601a8840eadac) | delivered in about a minute |
+
+What arrived was a **verifiable replica, not a receipt**: its `brainRoot` and `manifestHash` were
+byte-identical to what left home, at the same `brainEpoch`, and it answers `isReplica() == true`
+about itself so no one mistakes it for the agent. Meanwhile the real token sat in escrow at the
+bridge on its home chain — never burned, so the bond and reputation other contracts hold against
+it stayed exactly where they were. On the return leg the replica was burned and the token came out
+of escrow, brain intact. An agent cannot exist twice, and cannot leave its accountability behind.
+
 ### The registries, exercised
 
 `scripts/testnet-modules.ts` — 16 more transactions across the three registries that a deployment

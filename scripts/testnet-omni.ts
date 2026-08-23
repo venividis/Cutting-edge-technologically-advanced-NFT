@@ -142,10 +142,9 @@ export async function main() {
   const sent = await tx("home", "SEND the agent to OP Sepolia", () =>
     homeOApp.write.send([EID_AWAY, pad(owner), agentId, options, fee, owner, false], { value: fee.nativeFee })
   );
-  const guid = parseEventLogs({ abi: homeOApp.abi, logs: sent.logs })
-    .map((l: any) => l.args?.guid).find(Boolean);
   console.log(`    → escrowed at home; owner is now ${await anima.read.ownerOf([agentId])}`);
-  console.log(`    → LayerZero guid ${guid ?? "(not in logs)"}`);
+  // The guid lives in the endpoint's own PacketSent event, which this ABI cannot decode; the
+  // scan link below resolves the packet from the transaction hash anyway.
   console.log(`    → track: https://testnet.layerzeroscan.com/tx/${sent.transactionHash}`);
 
   /* ─── 4. wait for a DVN to attest and an executor to deliver ───────────────────────── */
