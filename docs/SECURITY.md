@@ -93,8 +93,7 @@ Each is enforced in code and covered by a test.
 
 ## Findings from building this
 
-Two bugs the test suite caught that are worth recording, because both are easy to reproduce in
-other codebases.
+Two bugs the test suite caught, both easy to reproduce in other codebases:
 
 **`try/catch` loses optional side effects under gas estimation.** Filing attested feedback was
 wrapped in `try/catch` so a failing reputation write could never brick a settlement — sound in
@@ -108,6 +107,49 @@ condition the registry rejects.
 `treasury * 1e18 / totalSupply`. With a 6-decimal quote asset against a 1e27 supply the true
 value is ~1e-20, so the headline number for the entire redemption mechanism read as "no floor".
 Fixed by quoting per whole token via `mulDiv`.
+
+## Findings from adversarial review
+
+A multi-agent review hunted by attack dimension and then tried to refute each finding. Twenty-
+three held up. All are fixed, each with a regression test that reproduces the original exploit
+path. Recorded here because most are not specific to this codebase.
+
+### Critical
+
+| Finding | Why it worked |
+|---|---|
+| Marketplace paid the maker before transferring the agent | `Address.sendValue` forwards all gas, so a contract maker received control while still `ownerOf` — able to drain the bound account, pull the bond and wipe the brain *after* every integrity check passed. `nonReentrant` did not help, because none of the protected state lived in the marketplace. |
+| A session key escaped the leash through the ERC-4337 EntryPoint | `_authorize` waved through `msg.sender == ENTRY_POINT` on the assumption that `executeUserOp` had already charged the signer. Nothing forced a user operation to *use* `executeUserOp`. The tests missed it because the fixture deployed with a zero EntryPoint, so the branch was never live. |
+| Session keys and the call allowlist survived a sale | The token clears operators, policy, guardian and lease on transfer — but that state lives on the *account*, which the token never touched. A seller could arm a key months before listing and the buyer's integrity pin would show nothing changed. |
+| An insider could pledge and then forfeit the owner's bond | `isController` includes tenants and operators, and `acceptJob` accepted any of them. A one-wei job pinning the whole stake as coverage, deliberately failed, moved the bond to an address the attacker also controlled. |
+
+### High
+
+- **Validation requests could be squatted.** Request hashes derive from public data, so anyone could pre-register the hash an escrow was about to use and make `dispute()` revert as a duplicate — a denial of service with a payout, since the agent then collected for undelivered work.
+- **A buyer could seize the seller's queued collateral.** `cancelUnbond` was gated on the token holder rather than on whoever queued the withdrawal.
+- **Attested reputation was flashloan-scalable.** Weight came from the headline price, so a self-hire with a flash-loaned amount and no coverage bought a maximally-weighted score for the cost of the protocol fee.
+- **The launchpad's LP guarantee was not enforceable.** The liquidity deployer was mutable and receives approvals for the entire raise and unsold supply.
+- **A right-padded receiver stranded an agent permanently.** The bridge validated `to` as a full word on the send side and truncated it to an address on the receive side, so the token was escrowed and every delivery retry reverted.
+
+### Medium and low
+
+Retiring a locked agent stranded a paying tenant; a mirror forwarded chain-to-chain could never
+come home; `setAllowedCall` did not bump `state()`, defeating the marketplace's integrity pin;
+a recipient could front-run a message to raise its own postage to the sender's entire allowance;
+`bumpMakerEpoch` could not invalidate anything, because the epoch was a fill-time argument rather
+than part of the signed order; a re-key proof could be burned by a stranger to block a sale; a
+client could name their own sock puppet as referee and force a slash; a job whose validator held
+the agent trapped the client with no path to dispute; an agent's reputation could be made
+unreadable for a few dollars of spam; a backdated `startsAt` skipped the fair window entirely;
+and resolving one dispute handed spending authority back while other clients were still owed.
+
+### The pattern
+
+Most of these are one shape: **an authorisation that outlives the relationship it was granted
+under.** A session key outliving its granter, a queued withdrawal outliving its owner, an
+allowlist outliving a sale, a controller role reaching further than the role implies. The token
+already applied "autonomy does not survive a sale" to its own state; the bugs were all the places
+that rule had not been carried through.
 
 ## Deliberate non-goals
 
