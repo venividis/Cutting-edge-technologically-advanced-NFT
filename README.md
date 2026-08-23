@@ -351,6 +351,27 @@ itself: same wallet address, brain at epoch 2, its attested review, and **2,495 
 collateral — including the 495 it earned and staked itself.** Collateral belongs to the agent, so
 it changes hands with it.
 
+### The registries, exercised
+
+`scripts/testnet-modules.ts` — 16 more transactions across the three registries that a deployment
+alone proves nothing about:
+
+- **`AgentHandles`.** An agent attests an email inbox with an on-chain verifier and evidence hash,
+  and a second agent [is refused the same one](https://sepolia.basescan.org/tx/0xec4ec73cc2ba190bdbd35ba32c3be378cf6da98848dfc41a2e1cd25af8e0d101)
+  (`HandleTaken`). One inbox, one agent — otherwise "who controls this address" has no answer.
+- **`AnimaRoles` (ERC-7432).** Operator, payer and auditor held *simultaneously* by three different
+  addresses with three different expiries — which ERC-4907's single `user` slot cannot express.
+  Revoking all three deliberately does **not** release the token; [`unlockToken`](https://sepolia.basescan.org/tx/0x4bec4362b86c2dad660186d4ee2598c8d16db80a46658acce26a2106b694cad9)
+  does, permissionlessly, and only once nothing irrevocable is outstanding. Splitting the two means
+  a grantee cannot strand the token and an owner cannot yank it back mid-grant.
+- **`InferenceMeter`.** A payer opens a channel, signs a real EIP-712 voucher for a running total,
+  and the agent redeems it into its own wallet — twice, at 120 then 300 aUSD. Replaying the earlier
+  voucher is refused, because vouchers are cumulative rather than additive.
+
+Not run on chain, and deliberately: the launchpad, swap router and derivatives desk each need a
+venue — a liquidity deployer, a DEX, a perpetuals adapter — and on a testnet those are mocks
+whichever chain they sit on, so running them there would prove less than it appears to.
+
 The aUSD here is a faucet token with a permissionless `mint`; the whole deployment is a burner and
 carries no value.
 
