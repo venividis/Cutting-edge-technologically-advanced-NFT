@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { network } from "hardhat";
 import {
   keccak256,
@@ -336,13 +337,55 @@ export async function mintAgent(
   return await p.anima.read.totalMinted();
 }
 
+/**
+ * Every custom error any contract in this build declares, as name -> 4-byte selector(s).
+ *
+ * Needed because a revert's *name* only reaches the client if something decodes it, and what
+ * decodes it is the artifact registered for the address that reverted. A diamond reverts from the
+ * diamond's address while the error is declared on a facet, so the node reports the raw selector
+ * and no name. Matching on the selector as well makes an assertion mean the same thing on both
+ * builds — and makes it strictly stronger, since it now also holds when nothing decoded at all.
+ */
+const ERROR_SELECTORS: Map<string, string[]> = (() => {
+  const byName = new Map<string, string[]>();
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".json") && !entry.name.endsWith(".dbg.json")) {
+        let abi: { type: string; name?: string; inputs?: { type: string }[] }[];
+        try {
+          ({ abi } = JSON.parse(readFileSync(full, "utf8")));
+        } catch {
+          continue;
+        }
+        for (const item of abi ?? []) {
+          if (item.type !== "error" || !item.name) continue;
+          const selector = keccak256(
+            toHex(`${item.name}(${(item.inputs ?? []).map((i) => i.type).join(",")})`)
+          ).slice(0, 10);
+          const seen = byName.get(item.name) ?? [];
+          if (!seen.includes(selector)) byName.set(item.name, [...seen, selector]);
+        }
+      }
+    }
+  };
+  walk("artifacts/contracts");
+  return byName;
+})();
+
 export async function expectRevert(promise: Promise<unknown>, fragment?: string) {
   try {
     await promise;
   } catch (e) {
     const msg = String((e as Error).message ?? e);
     if (fragment && !msg.includes(fragment)) {
-      throw new Error(`expected revert containing "${fragment}", got:\n${msg}`);
+      const selectors = ERROR_SELECTORS.get(fragment) ?? [];
+      const lower = msg.toLowerCase();
+      if (!selectors.some((s) => lower.includes(s.toLowerCase()))) {
+        const also = selectors.length ? ` (nor its selector ${selectors.join(" / ")})` : "";
+        throw new Error(`expected revert containing "${fragment}"${also}, got:\n${msg}`);
+      }
     }
     return msg;
   }

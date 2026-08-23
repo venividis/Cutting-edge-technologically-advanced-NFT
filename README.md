@@ -5,7 +5,7 @@
 An identity, a wallet, private state, a declared model, a published leash, and a bond you
 can take from it when it fails.
 
-> Status: reference implementation. 27 contracts, 214 tests, 23 review findings fixed.
+> Status: reference implementation. 26 contracts, 231 tests, 23 review findings fixed.
 > Two interchangeable builds of the token — a monolith and an immutable EIP-2535 diamond —
 > proved equivalent by running the same suite against both.
 > Unaudited, no deployments.
@@ -287,7 +287,7 @@ escrow state machine).
 
 Stated here rather than buried, because a standard that hides them is worse than useless.
 
-- **Unaudited.** 214 tests and an adversarial review pass are not an audit.
+- **Unaudited.** 231 tests and an adversarial review pass are not an audit.
 - **Sealing protects future state, not past.** A prior owner who already exported plaintext
   keeps it. No cryptography fixes this; `SealPolicy` exists so you can price it.
 - **The attester quorum is a trust assumption.** Collusion of `threshold` attesters forges a
@@ -311,8 +311,8 @@ Stated here rather than buried, because a standard that hides them is worse than
 ```bash
 npm install
 npx hardhat build      # solc 0.8.28, viaIR, cancun
-npx hardhat test       # 214 tests against the monolith
-npm run test:diamond   # the same 214 against the EIP-2535 build
+npx hardhat test       # 231 tests against the monolith
+npm run test:diamond   # the same 231 against the EIP-2535 build
 npm run test:both      # both, in sequence
 ```
 

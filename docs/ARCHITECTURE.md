@@ -1,6 +1,6 @@
 # Architecture
 
-27 contracts in four layers, plus an alternate assembly of the token itself. Each layer is
+26 contracts in four layers, plus an alternate assembly of the token itself. Each layer is
 usable without the ones above it.
 
 ## Layer 1 — Core
@@ -131,6 +131,37 @@ against the diamond with no test changes at all. `test/Diamond.test.ts` adds the
 comparison: an identical agent is driven through the same sequence of state changes on both
 builds, and their ERC-5646 fingerprints — one hash over the whole of an agent's mutable state —
 must be byte-identical.
+
+**What the constructor refuses.** In order: a cut with no facets, a non-`Add` action, a facet with
+no code, an empty per-facet cut, a selector two facets both claim, facets that disagree about the
+ERC-6551 configuration, a diamond in which none carries it, an initialiser whose call reverts, an
+initialiser that did not take effect (checked by post-condition, because `delegatecall` to a
+codeless address *returns success* — so a zero or EOA initialiser would otherwise deploy silently),
+and an initialiser that repointed any selector the `DiamondCut` event had already announced.
+
+That last one is worth stating precisely. The initialiser is `delegatecall`ed, so while it runs it
+can write any storage in the diamond, including the routing table built moments earlier. EIP-2535
+makes `DiamondCut` the canonical record of what a diamond is; without the check, an indexer or an
+auditor reading it could see one table while callers reached another. The check makes the event
+true for every selector it names. It does not make a hostile initialiser safe — one can still add
+a selector the cut never mentioned, and nothing on-chain can prevent that, because the deployer
+chooses the initialiser. So verifying a deployment means verifying the initialiser's source as
+well as the facets'.
+
+### The two intended divergences
+
+Everything else is identical. These two are deliberate, tested, and the complete list:
+
+1. **`supportsInterface(0x48e2b093)`** is true on the diamond and false on the monolith. The
+   diamond genuinely implements the EIP-2535 loupe, and a caller wanting to verify the code behind
+   the address is entitled to discover that from ERC-165.
+2. **An unrouted selector reverts `FunctionNotFound(bytes4)`** rather than with empty returndata.
+   That is the EIP-2535 convention and a far better diagnostic, but it means the diamond reverts
+   with *non-empty* data where the monolith reverts with none — observable in one place a caller
+   can actually reach. ERC-721's receiver check bubbles a non-empty reason verbatim and converts an
+   empty one to `ERC721InvalidReceiver`, so sending an agent to the token's own address (always a
+   mistake, always a revert, no state touched either way) reports a different error on each build.
+   `test/Diamond.test.ts` pins both so this stays a known fact rather than an integration surprise.
 
 ```
 23,971 B   monolith, 605 to spare

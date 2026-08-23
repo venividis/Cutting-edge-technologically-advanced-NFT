@@ -144,6 +144,40 @@ describe("AnimaDiamond — the same token, assembled from facets", () => {
     assert.equal(await dia.anima.read.supportsInterface([DIAMOND_LOUPE_ID]), true);
   });
 
+  it("differs from the monolith in exactly one more place, and it is the fallback's error", async () => {
+    // The diamond's fallback answers an unrouted selector with FunctionNotFound(bytes4) — the
+    // EIP-2535 convention, and a far more useful diagnostic than the monolith's bare revert. It
+    // does mean the diamond reverts with NON-EMPTY returndata where the monolith reverts with
+    // none, and that is observable in one place a caller might actually reach: ERC-721's receiver
+    // check bubbles a non-empty reason verbatim and converts an empty one to ERC721InvalidReceiver.
+    //
+    // So sending an agent to the token's own address — always a mistake, always a revert, no state
+    // touched either way — reports a different error on each build. This test exists so that stays
+    // a known, pinned fact rather than a surprise during an integration.
+    const mono = await deployProtocol({ impl: "monolith" });
+    const dia = await deployProtocol({ impl: "diamond" });
+
+    for (const [label, p, expected] of [
+      ["monolith", mono, "ERC721InvalidReceiver"],
+      ["diamond", dia, "FunctionNotFound"],
+    ] as const) {
+      const id = await mintAgent(p, p.alice.account.address);
+      const message = await expectRevert(
+        p.anima.write.safeTransferFrom([p.alice.account.address, p.anima.address, id], {
+          account: p.alice.account,
+        })
+      );
+      assert.ok(
+        message.includes(expected),
+        `${label}: expected ${expected} in the revert, got:\n${message}`
+      );
+    }
+
+    // Both builds refuse the transfer; only the wording differs.
+    assert.equal(getAddress(await mono.anima.read.ownerOf([1n])), getAddress(mono.alice.account.address));
+    assert.equal(getAddress(await dia.anima.read.ownerOf([1n])), getAddress(dia.alice.account.address));
+  });
+
   it("reports the same EIP-712 domain, so a wallet-binding signature means the same thing", async () => {
     const mono = await deployProtocol({ impl: "monolith" });
     const dia = await deployProtocol({ impl: "diamond" });
@@ -428,6 +462,76 @@ describe("AnimaDiamond — construction", () => {
         "0x",
       ]),
       "FacetHasNoCode"
+    );
+  });
+
+  it("refuses to deploy uninitialised, however the initialiser goes missing", async () => {
+    const p = await deployProtocol({ impl: "diamond" });
+    const { cuts, init } = p.diamond!;
+    const initAbi = (await p.viem.getContractAt("AnimaInit", init)).abi;
+    const goodCalldata = encodeFunctionData({
+      abi: initAbi,
+      functionName: "init",
+      args: ["ANIMA Agents", "ANIMA", p.deployer.account.address, p.nullVerifier.address, zeroAddress, 0n],
+    });
+
+    // There is no diamondCut and the init selector is never routed, so a diamond that deploys
+    // uninitialised can never be initialised. It would be permanently unowned — no module could
+    // ever be allowlisted, so no escrow could ever lock an agent — and would issue agent id 0,
+    // the value every registry reserves for "no agent".
+    await expectRevert(
+      p.viem.deployContract("AnimaDiamond", [cuts, zeroAddress, "0x"]),
+      "NotInitialised"
+    );
+
+    // The subtle one: `delegatecall` to an address holding no code returns SUCCESS. An `init`
+    // pointing at an EOA — a typo, or an address whose deployment silently failed — reverts
+    // nothing and writes nothing, so checking the call's return value would not catch it.
+    await expectRevert(
+      p.viem.deployContract("AnimaDiamond", [cuts, p.bob.account.address, goodCalldata]),
+      "NotInitialised"
+    );
+
+    // And calldata that reaches a real initialiser but not its `init` function: `AnimaInit` has
+    // no fallback, so this one does revert on the call — caught either way.
+    await expectRevert(p.viem.deployContract("AnimaDiamond", [cuts, init, "0xdeadbeef"]), "");
+  });
+
+  it("catches an initialiser that rewires the table it was just handed", async () => {
+    const p = await deployProtocol({ impl: "diamond" });
+    const { config, cuts } = p.diamond!;
+    const selector = toFunctionSelector("function totalMinted() view returns (uint256)");
+
+    // The initialiser runs by delegatecall, so while it runs it can write any storage in the
+    // diamond — including the routing table the constructor has already emitted DiamondCut for.
+    // EIP-2535 makes that event the canonical record of what a diamond is, so an initialiser
+    // repointing one selector would leave every indexer reading a table no caller reaches.
+    const backdoor = await p.viem.deployContract("BackdoorFacet");
+    const tamper = await p.viem.deployContract("TamperInit", [config, backdoor.address, selector]);
+
+    await expectRevert(
+      p.viem.deployContract("AnimaDiamond", [
+        cuts,
+        tamper.address,
+        encodeFunctionData({
+          abi: tamper.abi,
+          functionName: "init",
+          args: ["ANIMA Agents", "ANIMA", p.deployer.account.address, p.nullVerifier.address, zeroAddress, 0n],
+        }),
+      ]),
+      "RoutingTampered"
+    );
+
+    // Note what the tamper leaves alone: facetAddresses() and facetFunctionSelectors() still list
+    // the honest facets, so a loupe consumer that only enumerates would see nothing wrong. The
+    // constructor check is what makes the emitted event trustworthy.
+  });
+
+  it("refuses a diamond with no facets at all", async () => {
+    const p = await deployProtocol({ impl: "diamond" });
+    await expectRevert(
+      p.viem.deployContract("AnimaDiamond", [[], p.diamond!.init, "0x"]),
+      "NoFacets"
     );
   });
 

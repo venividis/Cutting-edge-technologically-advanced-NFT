@@ -3,8 +3,8 @@
 ```bash
 npm install
 npx hardhat build
-npx hardhat test          # 214 tests — do not deploy on a red suite
-npm run test:diamond      # the same 214 against the EIP-2535 build
+npx hardhat test          # 231 tests — do not deploy on a red suite
+npm run test:diamond      # the same 231 against the EIP-2535 build
 ```
 
 ## Order and why it matters
@@ -32,28 +32,39 @@ produce identical ERC-5646 fingerprints for an identically-lived agent.
 **Deploy `AnimaAgent`** unless you have a reason not to. One address, one verification, no
 `DELEGATECALL` on the hot path, and 605 bytes of headroom.
 
-**Deploy `AnimaDiamond`** when you intend to add to the token. Order:
+**Deploy `AnimaDiamond`** when you intend to add to the token. Run the script — do not transcribe
+it:
 
-1. `AnimaCoreFacet`, `AnimaAgentFacet`, `AnimaBrainFacet` and `AnimaInit`, each taking the same
-   `AnimaConfig` — the ERC-6551 registry, the account implementation, the salt, the key registry.
-   Pass one struct value to all four; they hold it as `immutable`, which is what keeps `accountOf`
-   free of storage reads. Then `AnimaLoupeFacet`, which takes nothing.
-2. Build the cut with the SDK's `deriveFacetCut`, never by hand. It takes `AnimaAgent`'s ABI as
-   the specification and throws rather than returning a partial cut if a function would go
-   unrouted, a facet claims one the token does not declare, or two facets claim one selector.
-   A hand-written selector list that is one function short becomes a permanent hole the moment
-   the constructor returns. `deployAnimaDiamond` in `test/helpers.ts` shows the call, and every
-   test in the suite runs through it.
-3. Deploy `AnimaDiamond(cuts, animaInit, initCalldata)`. The constructor rejects a duplicate
-   selector, a non-`Add` action and a facet with no code; refuses to deploy if any two facets
-   report a different `animaConfigHash()`, or if none reports one at all; and bubbles an
-   initialiser revert rather than leaving a half-built diamond on chain.
-4. Verify the result before wiring anything to it: `facets()` must report exactly your four
-   facets, `facetAddress(diamondCut selector)` must be the zero address, and each facet's
-   on-chain bytecode must match what you compiled.
+```bash
+npx hardhat run scripts/deploy-diamond.ts --network <name>
+```
+
+It deploys the four facets and the initialiser against one shared `AnimaConfig`, derives the cut
+from `AnimaAgent`'s ABI with the SDK's `deriveFacetCut` (which throws rather than returning a
+partial cut), deploys the diamond, and then verifies the result on chain before returning: every
+one of the 83 declared selectors resolves to a facet, no selector resolves to `diamondCut`, the
+loupe reports exactly the four facets deployed, each facet's code matches what this repo compiles
+(modulo its immutables) and holds the configuration that was requested, initialisation took
+effect, and ERC-165 answers correctly. Any failure aborts with `do NOT publish this address`.
+
+`test/Deploy.test.ts` runs that script for real on every `npm test`, so the worked example cannot
+rot into something that no longer works.
+
+Three things the script cannot check for you, printed at the end of its run:
+
+1. Each facet is source-verified on the explorer, and its verified source is this repository.
+   **Verify the initialiser too, not only the facets.** It is reached by `delegatecall` from the
+   constructor, so while it runs it can write any storage in the diamond. `AnimaDiamond` re-reads
+   the routing table afterwards and reverts `RoutingTampered` if any emitted selector was
+   repointed — which makes the `DiamondCut` event true for what it names — but nothing on-chain
+   can stop a hostile initialiser from adding a selector the cut never mentioned, because the
+   deployer is the one who chooses it. `AnimaInit` is the only initialiser this repository ships.
+2. `facetAddress(0x1f931c1c)` returns the zero address, queried from a node you trust rather than
+   from the deployment's own output.
+3. The ERC-6551 registry is the canonical one for the chain.
 
 There is no step 5. There is no `diamondCut`, so the wiring you deploy is the wiring forever —
-which is the point. Get step 2 right; you do not get to fix it later.
+which is the point.
 
 ## Known addresses, as of August 2026
 
