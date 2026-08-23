@@ -48,6 +48,25 @@ const artifact = (dir: string, name: string) =>
  * of the code be compared exactly, and the values in those ranges are checked separately, by
  * asking each facet what configuration it actually holds.
  */
+/**
+ * Blocks until a freshly deployed address actually reports code from *this* endpoint.
+ *
+ * A public RPC is a load balancer over several nodes. `deployContract` returns once a receipt is
+ * seen, but the very next call can land on a node that has not caught up — so a constructor that
+ * inspects the contracts it was just handed (as {AnimaDiamond} does, staticcalling every facet
+ * for its config hash) can be told they hold no code, and revert `NoConfiguredFacet`. The failure
+ * is in the estimate, not on chain, which makes it maddening to read: the transaction never gets
+ * sent, and the addresses in the error are perfectly good.
+ */
+async function waitForCode(publicClient: any, address: Address, label: string, tries = 40) {
+  for (let i = 0; i < tries; i++) {
+    const code = await publicClient.getCode({ address });
+    if (code && code !== "0x") return;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  throw new Error(`${label} at ${address} still reports no code after ${tries} tries`);
+}
+
 function maskImmutables(code: string, refs: Record<string, { start: number; length: number }[]>) {
   const bytes = Buffer.from(code.slice(2), "hex");
   for (const spans of Object.values(refs ?? {})) {
@@ -75,6 +94,8 @@ export interface DiamondConfig {
   verifier: Address;
   royaltyReceiver: Address;
   royaltyBps: bigint;
+  /** Already-deployed facets to reuse, so a failed run does not pay for them twice. */
+  facets?: { core?: Address; agent?: Address; brain?: Address; loupe?: Address; init?: Address };
 }
 
 /**
@@ -105,16 +126,38 @@ export async function deployDiamond(config: DiamondConfig, connection?: { viem: 
   } as const;
 
   console.log("\nfacets");
-  const core = await viem.deployContract("AnimaCoreFacet", [animaConfig]);
+  const reuse = config.facets;
+  const core = reuse?.core
+    ? await viem.getContractAt("AnimaCoreFacet", reuse.core)
+    : await viem.deployContract("AnimaCoreFacet", [animaConfig]);
   log("AnimaCoreFacet", core.address);
-  const agent = await viem.deployContract("AnimaAgentFacet", [animaConfig]);
+  const agent = reuse?.agent
+    ? await viem.getContractAt("AnimaAgentFacet", reuse.agent)
+    : await viem.deployContract("AnimaAgentFacet", [animaConfig]);
   log("AnimaAgentFacet", agent.address);
-  const brain = await viem.deployContract("AnimaBrainFacet", [animaConfig]);
+  const brain = reuse?.brain
+    ? await viem.getContractAt("AnimaBrainFacet", reuse.brain)
+    : await viem.deployContract("AnimaBrainFacet", [animaConfig]);
   log("AnimaBrainFacet", brain.address);
-  const loupe = await viem.deployContract("AnimaLoupeFacet");
+  const loupe = reuse?.loupe
+    ? await viem.getContractAt("AnimaLoupeFacet", reuse.loupe)
+    : await viem.deployContract("AnimaLoupeFacet");
   log("AnimaLoupeFacet", loupe.address);
-  const init = await viem.deployContract("AnimaInit", [animaConfig]);
+  const init = reuse?.init
+    ? await viem.getContractAt("AnimaInit", reuse.init)
+    : await viem.deployContract("AnimaInit", [animaConfig]);
   log("AnimaInit", init.address);
+
+  // The diamond's constructor reads every one of these before it will deploy.
+  for (const [name, c] of [
+    ["AnimaCoreFacet", core],
+    ["AnimaAgentFacet", agent],
+    ["AnimaBrainFacet", brain],
+    ["AnimaLoupeFacet", loupe],
+    ["AnimaInit", init],
+  ] as const) {
+    await waitForCode(publicClient, c.address as Address, name);
+  }
 
   // ---- 2. the cut, derived ------------------------------------------------
   const cuts = deriveFacetCut({
@@ -146,6 +189,7 @@ export async function deployDiamond(config: DiamondConfig, connection?: { viem: 
   ]);
   console.log("");
   log("AnimaDiamond", diamond.address);
+  await waitForCode(publicClient, diamond.address as Address, "AnimaDiamond");
 
   // ---- 4. verification, on chain ------------------------------------------
   // The constructor already refuses a duplicate selector, a non-Add action, a codeless facet,
@@ -153,6 +197,18 @@ export async function deployDiamond(config: DiamondConfig, connection?: { viem: 
   // cannot check is whether the cut it was handed was the *right* cut — that is this section.
   const token = await viem.getContractAt("AnimaAgent", diamond.address);
   const view = await viem.getContractAt("AnimaLoupeFacet", diamond.address);
+
+  // `waitForCode` proves *a* node has the diamond; the next read can still land on one that does
+  // not. Retry the first read until it answers rather than reporting a verification failure that
+  // is really an infrastructure hiccup — a false "do NOT publish this address" is its own hazard.
+  for (let i = 0; i < 40; i++) {
+    try {
+      await view.read.facetAddresses();
+      break;
+    } catch {
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
   const failures: string[] = [];
   const check = (ok: boolean, message: string) => {
     if (!ok) failures.push(message);
