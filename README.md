@@ -206,8 +206,10 @@ at all.
 
 ## Standards: adopted, adapted, rejected
 
-**Implemented:** ERC-721, ERC-165, ERC-2981, ERC-4906, ERC-4907, ERC-5192, ERC-6454, ERC-7572,
-ERC-8004 (Identity + Reputation + Validation), ERC-6551, ERC-1271, ERC-4337, ERC-712, ERC-8217.
+**Implemented:** ERC-721, ERC-165, ERC-712, ERC-1271, ERC-2981, ERC-4337, ERC-4906, ERC-4907,
+ERC-5192, ERC-5646, ERC-6454, ERC-6492, ERC-6551, ERC-7432, ERC-7572, ERC-8004 (Identity +
+Reputation + Validation), ERC-8217 — plus expiring, revocable approvals ported from ICRC-37 and
+CW-721, which EVM has no equivalent of.
 
 **Adapted, not copied:** ERC-7857 (the proof-and-hash model, not the vendor ABI), ERC-7641
 (the redemption floor, not the snapshot machinery), ERC-8196 (the audit chain), ERC-8183 (the

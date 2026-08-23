@@ -5,7 +5,7 @@
 | **Title** | Sovereign Agent Tokens |
 | **Status** | Draft (unsubmitted) |
 | **Type** | Standards Track — ERC |
-| **Requires** | 165, 712, 721, 1271, 2981, 4906, 4907, 5192, 6454, 6551, 8004 |
+| **Requires** | 165, 712, 721, 1271, 2981, 4906, 4907, 5192, 5646, 6454, 6492, 6551, 8004 |
 | **Created** | 2026-08 |
 
 ## Abstract
@@ -220,6 +220,8 @@ event OperatorSet(uint256 indexed agentId, address indexed operator, bool allowe
 | ERC-5192 | `0xb45a3c0e` |
 | ERC-6454 | `0x91a6262f` |
 | ERC-7572 | `0xe8a3d485` *(unofficial; the draft publishes none)* |
+| ERC-5646 | `0xf5112315` |
+| ERC-7432 | `0xd00ca5cf` *(on the roles registry, not the token — see below)* |
 
 ## Rationale
 
@@ -250,6 +252,11 @@ Fully ERC-721 compatible; a conforming token trades on any existing marketplace.
 clients that only know `IIdentityRegistry` interoperate through the `register()` overloads.
 Marketplaces that read only ERC-5192 see correct lock state; those that read ERC-6454 see a
 more precise answer.
+
+Roles beyond ERC-4907's single `user` SHOULD be provided through an external ERC-7432 registry
+rather than on the token. ERC-7432 is deliberately not an ERC-721 extension for this reason, and a
+maximal agent token has no room for it: the reference implementation is already within 605 bytes of
+the EIP-170 limit.
 
 Implementations MUST NOT also implement ERC-4519 (its `userOf` collides with ERC-4907 at the
 selector level with different semantics) or ERC-3525 (which overloads `balanceOf` and `approve`

@@ -182,16 +182,51 @@ Four were missing and each closed a real hole:
   optimistic value, which is the right shape; the actual challenge game is venue-specific and is
   deliberately not in this repository.
 
-Two more were noted and consciously not implemented, because they do not fit:
+**ERC-7432 Non-Fungible Token Roles** (Final) is implemented — as `AnimaRoles`, a standalone
+registry. An earlier draft of this document said it "does not fit", which was the wrong frame: it
+was never supposed to fit. The spec's Rationale is explicit that it is deliberately *not* an
+ERC-721 extension, "to enable it to be implemented externally or on the same contract as the NFT",
+and every function carries `tokenAddress` beside `tokenId` for exactly that reason. Zero bytes were
+added to the token.
 
-- **ERC-7432 Non-Fungible Token Roles** (Final) gives multi-role grants with per-role expiry and a
-  revocable flag, where ERC-4907 gives exactly one. An agent genuinely wants distinct operator,
-  payer, auditor and trainer roles. It does not fit: `AnimaAgent` compiles to 23,971 bytes against
-  a 24,576-byte limit.
-- **ERC-7656 Generalized Contract-Linked Services** (Final) is the right home for it, and for the
-  brain-commitment and lifecycle services generally — attach them to the token as linked services
-  rather than welding them into it. That is the correct next structural move for this codebase, and
-  the size wall is what forces the issue rather than taste.
+It gives an agent distinct operator, payer, auditor and trainer roles, each with its own recipient,
+expiry and revocability — where ERC-4907 has one `user` slot and no revocability flag at all. Where
+the spec suggests a registry take custody of the NFT so a role cannot be sold out from under its
+holder, `AnimaRoles` registers as an ANIMA module and uses the native lock instead: the owner keeps
+the token in their own wallet, visible to every marketplace, and it simply cannot move while a role
+is live. Irrevocable roles are capped at a year, because a grant the owner cannot end is a lock the
+owner cannot lift.
+
+## The 24 KB wall, measured
+
+`AnimaAgent` sits at 23,971 of the 24,576 bytes EIP-170 allows. The options, with real numbers
+rather than folklore:
+
+| Lever | Recovers | Cost |
+|---|---:|---|
+| Drop the CBOR metadata trailer | 53 B | loses the source-verification hash |
+| Optimizer `runs: 200` → `1` | 376 B | taxes every call the contract ever serves |
+| Both together | 429 B | as above |
+| Move a feature to a linked contract | its whole size | one external call per read |
+
+The first two are not worth having: the most aggressive combination buys less than one small
+feature and makes the contract permanently more expensive to use. **Composition is the only lever
+that scales**, and it is the one the standards were designed for.
+
+Note what does *not* help: an NFT holding other NFTs. ERC-7401 nesting moves ownership and data,
+not code — a token that owns a thousand tokens has exactly the same bytecode budget. Likewise
+SSTORE2 stores *data* in contract code, which is the opposite problem.
+
+One measured trap: moving `writeShards` into a `public` library made the token **4 KB larger**, not
+smaller. ABI-encoding a dynamic array for a `delegatecall` costs more bytecode than the inline loop
+it replaced. Public libraries pay off for simple value-type parameters and backfire on dynamic ones.
+
+If the *token itself* ever has to grow, the remaining option is an **immutable diamond** — EIP-2535
+facets with `diamondCut` removed after deployment. That buys unlimited code while keeping the
+property that matters here, which is that nobody can rewrite an agent's rules after the fact. It
+costs a delegatecall and a selector lookup on every call, and demands ERC-7201 namespaced storage
+discipline. **ERC-7656 Generalized Contract-Linked Services** (Final) is the lighter form of the
+same idea and remains the right next move for the brain-commitment and lifecycle services.
 
 ## Trust boundaries
 
