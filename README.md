@@ -5,7 +5,8 @@
 An identity, a wallet, private state, a declared model, a published leash, and a bond you
 can take from it when it fails.
 
-> Status: reference implementation. 17 contracts, 119 tests, unaudited, no deployments.
+> Status: reference implementation. 19 contracts, 169 tests, 23 review findings fixed.
+> Unaudited, no deployments.
 > Read [Honest limitations](#honest-limitations) before you do anything with real money.
 
 ---
@@ -252,6 +253,8 @@ npx hardhat test      # 119 tests
 
 Docs: [architecture](docs/ARCHITECTURE.md) · [the standard](docs/SPEC.md) ·
 [security model](docs/SECURITY.md) · [deploying](docs/DEPLOYMENT.md)
+
+Overview page: <https://claude.ai/code/artifact/38d30b21-bce9-4e98-9944-b2ad85eba5e4>
 
 ## License
 

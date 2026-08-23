@@ -248,7 +248,7 @@ contract ReputationRegistry is IReputationRegistry, Ownable2Step {
         string calldata tag1,
         string calldata tag2
     ) external view returns (uint64 count, int128 summaryValue, uint8 summaryValueDecimals) {
-        (count, summaryValue) = _summarise(agentId, clientAddresses, tag1, tag2, false);
+        (count, summaryValue) = _summarise(agentId, clientAddresses, tag1, tag2);
         summaryValueDecimals = SUMMARY_DECIMALS;
     }
 
@@ -308,8 +308,7 @@ contract ReputationRegistry is IReputationRegistry, Ownable2Step {
         uint256 agentId,
         address[] calldata clientAddresses,
         string calldata tag1,
-        string calldata tag2,
-        bool attestedOnly
+        string calldata tag2
     ) private view returns (uint64 count, int128 mean) {
         address[] memory clients;
         if (clientAddresses.length == 0) {
@@ -323,7 +322,6 @@ contract ReputationRegistry is IReputationRegistry, Ownable2Step {
             for (uint256 j; j < list.length; ++j) {
                 Feedback storage f = list[j];
                 if (f.isRevoked) continue;
-                if (attestedOnly && !f.attested) continue;
                 if (!_tagMatch(f.tag1, f.tag2, tag1, tag2)) continue;
                 sum += _normalise(f.value, f.valueDecimals);
                 unchecked {
