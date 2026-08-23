@@ -112,6 +112,31 @@ making the record of what an agent did bilateral.
 one canonical home for accountability. `AnimaBindings` implements ERC-8217 so an entry in the
 chain's singleton ERC-8004 registry can point back at an ANIMA token.
 
+## Off-chain interfaces, and their moving parts
+
+The contracts commit to documents that live off-chain, so the shapes of those documents matter.
+Recorded with dates because several changed recently in ways that break older integrations:
+
+- **A2A v1.0.0** (2026-03-12) restructured the AgentCard: `url`/`preferredTransport`/
+  `additionalInterfaces` collapsed into one ordered `supportedInterfaces[]`, enums serialise as
+  ProtoJSON SCREAMING_SNAKE, and the well-known path is `/.well-known/agent-card.json`. Crucially
+  it is the *only* standard here that defines its own canonicalisation — RFC 8785 (JCS) — which
+  is why the SDK uses JCS and why `keccak256(manifest)` is byte-identical to what an A2A JWS
+  already signs.
+- **MCP 2026-07-28** made the protocol stateless: no `initialize` handshake, no session id,
+  discovery via `server/discover`. Sampling, roots and logging are deprecated. A design that
+  hashed an `initialize` result would be hashing something that no longer exists.
+- **x402 v2** renamed every header (`PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, `PAYMENT-RESPONSE`),
+  renamed `maxAmountRequired` to `amount`, and moved to CAIP-2 network identifiers. Anything
+  referencing `X-PAYMENT` is v1. `InferenceMeter` is a settlement layer underneath this rather
+  than an implementation of it — channels exist because a settlement per inference costs more
+  than the inference.
+- **ERC-7715**'s method is `wallet_requestExecutionPermissions`, not `wallet_grantPermissions`.
+- **Sovereign Agent Mesh** binds a libp2p peer id to an OIDC subject at its control plane and
+  translates the claims into Biscuit Datalog facts (`user(...)`, `role(...)`, `node(<peer-id>)`).
+  `AgentHandles` publishes the same peer id against the token, so a mesh can check the chain
+  instead of an identity provider.
+
 ## Trust boundaries
 
 | Party | Can | Cannot |

@@ -149,31 +149,89 @@ export function handleKey(kind: HandleKindName, value: string): Hex {
 }
 
 /**
- * Canonicalise a manifest and hash it exactly as `AnimaAgent.verifyManifest` will.
+ * Canonicalise a manifest as RFC 8785 (JSON Canonicalization Scheme) and serialise it.
  *
- * The commitment is over the *bytes actually served*, so canonicalisation has to be agreed
- * rather than assumed. This uses JSON with sorted keys and no insignificant whitespace; publish
- * the output of {@link serialiseManifest}, not a re-formatted copy of it, or your own
- * `verifyManifest` will fail against your own document.
+ * The on-chain commitment is over the *bytes actually served*, so canonicalisation has to be
+ * agreed rather than assumed. JCS is the right choice and not an arbitrary one: A2A's
+ * `AgentCardSignature` scheme specifies exactly this — drop default-valued properties, exclude
+ * `signatures`, canonicalise with RFC 8785, then JWS-sign. Since an ANIMA manifest is a superset
+ * of an AgentCard, using the same scheme makes `keccak256(serialiseManifest(m))` byte-identical
+ * to the payload an A2A signature already covers. One document, one canonical form, two
+ * independent proofs of it.
+ *
+ * MCP's `server/discover`, ERC-8004 registration files and DID documents define no
+ * canonicalisation at all, so for those the commitment is ambiguous unless you pick one. Pick
+ * this one.
+ *
+ * Publish the output of this function verbatim. A re-formatted copy — a pretty-printer, a proxy
+ * that re-serialises, a CMS that reorders keys — will fail `verifyManifest` against its own
+ * document.
  */
 export function serialiseManifest(manifest: AgentManifest): string {
-  return JSON.stringify(sortKeys(manifest));
+  return canonicalise(manifest);
 }
 
 export function manifestHash(manifest: AgentManifest): Hex {
   return keccak256(toHex(serialiseManifest(manifest)));
 }
 
-function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.keys(value as Record<string, unknown>)
-        .sort()
-        .map((k) => [k, sortKeys((value as Record<string, unknown>)[k])])
-    );
+/**
+ * RFC 8785 canonical JSON.
+ *
+ * ECMAScript's `JSON.stringify` already produces JCS-conformant output for object and string
+ * serialisation, and `Array.prototype.sort()` already orders by UTF-16 code unit, which is the
+ * ordering JCS mandates. The two places it can silently diverge are guarded explicitly rather
+ * than hoped about: non-finite numbers (which `JSON.stringify` turns into `null`, quietly
+ * changing the document) and lone surrogates (which have no canonical encoding). Both throw.
+ */
+export function canonicalise(value: unknown): string {
+  return JSON.stringify(normalise(value));
+}
+
+function normalise(value: unknown): unknown {
+  if (value === null) return null;
+  if (Array.isArray(value)) return value.map(normalise);
+
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error(`RFC 8785 has no encoding for ${value}; JSON.stringify would silently emit null`);
+    }
+    return value;
   }
+
+  if (typeof value === "string") {
+    assertWellFormed(value);
+    return value;
+  }
+
+  if (typeof value === "object") {
+    const source = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    // Default sort is by UTF-16 code unit, which is exactly what JCS specifies.
+    for (const key of Object.keys(source).sort()) {
+      if (source[key] === undefined) continue; // A2A: default-valued properties are dropped
+      assertWellFormed(key);
+      out[key] = normalise(source[key]);
+    }
+    return out;
+  }
+
   return value;
+}
+
+function assertWellFormed(s: string): void {
+  // A lone surrogate has no well-defined UTF-8 encoding, so the bytes a server serves and the
+  // bytes a verifier hashes can differ. Refuse rather than produce an unverifiable commitment.
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = s.charCodeAt(i + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) throw new Error("unpaired high surrogate in manifest string");
+      i++;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      throw new Error("unpaired low surrogate in manifest string");
+    }
+  }
 }
 
 /* -------------------------------------------------------------------------- */

@@ -19,7 +19,7 @@ The pieces for agent-native tokens all shipped. None of them talk to each other.
 | **ERC-8004** (Trustless Agents) | identity, reputation, validation registries | no wallet, no economics, no private state, and feedback anyone can mint for the price of gas |
 | **ERC-6551** (Token Bound Accounts) | every NFT gets a wallet | nothing agent-specific; a wallet with no limits is a liability |
 | **ERC-7857** (AI Agents NFT) | encrypted metadata that re-keys on transfer | no identity, no payments, no accountability; vendor-coupled in practice |
-| **ONFT / LayerZero** | move the token across chains | the message carries `(to, tokenId)` — enough for a collectible, not for an agent |
+| **ONFT / LayerZero** | move the token across chains | the message carries `(to, tokenId)` — enough for a collectible, not for an agent. It is also one of only two rails that can carry an NFT at all: CCIP, Wormhole NTT, Axelar ITS, ERC-7802 and xERC20 are all amount-typed. |
 | **ERC-4907 / 5192 / 2981** | rental, locking, royalties | mutually unaware of each other; royalties are unenforceable by design |
 
 So you can build an agent that has a name, or one that has a wallet, or one that has secrets.

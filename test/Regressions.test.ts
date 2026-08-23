@@ -393,6 +393,7 @@ describe("Regressions — the launchpad's promises are fixed at creation", () =>
           startsAt: 0n,
           fairWindow: 0n,
           maxBuyInWindow: USDC(1_000_000),
+          snipeTaxStartBps: 0,
           lpRecipient: "0x000000000000000000000000000000000000dEaD",
         },
       ],
@@ -439,6 +440,7 @@ describe("Regressions — the launchpad's promises are fixed at creation", () =>
             startsAt: 1n, // 1970: fairWindowEnds is already long past
             fairWindow: 86400n,
             maxBuyInWindow: USDC(500),
+            snipeTaxStartBps: 0,
             lpRecipient: "0x000000000000000000000000000000000000dEaD",
           },
         ],

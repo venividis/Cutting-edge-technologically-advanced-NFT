@@ -65,6 +65,9 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         uint64 startsAt;
         uint64 fairWindowEnds;
         uint128 maxBuyInWindow;
+        /// @dev Punitive opening fee in basis points, decaying linearly to zero across the fair
+        ///      window. See {_snipeTaxBps}.
+        uint16 snipeTaxStartBps;
         address lpRecipient; //      fixed at creation; where graduation LP lands
         /// @dev Also fixed at creation. A mutable deployer receives approvals for the entire
         ///      raise and the whole unsold supply at graduation, so leaving it swappable would
@@ -85,6 +88,9 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
 
     uint16 public constant MAX_TOTAL_FEE_BPS = 300; // 3% ceiling across all three legs
     uint64 public constant MAX_FAIR_WINDOW = 1 days;
+    /// @notice Ceiling on the opening anti-snipe tax. Not 100%: a trade that returns nothing is
+    ///         indistinguishable from a broken contract, and buyers should always get something.
+    uint16 public constant MAX_SNIPE_TAX_BPS = 9900;
 
     IERC20 public immutable QUOTE;
     IERC721 public immutable AGENTS;
@@ -130,6 +136,7 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
     error FeeTooHigh(uint16 totalBps);
     error FairWindowTooLong(uint64 window);
     error BadCurveParameters();
+    error SnipeTaxTooHigh(uint16 bps);
     error StartsInThePast(uint64 startsAt);
     error NoDeployerConfigured();
     error GraduationFailed();
@@ -192,6 +199,7 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         uint64 startsAt;
         uint64 fairWindow;
         uint256 maxBuyInWindow;
+        uint16 snipeTaxStartBps; //  e.g. 9900 for a 99% opening tax
         address lpRecipient;
     }
 
@@ -204,6 +212,7 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         // consulted and the creator can take the entire cheap end of the curve in one call —
         // exactly what the fair window exists to prevent.
         if (p.startsAt != 0 && p.startsAt < block.timestamp) revert StartsInThePast(p.startsAt);
+        if (p.snipeTaxStartBps > MAX_SNIPE_TAX_BPS) revert SnipeTaxTooHigh(p.snipeTaxStartBps);
         ILiquidityDeployer deployer_ = liquidityDeployer;
         if (address(deployer_) == address(0)) revert NoDeployerConfigured();
         // The curve must never be able to drain the base reserve to zero: constant product
@@ -235,6 +244,7 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         l.startsAt = p.startsAt == 0 ? uint64(block.timestamp) : p.startsAt;
         l.fairWindowEnds = l.startsAt + p.fairWindow;
         l.maxBuyInWindow = p.maxBuyInWindow.toUint128();
+        l.snipeTaxStartBps = p.snipeTaxStartBps;
         l.lpRecipient = p.lpRecipient;
         l.deployer = deployer_;
 
@@ -316,14 +326,44 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         emit Sold(launchId, msg.sender, baseIn, quoteOut, fee);
     }
 
-    /// @dev Fees are skimmed from the quote leg and split three ways. The treasury leg is the
-    ///      interesting one: it goes into {AgentToken}'s redemption pool, so every trade
-    ///      permanently raises the price floor under the token.
+    /// @notice The anti-snipe tax in force right now: `snipeTaxStartBps` at the opening block,
+    ///         decaying linearly to zero at the end of the fair window.
+    /// @dev Priced by time rather than by identity, which is why splitting across addresses does
+    ///      not help — the defect in every per-address cap.
+    function snipeTaxBps(uint256 launchId) public view returns (uint256) {
+        return _snipeTaxBps(_launches[launchId]);
+    }
+
+    function _snipeTaxBps(Launch storage l) private view returns (uint256) {
+        uint16 start = l.snipeTaxStartBps;
+        if (start == 0 || block.timestamp >= l.fairWindowEnds) return 0;
+        uint256 window = uint256(l.fairWindowEnds) - l.startsAt;
+        if (window == 0) return 0;
+        uint256 remaining = uint256(l.fairWindowEnds) - block.timestamp;
+        return (uint256(start) * remaining) / window;
+    }
+
+    /// @dev Fees are skimmed from the quote leg and split three ways, plus the decaying opening
+    ///      tax. The treasury legs are the interesting ones: they go into {AgentToken}'s
+    ///      redemption pool, so both ordinary trading and sniping permanently raise the price
+    ///      floor under the token.
     function _takeFee(Launch storage l, uint256 amount) private returns (uint256 fee) {
         FeeSplit memory s = feeSplit;
         uint256 protocolCut = (amount * s.protocolBps) / 10_000;
         uint256 treasuryCut = (amount * s.treasuryBps) / 10_000;
         uint256 agentCut = (amount * s.agentBps) / 10_000;
+
+        // Clamp the opening tax so base fees plus tax can never reach 100%. Without this a 99%
+        // tax on top of a 3% base would try to pay out 102% of the trade — and because launches
+        // share this contract's balance, the overspill would come out of another launch's raise
+        // rather than reverting cleanly.
+        uint256 baseBps = uint256(s.protocolBps) + s.treasuryBps + s.agentBps;
+        uint256 snipeBps = _snipeTaxBps(l);
+        if (baseBps + snipeBps > MAX_SNIPE_TAX_BPS) snipeBps = MAX_SNIPE_TAX_BPS - baseBps;
+        // The whole opening tax goes to the redemption treasury: value a sniper gives up should
+        // land with the people they were trying to take it from.
+        treasuryCut += (amount * snipeBps) / 10_000;
+
         fee = protocolCut + treasuryCut + agentCut;
         if (fee == 0) return 0;
 
@@ -380,7 +420,7 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
     function quoteBuy(uint256 launchId, uint256 quoteIn) external view returns (uint256 baseOut, uint256 fee) {
         Launch storage l = _launches[launchId];
         FeeSplit memory s = feeSplit;
-        fee = (quoteIn * s.protocolBps) / 10_000 + (quoteIn * s.treasuryBps) / 10_000 + (quoteIn * s.agentBps) / 10_000;
+        fee = (quoteIn * _effectiveFeeBps(l, s)) / 10_000;
         uint256 k = uint256(l.quoteReserve) * l.baseReserve;
         uint256 newQuote = uint256(l.quoteReserve) + (quoteIn - fee);
         baseOut = l.baseReserve - Math.ceilDiv(k, newQuote);
@@ -391,8 +431,16 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         uint256 k = uint256(l.quoteReserve) * l.baseReserve;
         uint256 gross = uint256(l.quoteReserve) - Math.ceilDiv(k, uint256(l.baseReserve) + baseIn);
         FeeSplit memory s = feeSplit;
-        fee = (gross * s.protocolBps) / 10_000 + (gross * s.treasuryBps) / 10_000 + (gross * s.agentBps) / 10_000;
+        fee = (gross * _effectiveFeeBps(l, s)) / 10_000;
         quoteOut = gross - fee;
+    }
+
+    /// @dev Total fee actually charged right now, tax included and clamped.
+    function _effectiveFeeBps(Launch storage l, FeeSplit memory s) private view returns (uint256) {
+        uint256 baseBps = uint256(s.protocolBps) + s.treasuryBps + s.agentBps;
+        uint256 snipeBps = _snipeTaxBps(l);
+        if (baseBps + snipeBps > MAX_SNIPE_TAX_BPS) snipeBps = MAX_SNIPE_TAX_BPS - baseBps;
+        return baseBps + snipeBps;
     }
 
     function raisedOf(uint256 launchId) external view returns (uint256) {

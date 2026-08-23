@@ -22,6 +22,23 @@ npx hardhat test          # 123 tests — do not deploy on a red suite
 6. **Markets and reach.**
 7. **Wiring.**
 
+## Known addresses, as of August 2026
+
+Verify these against a block explorer before using them; they are recorded here because getting
+them wrong is silent rather than loud.
+
+| What | Address | Note |
+|---|---|---|
+| ERC-6551 registry | `0x000000006551c19487814612e58FE06813775758` | Same on every EVM chain (Nick's factory). ERC-6551 itself is **Review**, not Final, despite near-universal claims otherwise. |
+| ERC-8004 IdentityRegistry | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` | Live on ~20 mainnets. The EIP is Draft; deployment does not imply Final, and the interface has churned. |
+| ERC-8004 ReputationRegistry | `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63` | Same footprint. |
+| ERC-8004 ValidationRegistry | — | **No confirmed mainnet deployment.** Do not architect around it as an existing dependency; ANIMA ships its own. |
+| ERC-4337 EntryPoint v0.8 | `0x4337084D9E255Ff0702461CF8895Ce9E3b5Ff108` | The widely-deployed one. |
+| ERC-4337 EntryPoint v0.9 | `0x433709009B8330FDa32311DF1C2AFA402eD8D009` | ABI-compatible with v0.7/v0.8. |
+
+`AnimaBindings` targets the canonical ERC-8004 IdentityRegistry above, so an ANIMA token can act
+as the master NFT for a registration in the singleton every indexer already reads.
+
 ## The ERC-6551 registry
 
 The canonical registry is at `0x000000006551c19487814612e58FE06813775758` on every EVM chain,

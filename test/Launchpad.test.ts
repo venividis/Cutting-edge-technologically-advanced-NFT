@@ -16,7 +16,7 @@ const GRADUATION = USDC(3000);
 
 async function setupLaunch(
   p: Awaited<ReturnType<typeof deployProtocol>>,
-  opts: { fairWindow?: bigint; maxBuy?: bigint } = {}
+  opts: { fairWindow?: bigint; maxBuy?: bigint; snipeTax?: number } = {}
 ) {
   const launchpad = await p.viem.deployContract("AgentLaunchpad", [
     p.usdc.address,
@@ -46,6 +46,7 @@ async function setupLaunch(
         startsAt: 0n,
         fairWindow: opts.fairWindow ?? 0n,
         maxBuyInWindow: opts.maxBuy ?? USDC(100),
+        snipeTaxStartBps: opts.snipeTax ?? 0,
         lpRecipient: "0x000000000000000000000000000000000000dEaD",
       },
     ],
@@ -78,6 +79,7 @@ describe("AgentLaunchpad — the curve", () => {
       startsAt: 0n,
       fairWindow: 0n,
       maxBuyInWindow: USDC(100),
+      snipeTaxStartBps: 0,
       lpRecipient: "0x000000000000000000000000000000000000dEaD" as const,
     };
     await expectRevert(launchpad.write.createLaunch([params], { account: p.bob.account }), "NotAgentOwner");
@@ -102,6 +104,7 @@ describe("AgentLaunchpad — the curve", () => {
             startsAt: 0n,
             fairWindow: 0n,
             maxBuyInWindow: USDC(100),
+            snipeTaxStartBps: 0,
             lpRecipient: "0x000000000000000000000000000000000000dEaD",
           },
         ],
@@ -253,5 +256,70 @@ describe("AgentLaunchpad — graduation", () => {
     assert.equal(await token.read.balanceOf([launchpad.address]), 0n);
 
     await expectRevert(buy(p, launchpad, p.carol, USDC(10)), "AlreadyGraduated");
+  });
+});
+
+describe("AgentLaunchpad — the anti-snipe tax", () => {
+  it("charges 99% at the opening block and decays it to nothing", async () => {
+    const p = await deployProtocol();
+    const { launchpad, token } = await setupLaunch(p, { fairWindow: 100n, snipeTax: 9900 });
+
+    assert.equal(await launchpad.read.snipeTaxBps([1n]), 9900n);
+
+    // A sniper in the first block keeps almost nothing...
+    await buy(p, launchpad, p.bob, USDC(1000));
+    const sniped = await token.read.balanceOf([p.bob.account.address]);
+
+    // ...and what they gave up went to the redemption treasury, not to a fee wallet.
+    assert.ok((await token.read.treasury()) > USDC(900), "the tax must land with honest buyers");
+
+    await p.networkHelpers.time.increase(101);
+    assert.equal(await launchpad.read.snipeTaxBps([1n]), 0n);
+
+    await buy(p, launchpad, p.carol, USDC(1000));
+    const patient = await token.read.balanceOf([p.carol.account.address]);
+
+    // Waiting out the window beats sniping, even though the curve got more expensive.
+    assert.ok(patient > sniped, `patient ${patient} should beat sniped ${sniped}`);
+  });
+
+  it("cannot be escaped by splitting across addresses, unlike a per-address cap", async () => {
+    const p = await deployProtocol();
+    const { launchpad, token } = await setupLaunch(p, { fairWindow: 1000n, snipeTax: 9900 });
+
+    // Three sybil addresses, each under any plausible per-address cap.
+    for (const w of [p.bob, p.carol, p.deployer]) {
+      await buy(p, launchpad, w, USDC(100));
+    }
+    // The tax is priced by time, not identity, so every one of them paid it.
+    assert.ok((await token.read.treasury()) > USDC(250));
+  });
+
+  it("refuses a tax that would leave a buyer with nothing", async () => {
+    const p = await deployProtocol();
+    const { launchpad } = await setupLaunch(p);
+    const id = await mintAgent(p, p.alice.account.address);
+    await expectRevert(
+      launchpad.write.createLaunch(
+        [
+          {
+            agentId: id,
+            name: "x",
+            symbol: "X",
+            totalSupply: TOTAL_SUPPLY,
+            curveSupply: CURVE_SUPPLY,
+            virtualQuote: VIRTUAL_QUOTE,
+            graduationTarget: GRADUATION,
+            startsAt: 0n,
+            fairWindow: 100n,
+            maxBuyInWindow: USDC(100),
+            snipeTaxStartBps: 10_000,
+            lpRecipient: "0x000000000000000000000000000000000000dEaD",
+          },
+        ],
+        { account: p.alice.account }
+      ),
+      "SnipeTaxTooHigh"
+    );
   });
 });

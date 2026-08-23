@@ -9,6 +9,7 @@ import {
   serialiseManifest,
   lockedDownPolicy,
   handleKey as sdkHandleKey,
+  canonicalise,
   ShardKind,
   type AgentManifest,
 } from "../sdk/src/index.js";
@@ -165,5 +166,30 @@ describe("SDK — handle keys", () => {
         sdkHandleKey(name, "atlas.agents.example")
       );
     }
+  });
+});
+
+describe("SDK — canonicalisation", () => {
+  it("is stable under key reordering, as RFC 8785 requires", async () => {
+    const a = { b: 1, a: { z: [3, 2], y: "x" } };
+    const b = { a: { y: "x", z: [3, 2] }, b: 1 };
+    assert.equal(canonicalise(a), canonicalise(b));
+    assert.equal(canonicalise(a), '{"a":{"y":"x","z":[3,2]},"b":1}');
+  });
+
+  it("preserves array order, which is significant", async () => {
+    assert.notEqual(canonicalise({ a: [1, 2] }), canonicalise({ a: [2, 1] }));
+  });
+
+  it("refuses values that would silently produce an unverifiable commitment", async () => {
+    // JSON.stringify turns these into null, quietly changing the document that was signed.
+    assert.throws(() => canonicalise({ a: NaN }), /no encoding/);
+    assert.throws(() => canonicalise({ a: Infinity }), /no encoding/);
+    // A lone surrogate has no well-defined UTF-8 encoding.
+    assert.throws(() => canonicalise({ a: "\ud800" }), /surrogate/);
+  });
+
+  it("drops undefined rather than emitting it, matching A2A's default-value rule", async () => {
+    assert.equal(canonicalise({ a: 1, b: undefined }), '{"a":1}');
   });
 });
