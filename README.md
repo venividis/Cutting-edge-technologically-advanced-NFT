@@ -8,6 +8,7 @@ can take from it when it fails.
 > Status: reference implementation. 26 contracts, 231 tests, 23 review findings fixed.
 > Two interchangeable builds of the token — a monolith and an immutable EIP-2535 diamond —
 > proved equivalent by running the same suite against both.
+> **Live on Base Sepolia** ([token](https://sepolia.basescan.org/address/0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3)), with a full agent lifecycle run on chain.
 > Unaudited, no deployments.
 > Read [Honest limitations](#honest-limitations) before you do anything with real money.
 
@@ -305,6 +306,53 @@ Stated here rather than buried, because a standard that hides them is worse than
   defaults name.
 
 ---
+
+## Live on Base Sepolia
+
+The diamond build is deployed and the whole agent lifecycle has been run against it — not
+simulated. Total cost of deploying the protocol: **0.00628 ETH**.
+
+| | |
+|---|---|
+| **Token** (immutable diamond) | [`0x0aeb6f78…3e71b3`](https://sepolia.basescan.org/address/0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3) |
+| Facets | core [`0x4A81…8c47`](https://sepolia.basescan.org/address/0x4A815892c26eb5Ab35b17fd85b881d7610428c47) · agent [`0x79c4…b545`](https://sepolia.basescan.org/address/0x79c4Fe69D445dcf8c72392Ea3554aeb423EAb545) · brain [`0xEebD…21c0`](https://sepolia.basescan.org/address/0xEebD273549156F636c6FF24D7DebC115aFFf21c0) · loupe [`0xda7d…aBa2`](https://sepolia.basescan.org/address/0xda7d5f48b94067f1F3b35fe2c52e0c03ba2AaBa2) |
+| Accountability | bonds [`0xcfd3…cC76`](https://sepolia.basescan.org/address/0xcfd3E22a9b8B419fE53E47886b2bf621d327cC76) · escrow [`0xFBA8…af4A`](https://sepolia.basescan.org/address/0xFBA84694C5F0Ee5A33fad6D732f327db7644af4A) · reputation [`0xb201…0579`](https://sepolia.basescan.org/address/0xb201eF54e44A81c4e141ced20f2fFCBF06350579) · validation [`0x0eFc…162d`](https://sepolia.basescan.org/address/0x0eFca108B2A456649D40F4F69DD0FFc7dd69162d) |
+| Markets & reach | market [`0x2802…7cD0`](https://sepolia.basescan.org/address/0x280296FEaA460354e1d86dAF0f3afCA631927cD0) · comms [`0xD008…F34b`](https://sepolia.basescan.org/address/0xD0081791398a0f5504672a0cb46afC733feCF34b) · meter [`0x3657…7A58`](https://sepolia.basescan.org/address/0x3657704749d06d38B222024393cB35d3D83c7A58) · handles [`0x9e8c…CDE6`](https://sepolia.basescan.org/address/0x9e8c0dE328201Ed7Ee4f41a16b9A829aE933CDE6) · roles [`0xF4dA…6F8f`](https://sepolia.basescan.org/address/0xF4dA6c25F2972B0833BaCCC8235773ea1dF36F8f) |
+
+Three things only a real chain could settle, now settled: `TSTORE` works (fourteen contracts use
+transient storage), the token points at the **canonical** ERC-6551 registry rather than a mock, and
+EntryPoint v0.7 is wired in as `AgentAccount`'s immutable so the ERC-4337 path is real.
+
+### Agent #2, its whole life, on chain
+
+`scripts/testnet-scenario.ts` — 21 transactions, every one linkable:
+[mint with a sealed brain](https://sepolia.basescan.org/tx/0x533cc70098a674e45cec67a4d6ee8734451881c87c29c011ce04869a8508a248) →
+[commit its manifest](https://sepolia.basescan.org/tx/0x7df03fd45d4b3a714b9fe70481953cda5476b47265708c417298c7080c1e012c) →
+[deploy its ERC-6551 wallet](https://sepolia.basescan.org/tx/0xf483609b2cb43884baf31604a552fd671514f8543e55cf070bbc4aa4ed9eb8e7) at the address predicted before deployment →
+[publish the leash](https://sepolia.basescan.org/tx/0x16596d3c8ac809346c48cafe3a4c33f0c9e85f7a948669cfc0c4b5b61bb68184) →
+[post a 2,000 aUSD bond](https://sepolia.basescan.org/tx/0x49ca96b351442d0ec891562a494364ca2d00cc202604fe9c9d9c0d16f03e0777) →
+[hired for 500 aUSD](https://sepolia.basescan.org/tx/0xb30be0a7b4dab0b7e8dcc3eea47cc931b0b5783ef83850ee5fee33d3a0bcf388), which **locks the token** →
+[learns](https://sepolia.basescan.org/tx/0x83cc5e99214a86f1a8cdeb54fde5a49559af33b62573b367f50a8a3be22436d9) →
+[delivers](https://sepolia.basescan.org/tx/0xe2723c7deb707f47bb76e667e76c0f783aee3cc40bcc454e163334e95b08d9c3) →
+[paid and rated 92](https://sepolia.basescan.org/tx/0x3c37f470e8c8dbcac706532602ac0960c3a308547e359bf94cd243227a4bf7f0) →
+[stakes its own earnings](https://sepolia.basescan.org/tx/0xaafddec2f68db19d022bf44a1d2624972cad902fab61073a1a5fdf85446cef08) →
+[charges for attention](https://sepolia.basescan.org/tx/0xad79b8f1e785a7346a1b3c5c6797ce00855dc5f6fd3cd05c9e1e72236f08d6ce) →
+[leased out](https://sepolia.basescan.org/tx/0x9371be547c07a9c6d327bce9121f853631a43f44d7fa9acd36bb9168c326adec) →
+[**sold**](https://sepolia.basescan.org/tx/0x6d2a02e0a79646b3f7d8196064f31518f4a8187be4733df50792bd82433c0245).
+
+Two moments are the whole point of the standard, and both happened on a chain nobody controls:
+
+**While it owed work, it could not be sold.** The transfer was refused with `AgentLocked`.
+
+**When it was sold, the seller's authority died with the sale.** Guardian cleared, ERC-4907
+tenant evicted, autonomy policy zeroed, status forced to `Paused`, every operator revoked by an
+epoch roll, and the ERC-5646 fingerprint changed accordingly. What the buyer kept was the agent
+itself: same wallet address, brain at epoch 2, its attested review, and **2,495 aUSD of bonded
+collateral — including the 495 it earned and staked itself.** Collateral belongs to the agent, so
+it changes hands with it.
+
+The aUSD here is a faucet token with a permissionless `mint`; the whole deployment is a burner and
+carries no value.
 
 ## Getting started
 
