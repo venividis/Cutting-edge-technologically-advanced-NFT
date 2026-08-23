@@ -158,6 +158,9 @@ export async function deployProtocol(opts: { entryPoint?: `0x${string}` } = {}) 
   await bonds.write.setModule([escrow.address, true]);
   await bonds.write.setArbiter([escrow.address, true]);
   await reputation.write.setSettlementModule([escrow.address, true]);
+  // A job that can slash requires a validator the registry already recognises: a freshly
+  // generated key is indistinguishable on-chain from an independent referee.
+  await validation.write.setValidator([validator.account.address, true]);
 
   return {
     connection,

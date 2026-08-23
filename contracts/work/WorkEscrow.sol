@@ -140,6 +140,10 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
     error VerdictPending(bytes32 validationRequest);
     error NotAgentPrincipal(uint256 jobId, address caller);
     error ValidatorOwnsAgent(uint256 jobId, address validator);
+    error OnlyOwnerMayPledge(uint256 jobId, address caller);
+    error SelfHire(uint256 jobId, address caller);
+    error ValidatorNotRegistered(address validator);
+    error ClientIsValidator(address validator);
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTION
@@ -200,6 +204,12 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
         if (amount == 0) revert ZeroAmount();
         if (deadline <= block.timestamp) revert DeadlinePassed(deadline);
         if (reviewWindow < MIN_REVIEW_WINDOW || reviewWindow > MAX_REVIEW_WINDOW) revert BadReviewWindow(reviewWindow);
+        if (validator == msg.sender) revert ClientIsValidator(validator);
+        // A dispute can take real money off the agent, and the client names the referee. A
+        // freshly-generated key is indistinguishable on-chain from an independent validator, so
+        // a job that can slash requires a validator the registry already recognises. Unbonded
+        // jobs stay permissionless: there is nothing to steal.
+        if (coverage != 0 && !VALIDATION.isValidator(validator)) revert ValidatorNotRegistered(validator);
 
         jobId = _nextJobId++;
         Job storage j = _jobs[jobId];
@@ -240,14 +250,20 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
         if (j.state != JobState.Offered) revert BadState(jobId, j.state);
         if (block.timestamp >= j.deadline) revert DeadlinePassed(j.deadline);
 
-        // Only the owner or an operator may commit the agent's collateral. A rental tenant is a
-        // controller for the purpose of *operating* the agent, but letting one bind the owner's
-        // bond would let anyone who rents an agent for an hour arrange to forfeit its entire
-        // stake to an address they also control.
         address holder = IERC721(address(ANIMA)).ownerOf(j.agentId);
-        if (msg.sender != holder && !IAnimaLocking(address(ANIMA)).isOperator(j.agentId, msg.sender)) {
+
+        // Pledging capital is the owner's decision alone. A tenant is a controller for the
+        // purpose of *operating* an agent, and an operator is the owner's staff — but letting
+        // either bind the bond means anyone who rents an agent for an hour, or any insider, can
+        // accept a one-wei job pinning the whole stake as coverage and then let it fail.
+        if (j.coverage != 0) {
+            if (msg.sender != holder) revert OnlyOwnerMayPledge(jobId, msg.sender);
+        } else if (msg.sender != holder && !IAnimaLocking(address(ANIMA)).isOperator(j.agentId, msg.sender)) {
             revert NotAgentPrincipal(jobId, msg.sender);
         }
+
+        // Accepting your own offer settles money in a circle and mints reputation out of it.
+        if (msg.sender == j.client) revert SelfHire(jobId, msg.sender);
         // The registry refuses a validator who holds the agent, so accepting here would leave
         // the client unable to ever open a dispute — a trap that only springs after delivery.
         if (j.validator != address(0) && j.validator == holder) revert ValidatorOwnsAgent(jobId, j.validator);
@@ -490,8 +506,12 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
         string calldata feedbackURI,
         bytes32 feedbackHash
     ) private {
+        // Weight is capped by the collateral that stood behind the job, not by the headline
+        // price. Otherwise a self-hire with a flash-loaned amount and no coverage buys a
+        // maximally-weighted "customer-attested" score for the cost of the protocol fee.
+        uint128 weight = j.amount < j.coverage ? j.amount : j.coverage;
         _fileFeedbackSafely(
-            j.agentId, j.client, rating, ratingDecimals, tag, feedbackURI, feedbackHash, j.amount, bytes32(jobId)
+            j.agentId, j.client, rating, ratingDecimals, tag, feedbackURI, feedbackHash, weight, bytes32(jobId)
         );
     }
 }

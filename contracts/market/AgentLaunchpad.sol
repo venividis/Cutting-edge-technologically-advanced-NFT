@@ -66,6 +66,10 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         uint64 fairWindowEnds;
         uint128 maxBuyInWindow;
         address lpRecipient; //      fixed at creation; where graduation LP lands
+        /// @dev Also fixed at creation. A mutable deployer receives approvals for the entire
+        ///      raise and the whole unsold supply at graduation, so leaving it swappable would
+        ///      make the LP-recipient guarantee buyers verified before buying worth nothing.
+        ILiquidityDeployer deployer;
         bool graduated;
     }
 
@@ -126,6 +130,9 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
     error FeeTooHigh(uint16 totalBps);
     error FairWindowTooLong(uint64 window);
     error BadCurveParameters();
+    error StartsInThePast(uint64 startsAt);
+    error NoDeployerConfigured();
+    error GraduationFailed();
     error ZeroAmount();
     error ZeroAddress();
 
@@ -193,6 +200,12 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         if (launchOfAgent[p.agentId] != 0) revert AlreadyLaunched(p.agentId);
         if (p.fairWindow > MAX_FAIR_WINDOW) revert FairWindowTooLong(p.fairWindow);
         if (p.lpRecipient == address(0)) revert ZeroAddress();
+        // A backdated start puts `fairWindowEnds` in the past, so the per-address cap is never
+        // consulted and the creator can take the entire cheap end of the curve in one call —
+        // exactly what the fair window exists to prevent.
+        if (p.startsAt != 0 && p.startsAt < block.timestamp) revert StartsInThePast(p.startsAt);
+        ILiquidityDeployer deployer_ = liquidityDeployer;
+        if (address(deployer_) == address(0)) revert NoDeployerConfigured();
         // The curve must never be able to drain the base reserve to zero: constant product
         // sends price to infinity there, and integer division would start returning nothing.
         if (p.curveSupply == 0 || p.curveSupply >= p.totalSupply || p.virtualQuote == 0 || p.graduationTarget == 0) {
@@ -223,6 +236,7 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         l.fairWindowEnds = l.startsAt + p.fairWindow;
         l.maxBuyInWindow = p.maxBuyInWindow.toUint128();
         l.lpRecipient = p.lpRecipient;
+        l.deployer = deployer_;
 
         launchOfAgent[p.agentId] = launchId;
 
@@ -341,14 +355,20 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         uint256 tokenAmount = IERC20(l.token).balanceOf(address(this));
         uint256 quoteAmount = raised;
 
-        ILiquidityDeployer deployer = liquidityDeployer;
-        if (address(deployer) == address(0)) revert ZeroAddress();
+        ILiquidityDeployer deployer = l.deployer;
 
         IERC20(l.token).forceApprove(address(deployer), tokenAmount);
         QUOTE.forceApprove(address(deployer), quoteAmount);
 
         (address pool, uint256 lpAmount) =
             deployer.deployLiquidity(l.token, address(QUOTE), tokenAmount, quoteAmount, l.lpRecipient);
+
+        // Verify the outcome rather than trust the return. Leftover allowance would be a
+        // standing claim on the next launch's raise, since launches share this contract's
+        // balance.
+        IERC20(l.token).forceApprove(address(deployer), 0);
+        QUOTE.forceApprove(address(deployer), 0);
+        if (pool == address(0) || lpAmount == 0) revert GraduationFailed();
 
         emit Graduated(launchId, pool, tokenAmount, quoteAmount, lpAmount);
     }

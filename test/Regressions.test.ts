@@ -126,11 +126,14 @@ describe("Regressions — a tenant cannot spend the owner's bond", () => {
 
     // Accepting for one unit of USDC would pin the owner's entire 2000 USDC bond, then be
     // deliberately failed to forfeit it.
-    await expectRevert(p.escrow.write.acceptJob([1n], { account: p.carol.account }), "NotAgentPrincipal");
+    await expectRevert(p.escrow.write.acceptJob([1n], { account: p.carol.account }), "OnlyOwnerMayPledge");
 
-    // An operator, who is the owner's own staff, still can.
+    // Not even an operator can pledge the owner's capital — insiders are the other half of
+    // this attack, and the owner's staff is still not the owner.
     await p.anima.write.setOperator([id, p.carol.account.address, true], { account: p.alice.account });
-    await p.escrow.write.acceptJob([1n], { account: p.carol.account });
+    await expectRevert(p.escrow.write.acceptJob([1n], { account: p.carol.account }), "OnlyOwnerMayPledge");
+
+    await p.escrow.write.acceptJob([1n], { account: p.alice.account });
   });
 
   it("refuses a job whose named validator holds the agent", async () => {
@@ -140,7 +143,8 @@ describe("Regressions — a tenant cannot spend the owner's bond", () => {
     await p.usdc.write.approve([p.escrow.address, USDC(10)], { account: p.bob.account });
     const now = BigInt(await p.networkHelpers.time.latest());
     // The client names a validator, unaware the agent is about to be moved to them.
-    await p.escrow.write.offerJob([id, USDC(10), 0n, now + 3600n, 3600n, p.carol.account.address, ZERO32, ""], {
+    await p.validation.write.setValidator([p.carol.account.address, true]);
+    await p.escrow.write.offerJob([id, USDC(10), USDC(1), now + 3600n, 3600n, p.carol.account.address, ZERO32, ""], {
       account: p.bob.account,
     });
 
@@ -309,5 +313,138 @@ describe("Regressions — the bridge cannot strand an agent", () => {
     });
     await b.endpointHome.write.deliver([b.endpointAway.address, 0n, b.home.address, ZERO32]);
     assert.equal(getAddress(await p.anima.read.ownerOf([id])), getAddress(p.alice.account.address));
+  });
+});
+
+describe("Regressions — reputation is bounded by capital at risk", () => {
+  it("caps attested weight at the coverage that actually stood behind the job", async () => {
+    const p = await deployProtocol();
+    const id = await mintAgent(p, p.alice.account.address);
+    await p.anima.write.deployAccount([id]);
+    await p.anima.write.setStatus([id, AgentStatus.Active], { account: p.alice.account });
+    await p.usdc.write.mint([p.alice.account.address, USDC(50)]);
+    await p.usdc.write.approve([p.bonds.address, USDC(50)], { account: p.alice.account });
+    await p.bonds.write.deposit([id, USDC(50)], { account: p.alice.account });
+
+    // A huge headline price behind a small bond. Weighting by the price would let a
+    // flash-loaned self-hire buy a maximally-weighted score for the cost of the protocol fee.
+    await p.usdc.write.mint([p.bob.account.address, USDC(1_000_000)]);
+    await p.usdc.write.approve([p.escrow.address, USDC(1_000_000)], { account: p.bob.account });
+    const now = BigInt(await p.networkHelpers.time.latest());
+    await p.escrow.write.offerJob(
+      [id, USDC(1_000_000), USDC(50), now + 3600n, 3600n, p.validator.account.address, ZERO32, ""],
+      { account: p.bob.account }
+    );
+    await p.escrow.write.acceptJob([1n], { account: p.alice.account });
+    await p.escrow.write.deliver([1n, ZERO32, ""], { account: p.alice.account });
+    await p.escrow.write.acceptDelivery([1n, 100n, 0, "q", "", ZERO32], { account: p.bob.account });
+
+    const [, , totalWeight] = await p.reputation.read.attestedSummaryOf([id]);
+    assert.equal(totalWeight, USDC(50), "weight must track collateral at risk, not headline price");
+  });
+
+  it("reads attested standing in constant time, so spam cannot make it unreadable", async () => {
+    const p = await deployProtocol();
+    const id = await mintAgent(p, p.alice.account.address);
+    // Anyone can append to the client list for the price of gas.
+    for (const w of [p.bob, p.carol, p.deployer, p.guardian]) {
+      await p.reputation.write.giveFeedback([id, 0n, 0, "", "", "", "", ZERO32], { account: w.account });
+    }
+    assert.equal(await p.reputation.read.clientCount([id]), 4n);
+
+    // The read path integrators use touches none of it.
+    const [count, , weight] = await p.reputation.read.attestedSummaryOf([id]);
+    assert.equal(count, 0n);
+    assert.equal(weight, 0n);
+
+    const page = await p.reputation.read.getClientsPaged([id, 1n, 2n]);
+    assert.equal(page.length, 2);
+    assert.equal(getAddress(page[0]), getAddress(p.carol.account.address));
+  });
+});
+
+describe("Regressions — the launchpad's promises are fixed at creation", () => {
+  it("pins the liquidity deployer, so it cannot be swapped after buyers commit", async () => {
+    const p = await deployProtocol();
+    const launchpad = await p.viem.deployContract("AgentLaunchpad", [
+      p.usdc.address,
+      p.anima.address,
+      p.anima.address,
+      p.deployer.account.address,
+      p.treasury.account.address,
+      { protocolBps: 0, treasuryBps: 0, agentBps: 0 },
+    ]);
+    const honest = await p.viem.deployContract("MockLiquidityDeployer");
+    const evil = await p.viem.deployContract("MockLiquidityDeployer");
+    await launchpad.write.setLiquidityDeployer([honest.address]);
+
+    const id = await mintAgent(p, p.alice.account.address);
+    await p.anima.write.deployAccount([id]);
+    await launchpad.write.createLaunch(
+      [
+        {
+          agentId: id,
+          name: "A",
+          symbol: "A",
+          totalSupply: 10n ** 27n,
+          curveSupply: 8n * 10n ** 26n,
+          virtualQuote: USDC(1000),
+          graduationTarget: USDC(1000),
+          startsAt: 0n,
+          fairWindow: 0n,
+          maxBuyInWindow: USDC(1_000_000),
+          lpRecipient: "0x000000000000000000000000000000000000dEaD",
+        },
+      ],
+      { account: p.alice.account }
+    );
+
+    await p.usdc.write.mint([p.bob.account.address, USDC(3000)]);
+    await p.usdc.write.approve([launchpad.address, USDC(3000)], { account: p.bob.account });
+    await launchpad.write.buy([1n, USDC(3000), 0n], { account: p.bob.account });
+
+    // Governance swaps the deployer after the raise is complete.
+    await launchpad.write.setLiquidityDeployer([evil.address]);
+    await launchpad.write.graduate([1n]);
+
+    // The launch graduated through the deployer buyers could see when they bought.
+    assert.ok((await honest.read.lastQuoteAmount()) > 0n);
+    assert.equal(await evil.read.lastQuoteAmount(), 0n);
+  });
+
+  it("refuses a backdated start that would skip the fair window entirely", async () => {
+    const p = await deployProtocol();
+    const launchpad = await p.viem.deployContract("AgentLaunchpad", [
+      p.usdc.address,
+      p.anima.address,
+      p.anima.address,
+      p.deployer.account.address,
+      p.treasury.account.address,
+      { protocolBps: 0, treasuryBps: 0, agentBps: 0 },
+    ]);
+    await launchpad.write.setLiquidityDeployer([(await p.viem.deployContract("MockLiquidityDeployer")).address]);
+    const id = await mintAgent(p, p.alice.account.address);
+
+    await expectRevert(
+      launchpad.write.createLaunch(
+        [
+          {
+            agentId: id,
+            name: "A",
+            symbol: "A",
+            totalSupply: 10n ** 27n,
+            curveSupply: 8n * 10n ** 26n,
+            virtualQuote: USDC(1000),
+            graduationTarget: USDC(1000),
+            startsAt: 1n, // 1970: fairWindowEnds is already long past
+            fairWindow: 86400n,
+            maxBuyInWindow: USDC(500),
+            lpRecipient: "0x000000000000000000000000000000000000dEaD",
+          },
+        ],
+        { account: p.alice.account }
+      ),
+      "StartsInThePast"
+    );
   });
 });

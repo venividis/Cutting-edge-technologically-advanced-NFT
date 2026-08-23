@@ -56,6 +56,20 @@ contract ReputationRegistry is IReputationRegistry, Ownable2Step {
     /// @notice Settlement modules trusted to mark feedback as customer-attested.
     mapping(address module => bool) public isSettlementModule;
 
+    /// @notice Running totals over attested feedback, maintained on write.
+    /// @dev The filtered summaries below iterate every client an agent ever had, and anyone can
+    ///      append to that list for the price of gas — a few dollars of spam on an L2 makes an
+    ///      agent's reputation cost more to read than any node will spend, which is a denial of
+    ///      service against a competitor. The number consumers actually want is therefore
+    ///      maintained incrementally and read in constant time.
+    struct Aggregate {
+        uint64 count;
+        int256 weightedSum;
+        uint256 totalWeight;
+    }
+
+    mapping(uint256 agentId => Aggregate) private _attested;
+
     mapping(uint256 agentId => mapping(address client => Feedback[])) private _feedback;
     mapping(uint256 agentId => mapping(address client => mapping(uint64 index => uint64))) private _responseCount;
     mapping(uint256 agentId => address[]) private _clients;
@@ -169,6 +183,14 @@ contract ReputationRegistry is IReputationRegistry, Ownable2Step {
             })
         );
 
+        if (attested) {
+            uint256 w = weight == 0 ? 1 : weight;
+            Aggregate storage agg = _attested[agentId];
+            agg.count += 1;
+            agg.weightedSum += _normalise(value, valueDecimals) * int256(w);
+            agg.totalWeight += w;
+        }
+
         emit NewFeedback(
             agentId, client, index, value, valueDecimals, tag1, tag1, tag2, endpoint, feedbackURI, feedbackHash
         );
@@ -178,8 +200,18 @@ contract ReputationRegistry is IReputationRegistry, Ownable2Step {
     function revokeFeedback(uint256 agentId, uint64 feedbackIndex) external {
         Feedback[] storage list = _feedback[agentId][msg.sender];
         if (feedbackIndex >= list.length) revert NoSuchFeedback(agentId, msg.sender, feedbackIndex);
-        if (list[feedbackIndex].isRevoked) revert AlreadyRevoked(agentId, msg.sender, feedbackIndex);
-        list[feedbackIndex].isRevoked = true;
+        Feedback storage f = list[feedbackIndex];
+        if (f.isRevoked) revert AlreadyRevoked(agentId, msg.sender, feedbackIndex);
+        f.isRevoked = true;
+
+        if (f.attested) {
+            uint256 w = f.weight == 0 ? 1 : f.weight;
+            Aggregate storage agg = _attested[agentId];
+            agg.count -= 1;
+            agg.weightedSum -= _normalise(f.value, f.valueDecimals) * int256(w);
+            agg.totalWeight -= w;
+        }
+
         emit FeedbackRevoked(agentId, msg.sender, feedbackIndex);
     }
 
@@ -220,8 +252,23 @@ contract ReputationRegistry is IReputationRegistry, Ownable2Step {
         summaryValueDecimals = SUMMARY_DECIMALS;
     }
 
-    /// @notice The number worth trusting: only feedback from clients who actually paid this
-    ///         agent, weighted by how much they paid.
+    /// @notice Constant-time attested standing. This is the read path integrators should use.
+    /// @return count        attested reviews counted
+    /// @return summaryValue stake-weighted mean at `SUMMARY_DECIMALS`
+    /// @return totalWeight  total collateral that stood behind those jobs
+    function attestedSummaryOf(uint256 agentId)
+        external
+        view
+        returns (uint64 count, int128 summaryValue, uint256 totalWeight)
+    {
+        Aggregate storage agg = _attested[agentId];
+        count = agg.count;
+        totalWeight = agg.totalWeight;
+        if (totalWeight != 0) summaryValue = int128(agg.weightedSum / int256(totalWeight));
+    }
+
+    /// @notice Filtered attested standing. O(clients x feedback) — use {attestedSummaryOf}
+    ///         unless you genuinely need the tag or client filters.
     /// @return count            number of attested reviews counted
     /// @return summaryValue     stake-weighted mean, at `SUMMARY_DECIMALS`
     /// @return totalWeight      total value settled across those jobs
@@ -346,6 +393,26 @@ contract ReputationRegistry is IReputationRegistry, Ownable2Step {
     /// @inheritdoc IReputationRegistry
     function getClients(uint256 agentId) external view returns (address[] memory) {
         return _clients[agentId];
+    }
+
+    function clientCount(uint256 agentId) external view returns (uint256) {
+        return _clients[agentId].length;
+    }
+
+    /// @notice Paged client list, since the full one grows without bound and permissionlessly.
+    function getClientsPaged(uint256 agentId, uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory page)
+    {
+        address[] storage all = _clients[agentId];
+        if (offset >= all.length) return new address[](0);
+        uint256 end = offset + limit;
+        if (end > all.length) end = all.length;
+        page = new address[](end - offset);
+        for (uint256 i; i < page.length; ++i) {
+            page[i] = all[offset + i];
+        }
     }
 
     /// @inheritdoc IReputationRegistry

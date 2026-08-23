@@ -356,7 +356,7 @@ describe("ReputationRegistry — separating claims from evidence", () => {
       await p.usdc.write.approve([p.escrow.address, amount], { account: p.bob.account });
       const now = BigInt(await p.networkHelpers.time.latest());
       await p.escrow.write.offerJob(
-        [id, amount, USDC(1), now + 7n * DAY, 3600n, p.validator.account.address, ZERO32, ""],
+        [id, amount, amount, now + 7n * DAY, 3600n, p.validator.account.address, ZERO32, ""],
         { account: p.bob.account }
       );
       const jobId = await p.escrow.read.jobOf([1n]).then(async () => {

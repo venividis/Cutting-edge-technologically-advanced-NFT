@@ -100,8 +100,13 @@ describe("Lifecycle — an agent's whole life", () => {
       { account: p.bob.account }
     );
 
-    // The operator can take the job on the owner's behalf.
-    await p.escrow.write.acceptJob([1n], { account: p.carol.account });
+    // Pledging collateral is the owner's decision alone — an operator may run the agent but
+    // not commit its capital.
+    await expectRevert(
+      p.escrow.write.acceptJob([1n], { account: p.carol.account }),
+      "OnlyOwnerMayPledge"
+    );
+    await p.escrow.write.acceptJob([1n], { account: p.alice.account });
     assert.equal(await p.anima.read.locked([agentId]), true);
     assert.equal(await p.bonds.read.availableCoverage([agentId]), USDC(1000));
 
