@@ -13,6 +13,7 @@ import {
   deriveFacetCut,
   cutIsImmutable,
   DIAMOND_CUT_SELECTOR,
+  lzReceiveOptions,
   ShardKind,
   type AgentManifest,
 } from "../sdk/src/index.js";
@@ -290,5 +291,26 @@ describe("SDK — deriving an EIP-2535 cut", () => {
       cutIsImmutable([{ facetAddress: base.address, action: 0, functionSelectors: [DIAMOND_CUT_SELECTOR] }]),
       false
     );
+  });
+});
+
+describe("SDK — LayerZero executor options", () => {
+  it("builds the exact bytes LayerZero's own OptionsBuilder produces", async () => {
+    // TYPE_3 | WORKER_ID 1 | length 0x0011 (16-byte gas + 1 type byte) | OPTION_TYPE_LZRECEIVE | gas
+    assert.equal(lzReceiveOptions(300_000n), "0x000301001101000000000000000000000000000493e0");
+    assert.equal(lzReceiveOptions(200_000n), "0x00030100110100000000000000000000000000030d40");
+
+    // With a native drop the option grows by another uint128 and the length follows it.
+    assert.equal(
+      lzReceiveOptions(300_000n, 1n),
+      "0x0003010021010000000000000000000000000004" + "93e0" + "00000000000000000000000000000001"
+    );
+  });
+
+  it("never emits the empty options a mock endpoint would accept", async () => {
+    // Quoting `0x` against Base Sepolia's live message library reverts. The value of this test is
+    // that it fails loudly if anyone ever "simplifies" the builder back to a passthrough.
+    assert.notEqual(lzReceiveOptions(300_000n), "0x");
+    assert.ok(lzReceiveOptions(300_000n).startsWith("0x0003"), "must be a Type-3 options container");
   });
 });

@@ -519,3 +519,40 @@ export function deriveFacetCut(options: {
 export function cutIsImmutable(cut: FacetCut[]): boolean {
   return !cut.some((entry) => entry.functionSelectors.includes(DIAMOND_CUT_SELECTOR));
 }
+
+/* -------------------------------------------------------------------------- */
+/*                          LayerZero V2 executor options                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Builds the Type-3 executor options a LayerZero V2 `send` needs.
+ *
+ * These are not optional in practice. `MockLZEndpoint` ignores options entirely, so a test suite
+ * built on it will happily pass `0x` — and then the real endpoint rejects the send, or accepts it
+ * and the executor never delivers because it was told nothing about how much gas `lzReceive`
+ * needs on the far side. This is the single most common way a bridge that "works in tests" fails
+ * on a live chain.
+ *
+ * Layout, from `OptionsBuilder` and `ExecutorOptions` in LayerZero's own libraries:
+ *
+ *     0x0003                  TYPE_3
+ *     01                      WORKER_ID (executor)
+ *     <uint16>                length of what follows, including the option-type byte
+ *     01                      OPTION_TYPE_LZRECEIVE
+ *     <uint128 gas>           gas for lzReceive on the destination
+ *     <uint128 value>         native drop, appended only when non-zero
+ *
+ * `sdk/../test/Omni.test.ts` asserts these bytes equal what the Solidity builder produces, so the
+ * two cannot drift.
+ *
+ * @param gas Gas the destination's `lzReceive` may consume. An ANIMA agent arrival writes a
+ *        snapshot and mints a replica; 300,000 is a sane starting point, and quoting will tell
+ *        you if it is short.
+ * @param value Native currency to drop on the destination, usually zero.
+ */
+export function lzReceiveOptions(gas: bigint, value = 0n): Hex {
+  const u128 = (n: bigint) => n.toString(16).padStart(32, "0");
+  const option = value === 0n ? u128(gas) : u128(gas) + u128(value);
+  const lengthWithType = (option.length / 2 + 1).toString(16).padStart(4, "0");
+  return `0x0003${"01"}${lengthWithType}${"01"}${option}` as Hex;
+}

@@ -3,6 +3,17 @@ import assert from "node:assert/strict";
 import { getAddress, parseEther, pad, keccak256, toHex, zeroAddress } from "viem";
 import { deployProtocol, mintAgent, expectRevert, shard, brainRoot, ZERO32 } from "./helpers.js";
 
+import { lzReceiveOptions } from "../sdk/src/index.js";
+
+/**
+ * Real Type-3 executor options, not the `0x` a mock will happily swallow.
+ *
+ * `MockLZEndpoint` ignores options entirely, so these tests passed for months with `0x` — while
+ * quoting `0x` against Base Sepolia's live message library reverts. A suite that models the mock
+ * rather than the endpoint would have shipped a bridge that could never send a message.
+ */
+const LZ_OPTIONS = lzReceiveOptions(300_000n);
+
 const EID_HOME = 30101;
 const EID_AWAY = 30184;
 const FEE = { nativeFee: 10n ** 15n, lzTokenFee: 0n };
@@ -40,7 +51,7 @@ describe("OmniAgentHome — leaving", () => {
 
     await p.anima.write.approve([b.home.address, id], { account: p.alice.account });
     await b.home.write.send(
-      [EID_AWAY, pad(p.alice.account.address), id, "0x", FEE, p.alice.account.address, false],
+      [EID_AWAY, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, false],
       { account: p.alice.account, value: FEE.nativeFee }
     );
 
@@ -71,7 +82,7 @@ describe("OmniAgentHome — leaving", () => {
 
     // Letting collateral cross to a chain the escrow cannot reach is absconding.
     await expectRevert(
-      b.home.write.send([EID_AWAY, pad(p.alice.account.address), id, "0x", FEE, p.alice.account.address, false], {
+      b.home.write.send([EID_AWAY, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, false], {
         account: p.alice.account,
         value: FEE.nativeFee,
       }),
@@ -91,7 +102,7 @@ describe("OmniAgentHome — leaving", () => {
     await p.anima.write.approve([b.home.address, id], { account: p.alice.account });
 
     await expectRevert(
-      b.home.write.send([EID_AWAY, pad(p.alice.account.address), id, "0x", FEE, p.alice.account.address, false], {
+      b.home.write.send([EID_AWAY, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, false], {
         account: p.alice.account,
         value: FEE.nativeFee,
       }),
@@ -100,7 +111,7 @@ describe("OmniAgentHome — leaving", () => {
 
     // Deliberate friction in front of an irreversible mistake, not a wall.
     await b.home.write.send(
-      [EID_AWAY, pad(p.alice.account.address), id, "0x", FEE, p.alice.account.address, true],
+      [EID_AWAY, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, true],
       { account: p.alice.account, value: FEE.nativeFee }
     );
     assert.equal(getAddress(await p.anima.read.ownerOf([id])), getAddress(b.home.address));
@@ -111,7 +122,7 @@ describe("OmniAgentHome — leaving", () => {
     const b = await bridge(p);
     const id = await mintAgent(p, p.alice.account.address);
     await expectRevert(
-      b.home.write.send([EID_AWAY, pad(p.bob.account.address), id, "0x", FEE, p.bob.account.address, false], {
+      b.home.write.send([EID_AWAY, pad(p.bob.account.address), id, LZ_OPTIONS, FEE, p.bob.account.address, false], {
         account: p.bob.account,
         value: FEE.nativeFee,
       }),
@@ -140,7 +151,7 @@ describe("OmniAgent — bridge authentication", () => {
     const id = await mintAgent(p, p.alice.account.address);
     await p.anima.write.approve([b.home.address, id], { account: p.alice.account });
     await b.home.write.send(
-      [EID_AWAY, pad(p.alice.account.address), id, "0x", FEE, p.alice.account.address, false],
+      [EID_AWAY, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, false],
       { account: p.alice.account, value: FEE.nativeFee }
     );
 
@@ -165,14 +176,14 @@ describe("OmniAgent — bridge authentication", () => {
     // stayed home. A compromised peer must not be able to mint a claim on it.
     await p.anima.write.approve([b.home.address, id], { account: p.alice.account });
     await b.home.write.send(
-      [EID_AWAY, pad(p.alice.account.address), id, "0x", FEE, p.alice.account.address, false],
+      [EID_AWAY, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, false],
       { account: p.alice.account, value: FEE.nativeFee }
     );
     await b.endpointAway.write.deliver([b.endpointHome.address, 0n, b.mirror.address, ZERO32]);
 
     // Bring it home, clearing awayOn.
     await b.mirror.write.send(
-      [EID_HOME, pad(p.alice.account.address), id, "0x", FEE, p.alice.account.address],
+      [EID_HOME, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address],
       { account: p.alice.account, value: FEE.nativeFee }
     );
     await b.endpointHome.write.deliver([b.endpointAway.address, 0n, b.home.address, ZERO32]);
@@ -192,7 +203,7 @@ describe("OmniAgent — bridge authentication", () => {
     const id = await mintAgent(p, p.alice.account.address);
     await p.anima.write.approve([b.home.address, id], { account: p.alice.account });
     await expectRevert(
-      b.home.write.send([9999, pad(p.alice.account.address), id, "0x", FEE, p.alice.account.address, false], {
+      b.home.write.send([9999, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, false], {
         account: p.alice.account,
         value: FEE.nativeFee,
       }),
@@ -209,13 +220,13 @@ describe("OmniAgentMirror — coming home", () => {
 
     await p.anima.write.approve([b.home.address, id], { account: p.alice.account });
     await b.home.write.send(
-      [EID_AWAY, pad(p.alice.account.address), id, "0x", FEE, p.alice.account.address, false],
+      [EID_AWAY, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, false],
       { account: p.alice.account, value: FEE.nativeFee }
     );
     await b.endpointAway.write.deliver([b.endpointHome.address, 0n, b.mirror.address, ZERO32]);
 
     await b.mirror.write.send(
-      [EID_HOME, pad(p.bob.account.address), id, "0x", FEE, p.alice.account.address],
+      [EID_HOME, pad(p.bob.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address],
       { account: p.alice.account, value: FEE.nativeFee }
     );
     // The mirror is gone the moment it is sent, so it cannot exist on two chains at once.
@@ -232,13 +243,13 @@ describe("OmniAgentMirror — coming home", () => {
     const id = await mintAgent(p, p.alice.account.address);
     await p.anima.write.approve([b.home.address, id], { account: p.alice.account });
     await b.home.write.send(
-      [EID_AWAY, pad(p.alice.account.address), id, "0x", FEE, p.alice.account.address, false],
+      [EID_AWAY, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, false],
       { account: p.alice.account, value: FEE.nativeFee }
     );
     await b.endpointAway.write.deliver([b.endpointHome.address, 0n, b.mirror.address, ZERO32]);
 
     await expectRevert(
-      b.mirror.write.send([EID_HOME, pad(p.bob.account.address), id, "0x", FEE, p.bob.account.address], {
+      b.mirror.write.send([EID_HOME, pad(p.bob.account.address), id, LZ_OPTIONS, FEE, p.bob.account.address], {
         account: p.bob.account,
         value: FEE.nativeFee,
       }),

@@ -2,7 +2,17 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { getAddress, keccak256, toHex, parseEther, zeroAddress, maxUint256, encodeFunctionData, pad } from "viem";
 import { deployProtocol, mintAgent, shard, expectRevert, AgentStatus, DAY, ZERO32 } from "./helpers.js";
-import { manifestHash, serialiseManifest, lockedDownPolicy, ShardKind, type AgentManifest } from "../sdk/src/index.js";
+import {
+  manifestHash,
+  serialiseManifest,
+  lockedDownPolicy,
+  lzReceiveOptions,
+  ShardKind,
+  type AgentManifest,
+} from "../sdk/src/index.js";
+
+/** Real executor options — the live endpoint rejects the `0x` a mock accepts. */
+const LZ_OPTIONS = lzReceiveOptions(300_000n);
 
 const USDC = (n: number | bigint) => BigInt(n) * 1_000_000n;
 
@@ -205,7 +215,7 @@ describe("Lifecycle — an agent's whole life", () => {
     const fee = { nativeFee: 10n ** 15n, lzTokenFee: 0n };
     await p.anima.write.approve([home.address, agentId], { account: p.alice.account });
     await home.write.send(
-      [30184, pad(p.alice.account.address), agentId, "0x", fee, p.alice.account.address, false],
+      [30184, pad(p.alice.account.address), agentId, LZ_OPTIONS, fee, p.alice.account.address, false],
       { account: p.alice.account, value: fee.nativeFee }
     );
     await endpointAway.write.deliver([endpointHome.address, 0n, mirror.address, ZERO32]);
@@ -216,7 +226,7 @@ describe("Lifecycle — an agent's whole life", () => {
     assert.equal(await mirror.read.verifyManifest([agentId, toHex(serialiseManifest(manifest))]), true);
     assert.equal(await mirror.read.isReplica(), true);
 
-    await mirror.write.send([30101, pad(p.alice.account.address), agentId, "0x", fee, p.alice.account.address], {
+    await mirror.write.send([30101, pad(p.alice.account.address), agentId, LZ_OPTIONS, fee, p.alice.account.address], {
       account: p.alice.account,
       value: fee.nativeFee,
     });
