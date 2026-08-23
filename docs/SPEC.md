@@ -262,6 +262,24 @@ Implementations MUST NOT also implement ERC-4519 (its `userOf` collides with ERC
 selector level with different semantics) or ERC-3525 (which overloads `balanceOf` and `approve`
 against ERC-721).
 
+### Multi-contract implementations
+
+An implementation MAY be assembled from EIP-2535 facets. Two requirements follow, and both are
+consequences of `getStateFingerprint` rather than new rules:
+
+1. The `AgentCore` struct MUST have the layout given in §Specification, field for field and in
+   order. The fingerprint ABI-encodes the struct wholesale, so a field reordered in one
+   implementation and not another yields two different fingerprints for the same agent — and a
+   buyer who pinned one would be checking nothing.
+2. State MUST be held in an ERC-7201 namespace. EIP-2535 explicitly leaves storage layout
+   undefined, which makes collision between independently written facets the default outcome
+   rather than an exotic one.
+
+An implementation that is upgradeable — a diamond retaining `diamondCut`, or any proxy with a
+live admin — does not conform. Every guarantee in this specification is a statement about what
+cannot happen to an agent after you acquire it, and an address that can be given new code makes
+all of them conditional on an admin key.
+
 ## Security considerations
 
 See [SECURITY.md](SECURITY.md) for the full invariant list. The load-bearing ones:
@@ -280,8 +298,9 @@ See [SECURITY.md](SECURITY.md) for the full invariant list. The load-bearing one
 
 ## Reference implementation
 
-<https://github.com/venividis/Cutting-edge-technologically-advanced-NFT> — `contracts/core/`,
-17 contracts, 119 tests.
+<https://github.com/venividis/Cutting-edge-technologically-advanced-NFT> — 27 contracts,
+210 tests. Two conformant builds of the token: `contracts/core/AnimaAgent.sol` (one contract)
+and `contracts/diamond/` (an immutable EIP-2535 assembly). The same suite runs against both.
 
 ## Copyright
 

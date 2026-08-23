@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { keccak256, toHex, parseEther } from "viem";
+import { keccak256, toHex, parseAbi, parseEther } from "viem";
 import {
   brainRoot as sdkBrainRoot,
   workRoot as sdkWorkRoot,
@@ -10,6 +10,9 @@ import {
   lockedDownPolicy,
   handleKey as sdkHandleKey,
   canonicalise,
+  deriveFacetCut,
+  cutIsImmutable,
+  DIAMOND_CUT_SELECTOR,
   ShardKind,
   type AgentManifest,
 } from "../sdk/src/index.js";
@@ -191,5 +194,101 @@ describe("SDK — canonicalisation", () => {
 
   it("drops undefined rather than emitting it, matching A2A's default-value rule", async () => {
     assert.equal(canonicalise({ a: 1, b: undefined }), '{"a":1}');
+  });
+});
+
+describe("SDK — deriving an EIP-2535 cut", () => {
+  // Facets that share a base all carry the shared surface in their ABI, so the fixtures below
+  // mirror that: `base` holds ERC-721's ownerOf, and every other facet repeats it.
+  const shared = parseAbi(["function ownerOf(uint256) view returns (address)"]);
+  const base = {
+    name: "core",
+    address: "0x0000000000000000000000000000000000000001" as const,
+    abi: [...shared, ...parseAbi(["function totalMinted() view returns (uint256)"])],
+  };
+  const agent = {
+    name: "agent",
+    address: "0x0000000000000000000000000000000000000002" as const,
+    abi: [...shared, ...parseAbi(["function statusOf(uint256) view returns (uint8)"])],
+  };
+  const loupe = {
+    name: "loupe",
+    address: "0x0000000000000000000000000000000000000003" as const,
+    abi: parseAbi(["function facetAddresses() view returns (address[])"]),
+  };
+  const tokenAbi = [...base.abi, ...parseAbi(["function statusOf(uint256) view returns (uint8)"])];
+
+  it("partitions the token's ABI, giving the base whatever nobody else claims", async () => {
+    const cut = deriveFacetCut({ tokenAbi, base, specialised: [agent], additional: [loupe] });
+
+    assert.deepEqual(
+      cut.map((c) => [c.facetAddress, c.functionSelectors.length]),
+      [
+        [base.address, 2],
+        [agent.address, 1],
+        [loupe.address, 1],
+      ]
+    );
+    const routed = cut.flatMap((c) => c.functionSelectors);
+    assert.equal(new Set(routed).size, routed.length);
+    assert.equal(cutIsImmutable(cut), true);
+  });
+
+  it("refuses a cut that would leave a token function unrouted", async () => {
+    // The hazard this exists to prevent: welding the diamond shut around a missing function.
+    assert.throws(
+      () =>
+        deriveFacetCut({
+          tokenAbi: [...tokenAbi, ...parseAbi(["function brainRoot(uint256) view returns (bytes32)"])],
+          base,
+          specialised: [agent],
+        }),
+      /cannot serve/
+    );
+  });
+
+  it("refuses a facet routing something the token never declared", async () => {
+    assert.throws(
+      () =>
+        deriveFacetCut({
+          tokenAbi,
+          base,
+          specialised: [
+            { ...agent, abi: [...agent.abi, ...parseAbi(["function selfDestructPlease() external"])] },
+          ],
+        }),
+      /does not declare/
+    );
+  });
+
+  it("refuses two facets claiming one selector rather than silently preferring one", async () => {
+    assert.throws(
+      () => deriveFacetCut({ tokenAbi, base, specialised: [agent, { ...agent, name: "twin" }] }),
+      /claimed by both/
+    );
+  });
+
+  it("refuses an additional facet that collides with the token's own ABI", async () => {
+    assert.throws(
+      () =>
+        deriveFacetCut({
+          tokenAbi,
+          base,
+          specialised: [agent],
+          additional: [{ ...loupe, abi: parseAbi(["function totalMinted() view returns (uint256)"]) }],
+        }),
+      /collides/
+    );
+  });
+
+  it("knows the diamondCut selector EIP-2535 publishes, and calls a cut containing it mutable", async () => {
+    assert.equal(
+      DIAMOND_CUT_SELECTOR,
+      keccak256(toHex("diamondCut((address,uint8,bytes4[])[],address,bytes)")).slice(0, 10)
+    );
+    assert.equal(
+      cutIsImmutable([{ facetAddress: base.address, action: 0, functionSelectors: [DIAMOND_CUT_SELECTOR] }]),
+      false
+    );
   });
 });

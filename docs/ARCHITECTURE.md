@@ -1,28 +1,27 @@
 # Architecture
 
-17 contracts in four layers. Each layer is usable without the ones above it.
+27 contracts in four layers, plus an alternate assembly of the token itself. Each layer is
+usable without the ones above it.
 
 ## Layer 1 — Core
 
 | Contract | Size | Responsibility |
 |---|---:|---|
-| `core/AnimaAgent.sol` | 22.8 KB | The token. ERC-721 + ERC-8004 identity + ERC-7857-derived sealed brain + rental, locking, royalties, contract metadata. |
+| `core/AnimaAgent.sol` | 24.0 KB | The token. ERC-721 + ERC-8004 identity + ERC-7857-derived sealed brain + rental, locking, royalties, contract metadata. |
 | `account/AgentAccount.sol` | 10.7 KB | The agent's ERC-6551 wallet: session keys, budgets, target allowlist, audit chain, ERC-4337. |
 | `core/EncryptionKeyRegistry.sol` | 1.8 KB | Chain-wide registry of recipients' encryption keys. |
 | `core/verifiers/*.sol` | 4.2 KB | Pluggable re-key adjudication: null, and an M-of-N attester quorum. |
 | `mocks/ERC6551Registry.sol` | — | Behaviour-faithful registry for local chains; production points at the canonical `0x000000006551c19487814612e58FE06813775758`. |
 
-**Why `AnimaAgent` is one contract and not a diamond.** The full extension stack does not fit in
-24,576 bytes naively; the alternatives were EIP-2535, linked libraries, or a feature cut. A
-diamond would put the token's rules behind a mutable facet registry, which defeats the point of
-publishing a leash. Linked libraries were measured and made it *worse* — encoding dynamic arrays
-for a `delegatecall` costs more bytecode than the inline loop it replaces (`BrainLib`'s comment
-records this so nobody retries it). What worked was removing genuine duplication: unifying the
-shard loops on one `memory` implementation, collapsing the ERC-8004 `register()` overloads, and
-moving the encryption-key registry out — which is better architecture anyway, since a key belongs
-to a person rather than to a collection.
+**Why `AnimaAgent` is one contract.** The full extension stack does not fit in 24,576 bytes
+naively; the alternatives were EIP-2535, linked libraries, or a feature cut. Linked libraries were
+measured and made it *worse* — encoding dynamic arrays for a `delegatecall` costs more bytecode
+than the inline loop it replaces (`BrainLib`'s comment records this so nobody retries it). What
+worked was removing genuine duplication: unifying the shard loops on one `memory` implementation,
+collapsing the ERC-8004 `register()` overloads, and moving the encryption-key registry out — which
+is better architecture anyway, since a key belongs to a person rather than to a collection.
 
-Final: **22,775 bytes, 1,801 to spare.**
+Final: **23,971 bytes, 605 to spare.** That margin is the reason Layer 1b exists.
 
 ### Storage layout
 
@@ -31,7 +30,8 @@ Final: **22,775 bytes, 1,801 to spare.**
 ```
 slot 0  manifestHash                                              32
 slot 1  brainRoot                                                 32
-slot 2  guardian(20) status(1) seal(1) version(4) lockCount(4)    30/32
+slot 2  guardian(20) status(1) seal(1) version(4) lockCount(4)
+        disputeCount(2)                                           32/32
 slot 3  brainEpoch(8) createdAt(8) operatorEpoch(8)               24/32
 ```
 
@@ -39,6 +39,66 @@ slot 3  brainEpoch(8) createdAt(8) operatorEpoch(8)               24/32
 authorisations are stored under `_operator[agentId][epoch][address]`, so incrementing the epoch
 invalidates every one of them in a single write. A mapping's keys cannot be enumerated, so there
 is no other O(1) way to revoke authorisations you did not record.
+
+## Layer 1b — The same token, as an immutable diamond
+
+The monolith fits with 605 bytes to spare, which is a countdown rather than a margin. `AnimaDiamond`
+removes the ceiling instead of raising it: the identical token, assembled from facets under
+EIP-2535, with **no `diamondCut` function**.
+
+| Contract | Size | Responsibility |
+|---|---:|---|
+| `diamond/AnimaDiamond.sol` | 177 B | Constructor and fallback. Wires the facets, emits `DiamondCut` once, and has no other code — nothing to call, nothing to change. |
+| `diamond/AnimaBase.sol` | — | Abstract. The transfer hook, the authorisation predicates, the approval store, `tokenURI`, ERC-165. Shared so no facet can disagree. |
+| `diamond/AnimaCoreFacet.sol` | 9.7 KB | ERC-721 surface, expiring approvals, royalties, locking, administration. 38 selectors. |
+| `diamond/AnimaAgentFacet.sol` | 14.9 KB | Manifest, metadata, model, wallet binding, policy, lifecycle, guardian, lease, ERC-5646 fingerprint. 34 selectors. |
+| `diamond/AnimaBrainFacet.sol` | 15.5 KB | Minting, ERC-8004 `register`, brain reads and writes, re-keying transfer. 11 selectors. |
+| `diamond/AnimaLoupeFacet.sol` | 1.7 KB | EIP-2535 introspection. 4 selectors. |
+| `diamond/AnimaInit.sol` | 9.2 KB | Delegatecalled once from the constructor. Its selector is never routed, so it is unreachable afterwards. |
+
+**Why immutable.** The usual reason to build a diamond is upgradeability, and that is exactly the
+property this token must not have. A buyer's guarantee that a sale revokes the seller's session
+keys is worth precisely as much as the admin key that could remove it. EIP-2535 provides for
+this: *"A diamond that has no external function for adding, replacing or removing functions is
+immutable."* What stays configurable is what stays configurable in the monolith, under the same
+two-step owner: the re-key verifier, the module allowlist, royalties, the contract URI.
+
+Anyone can check the claim without trusting the deployer: call `facets()`, confirm no selector
+resolves to `diamondCut`, and confirm each facet address holds the bytecode they expect.
+
+**Storage.** EIP-2535 deliberately does not specify storage — *"The particular layout of storage
+is not defined in this EIP"* — and that freedom is its failure mode, since two facets that each
+declare their own variables collide at slot 0. ERC-7201 removes the hazard structurally:
+
+```
+anima.storage.core     0x2134dd8a40292237c0a0658c1368c4805ba84a926576fc8c56170c3a72e5a700
+anima.storage.diamond  0xbebefff3c1769f392cbed28935c84c24a3fe9fb422c6177e5902f9088f11d900
+```
+
+Everything ERC-721, ERC-2981, EIP-712 and Ownable2Step need lives in OpenZeppelin's own ERC-7201
+namespaces, so all three regions are disjoint by construction rather than by review. Slots 0, 1
+and 2 of the diamond are asserted empty in the test suite — a facet that forgot and declared a
+plain state variable would land right there.
+
+The four values that are `immutable` in the monolith (the ERC-6551 registry, the account
+implementation and salt, the key registry) are plain fields here. Facet immutables *would* work —
+they are inlined into the facet's own runtime code, which is what executes under `delegatecall` —
+but they would have to be passed identically to every facet's constructor, and a diamond whose
+facets disagree about which registry is canonical mints agents whose wallet address depends on
+which function you asked. One authoritative copy is worth the `SLOAD`.
+
+**How equivalence is established.** The facets partition the monolith's ABI. The cut is derived
+from that ABI at deploy time and the fixture refuses to build if a monolith function goes unrouted
+or a facet routes one the monolith lacks — so `ANIMA_IMPL=diamond` re-runs all 189 protocol tests
+against the diamond with no test changes at all. `test/Diamond.test.ts` adds the direct
+comparison: an identical agent is driven through the same sequence of state changes on both
+builds, and their ERC-5646 fingerprints — one hash over the whole of an agent's mutable state —
+must be byte-identical.
+
+```
+23,971 B   monolith, 605 to spare
+15,526 B   largest facet, 9,050 to spare — and a fifth facet costs nothing
+```
 
 ## Layer 2 — Accountability
 
@@ -221,12 +281,12 @@ One measured trap: moving `writeShards` into a `public` library made the token *
 smaller. ABI-encoding a dynamic array for a `delegatecall` costs more bytecode than the inline loop
 it replaced. Public libraries pay off for simple value-type parameters and backfire on dynamic ones.
 
-If the *token itself* ever has to grow, the remaining option is an **immutable diamond** — EIP-2535
-facets with `diamondCut` removed after deployment. That buys unlimited code while keeping the
-property that matters here, which is that nobody can rewrite an agent's rules after the fact. It
-costs a delegatecall and a selector lookup on every call, and demands ERC-7201 namespaced storage
-discipline. **ERC-7656 Generalized Contract-Linked Services** (Final) is the lighter form of the
-same idea and remains the right next move for the brain-commitment and lifecycle services.
+So the wall was removed rather than pushed back: the token also ships as an **immutable diamond**
+(Layer 1b), EIP-2535 facets wired in the constructor with no `diamondCut` at all. That buys
+unlimited code while keeping the property that matters here — nobody can rewrite an agent's rules
+after the fact. It costs one `DELEGATECALL` and a selector lookup per call, and demands ERC-7201
+storage discipline. **ERC-7656 Generalized Contract-Linked Services** (Final) is the lighter form
+of the same idea and remains the right next move for the brain-commitment and lifecycle services.
 
 ## Trust boundaries
 

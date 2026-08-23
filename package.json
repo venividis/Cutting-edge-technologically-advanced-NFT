@@ -7,7 +7,9 @@
   "scripts": {
     "build": "hardhat build",
     "test": "hardhat test",
-    "clean": "hardhat clean"
+    "clean": "hardhat clean",
+    "test:diamond": "ANIMA_IMPL=diamond hardhat test",
+    "test:both": "hardhat test && ANIMA_IMPL=diamond hardhat test"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",
@@ -20,6 +22,7 @@
     "@layerzerolabs/oapp-evm": "^0.4.1",
     "@layerzerolabs/onft-evm": "^0.2.4",
     "@openzeppelin/contracts": "^5.6.1",
+    "@openzeppelin/contracts-upgradeable": "^5.6.1",
     "solady": "^0.1.26"
   }
 }

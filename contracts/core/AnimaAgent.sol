@@ -11,7 +11,16 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
-import {IAnima, AgentStatus, SealPolicy, BrainShard, ModelIdentity, AutonomyPolicy} from "../interfaces/IAnima.sol";
+import {
+    IAnima,
+    AgentStatus,
+    SealPolicy,
+    BrainShard,
+    ModelIdentity,
+    AutonomyPolicy,
+    AgentCore,
+    Lease
+} from "../interfaces/IAnima.sol";
 import {IIdentityRegistry, MetadataEntry} from "../interfaces/IERC8004.sol";
 import {IERC4907, IERC5192, IERC6454, IERC7572} from "../interfaces/IRentable.sol";
 import {IERC6551Registry, IERC6551Account} from "../interfaces/IERC6551.sol";
@@ -60,29 +69,6 @@ contract AnimaAgent is
     Ownable2Step,
     ReentrancyGuardTransient
 {
-    /*//////////////////////////////////////////////////////////////
-                                  TYPES
-    //////////////////////////////////////////////////////////////*/
-
-    struct AgentCore {
-        bytes32 manifestHash; //  slot 0
-        bytes32 brainRoot; //     slot 1
-        address guardian; //      slot 2 ─┐ 20
-        AgentStatus status; //            │  1
-        SealPolicy seal; //               │  1
-        uint32 version; //                │  4
-        uint32 lockCount; //              │  4
-        uint16 disputeCount; //  ─────────┘  2  = 32/32
-        uint64 brainEpoch; //     slot 3 ─┐  8
-        uint64 createdAt; //              │  8
-        uint64 operatorEpoch; // ─────────┘  8  = 24/32
-    }
-
-    struct Lease {
-        address user;
-        uint64 expires;
-    }
-
     /*//////////////////////////////////////////////////////////////
                                  CONSTANTS
     //////////////////////////////////////////////////////////////*/

@@ -1,5 +1,15 @@
+import { readFileSync } from "node:fs";
 import { network } from "hardhat";
-import { keccak256, toHex, zeroAddress, encodeAbiParameters, parseAbiParameters } from "viem";
+import {
+  keccak256,
+  toHex,
+  zeroAddress,
+  encodeAbiParameters,
+  encodeFunctionData,
+  parseAbiParameters,
+  type Abi,
+} from "viem";
+import { deriveFacetCut } from "../sdk/src/index.js";
 
 export const ZERO32 = "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
 export const ACCOUNT_SALT = ZERO32;
@@ -88,7 +98,88 @@ export function brainRoot(shards: ReturnType<typeof shard>[]) {
 
 export type Protocol = Awaited<ReturnType<typeof deployProtocol>>;
 
-export async function deployProtocol(opts: { entryPoint?: `0x${string}` } = {}) {
+/**
+ * Which build of the token the suite runs against. `ANIMA_IMPL=diamond` swaps the monolithic
+ * {AnimaAgent} for the EIP-2535 assembly of facets without changing a single test.
+ *
+ * That substitutability is the point. The diamond is only worth having if it is the *same
+ * token* — so rather than write a parallel suite that asserts the diamond behaves the way we
+ * hope, every existing test is re-run against it. `npm run test:both` runs both.
+ */
+export const ANIMA_IMPL = (process.env.ANIMA_IMPL ?? "monolith").toLowerCase();
+
+const ANIMA_ABI: Abi = JSON.parse(
+  readFileSync("artifacts/contracts/core/AnimaAgent.sol/AnimaAgent.json", "utf8")
+).abi;
+
+type AnimaCtorArgs = readonly [
+  string,
+  string,
+  `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
+  bigint,
+];
+
+/**
+ * Deploys the diamond and returns it typed as {AnimaAgent}, because as far as any caller is
+ * concerned that is what it is.
+ *
+ * The cut is *derived*, never hand-written: {deriveFacetCut} treats the monolith's ABI as the
+ * specification and refuses to produce a cut if a function goes unrouted, a facet claims one the
+ * token does not declare, or two facets claim the same selector. Using the SDK's own function
+ * here rather than a test-local copy means every test in this suite exercises the code an
+ * integrator would deploy with.
+ */
+async function deployAnimaDiamond(viem: any, args: AnimaCtorArgs) {
+  const [core, agent, brain, loupe, init] = await Promise.all([
+    viem.deployContract("AnimaCoreFacet"),
+    viem.deployContract("AnimaAgentFacet"),
+    viem.deployContract("AnimaBrainFacet"),
+    viem.deployContract("AnimaLoupeFacet"),
+    viem.deployContract("AnimaInit"),
+  ]);
+
+  const cuts = deriveFacetCut({
+    tokenAbi: ANIMA_ABI,
+    base: { name: "AnimaCoreFacet", address: core.address, abi: core.abi },
+    specialised: [
+      { name: "AnimaAgentFacet", address: agent.address, abi: agent.abi },
+      { name: "AnimaBrainFacet", address: brain.address, abi: brain.abi },
+    ],
+    additional: [{ name: "AnimaLoupeFacet", address: loupe.address, abi: loupe.abi }],
+  });
+
+  const diamond = await viem.deployContract("AnimaDiamond", [
+    cuts,
+    init.address,
+    encodeFunctionData({ abi: init.abi, functionName: "init", args }),
+  ]);
+
+  return {
+    anima: await viem.getContractAt("AnimaAgent", diamond.address),
+    diamond: {
+      address: diamond.address as `0x${string}`,
+      loupe: await viem.getContractAt("AnimaLoupeFacet", diamond.address),
+      facets: { core: core.address, agent: agent.address, brain: brain.address, loupe: loupe.address },
+      init: init.address as `0x${string}`,
+      cuts,
+      selectors: {
+        core: cuts[0].functionSelectors,
+        agent: cuts[1].functionSelectors,
+        brain: cuts[2].functionSelectors,
+      },
+    },
+  };
+}
+
+export async function deployProtocol(
+  opts: { entryPoint?: `0x${string}`; impl?: "monolith" | "diamond" } = {}
+) {
   const connection = await network.create();
   const { viem, networkHelpers } = connection;
   const wallets = await viem.getWalletClients();
@@ -100,7 +191,7 @@ export async function deployProtocol(opts: { entryPoint?: `0x${string}` } = {}) 
   const keyRegistry = await viem.deployContract("EncryptionKeyRegistry");
   const nullVerifier = await viem.deployContract("NullTransferVerifier");
 
-  const anima = await viem.deployContract("AnimaAgent", [
+  const animaArgs = [
     "ANIMA Agents",
     "ANIMA",
     deployer.account.address,
@@ -111,7 +202,13 @@ export async function deployProtocol(opts: { entryPoint?: `0x${string}` } = {}) 
     keyRegistry.address,
     treasury.account.address,
     500n, // 5% declared royalty
-  ]);
+  ] as const;
+
+  const built =
+    (opts.impl ?? ANIMA_IMPL) === "diamond"
+      ? await deployAnimaDiamond(viem, animaArgs)
+      : { anima: await viem.deployContract("AnimaAgent", animaArgs), diamond: undefined };
+  const anima = built.anima;
 
   const usdc = await viem.deployContract("MockERC20", ["USD Coin", "USDC", 6]);
 
@@ -180,6 +277,8 @@ export async function deployProtocol(opts: { entryPoint?: `0x${string}` } = {}) 
     keyRegistry,
     nullVerifier,
     anima,
+    /** Facet wiring, present only when the suite is running the EIP-2535 build. */
+    diamond: built.diamond,
     usdc,
     bonds,
     reputation,

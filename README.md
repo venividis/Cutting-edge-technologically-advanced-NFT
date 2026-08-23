@@ -5,7 +5,9 @@
 An identity, a wallet, private state, a declared model, a published leash, and a bond you
 can take from it when it fails.
 
-> Status: reference implementation. 19 contracts, 169 tests, 23 review findings fixed.
+> Status: reference implementation. 27 contracts, 210 tests, 23 review findings fixed.
+> Two interchangeable builds of the token — a monolith and an immutable EIP-2535 diamond —
+> proved equivalent by running the same suite against both.
 > Unaudited, no deployments.
 > Read [Honest limitations](#honest-limitations) before you do anything with real money.
 
@@ -46,6 +48,7 @@ graph TB
         ACCT["<b>AgentAccount</b><br/>ERC-6551 wallet<br/>session keys · budgets<br/>audit chain · ERC-4337"]
         KEYS["EncryptionKeyRegistry"]
         VERIF["TransferVerifier<br/><i>null · attester quorum</i>"]
+        DIA["<b>AnimaDiamond</b> <i>alternate build</i><br/>Core · Agent · Brain · Loupe<br/>EIP-2535, no diamondCut"]
     end
 
     subgraph acct["Accountability — why anyone should believe it"]
@@ -60,6 +63,7 @@ graph TB
         LAUNCH["<b>AgentLaunchpad</b><br/>bonding curve"]
         TOKEN["<b>AgentToken</b><br/>redemption floor"]
         SWAP["AgentSwapRouter<br/>per-token budgets"]
+        ROLES["AnimaRoles<br/>ERC-7432 · four roles at once"]
     end
 
     subgraph reach["Reach"]
@@ -70,6 +74,7 @@ graph TB
         BIND["AnimaBindings<br/>ERC-8217"]
     end
 
+    DIA -.->|same ABI, same state| AGENT
     AGENT -->|derives| ACCT
     AGENT --> KEYS
     AGENT --> VERIF
@@ -79,6 +84,7 @@ graph TB
     ESC -->|asks| VAL
     MARKET -->|checks state of| ACCT
     MARKET -->|checks coverage| BOND
+    ROLES -->|freezes| AGENT
     LAUNCH --> TOKEN
     TOKEN -->|floor rises| LAUNCH
     SWAP -->|called by| ACCT
@@ -202,14 +208,48 @@ mirrors elsewhere; the message carries the manifest commitment, brain root, mode
 policy, so a mirror is a **verifiable replica** rather than a receipt. A busy agent cannot leave
 at all.
 
+### 13. Two builds of the same token, one of which has no ceiling
+
+`AnimaAgent` is 23,971 bytes. EIP-170 allows 24,576. That 605-byte margin is not headroom, it
+is a countdown — the next Final standard worth adopting does not fit, and the levers left (drop
+the metadata trailer, cut optimizer runs to 1) each cost something permanent to buy a few
+hundred bytes once.
+
+So the same token also ships as an **immutable EIP-2535 diamond**: three facets plus a loupe,
+wired in the constructor, with **no `diamondCut` function**. Not for upgradeability — that is
+precisely the property an agent standard must not have, since a buyer's guarantee that a sale
+revokes the seller's session keys is worth exactly as much as the admin key that could remove
+it. EIP-2535 provides for this explicitly: *"A diamond that has no external function for
+adding, replacing or removing functions is immutable."* Anyone can verify it from an RPC node:
+call `facets()`, confirm no selector resolves to `diamondCut`, confirm each facet's bytecode.
+
+| | monolith | diamond |
+|---|---:|---:|
+| largest deployed unit | 23,971 B | 15,526 B |
+| headroom before EIP-170 | **605 B** | **9,050 B**, per facet, and a new facet costs nothing |
+| cost per call | — | one `DELEGATECALL` |
+
+Storage is ERC-7201 namespaced (`anima.storage.core`, `anima.storage.diamond`), and everything
+ERC-721/2981/712/Ownable needs lives in OpenZeppelin's own namespaces — so the regions are
+disjoint by construction rather than by review. The transfer hook, the authorisation
+predicates and the approval store live in one shared base, so no facet can hold a different
+opinion about who controls an agent.
+
+**The equivalence is tested, not asserted.** The facets partition the monolith's ABI — the cut
+is derived from it at deploy time and refuses to build if a function goes unrouted or a facet
+invents one — so every one of the 189 protocol tests runs unmodified against either build via
+`ANIMA_IMPL=diamond`. On top of that, `Diamond.test.ts` drives an identical agent through both
+and asserts their ERC-5646 fingerprints — one hash over the whole of an agent's mutable
+state — are byte-identical.
+
 ---
 
 ## Standards: adopted, adapted, rejected
 
 **Implemented:** ERC-721, ERC-165, ERC-712, ERC-1271, ERC-2981, ERC-4337, ERC-4906, ERC-4907,
-ERC-5192, ERC-5646, ERC-6454, ERC-6492, ERC-6551, ERC-7432, ERC-7572, ERC-8004 (Identity +
-Reputation + Validation), ERC-8217 — plus expiring, revocable approvals ported from ICRC-37 and
-CW-721, which EVM has no equivalent of.
+ERC-5192, ERC-5646, ERC-6454, ERC-6492, ERC-6551, ERC-7201, ERC-7432, ERC-7572, ERC-8004
+(Identity + Reputation + Validation), ERC-8217, EIP-2535 — plus expiring, revocable approvals
+ported from ICRC-37 and CW-721, which EVM has no equivalent of.
 
 **Adapted, not copied:** ERC-7857 (the proof-and-hash model, not the vendor ABI), ERC-7641
 (the redemption floor, not the snapshot machinery), ERC-8196 (the audit chain), ERC-8183 (the
@@ -234,7 +274,7 @@ escrow state machine).
 
 Stated here rather than buried, because a standard that hides them is worse than useless.
 
-- **Unaudited.** 119 tests and an adversarial review pass are not an audit.
+- **Unaudited.** 210 tests and an adversarial review pass are not an audit.
 - **Sealing protects future state, not past.** A prior owner who already exported plaintext
   keeps it. No cryptography fixes this; `SealPolicy` exists so you can price it.
 - **The attester quorum is a trust assumption.** Collusion of `threshold` attesters forges a
@@ -257,8 +297,10 @@ Stated here rather than buried, because a standard that hides them is worse than
 
 ```bash
 npm install
-npx hardhat build     # solc 0.8.28, viaIR, cancun
-npx hardhat test      # 119 tests
+npx hardhat build      # solc 0.8.28, viaIR, cancun
+npx hardhat test       # 210 tests against the monolith
+npm run test:diamond   # the same 210 against the EIP-2535 build
+npm run test:both      # both, in sequence
 ```
 
 Docs: [architecture](docs/ARCHITECTURE.md) · [the standard](docs/SPEC.md) ·

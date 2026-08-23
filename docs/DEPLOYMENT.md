@@ -3,7 +3,8 @@
 ```bash
 npm install
 npx hardhat build
-npx hardhat test          # 123 tests — do not deploy on a red suite
+npx hardhat test          # 210 tests — do not deploy on a red suite
+npm run test:diamond      # the same 210 against the EIP-2535 build
 ```
 
 ## Order and why it matters
@@ -17,10 +18,38 @@ npx hardhat test          # 123 tests — do not deploy on a red suite
    Deploy `AttesterQuorumVerifier` only when a real attester set and an approved enclave
    measurement exist — pointing at it earlier would advertise `SealedTEE` for a guarantee nobody
    is providing.
-4. **`AnimaAgent`.**
+4. **The token** — either `AnimaAgent` (one contract) or `AnimaDiamond` (EIP-2535 facets). See
+   below; everything downstream takes the token's address and does not care which you chose.
 5. **Accountability**: `BondVault`, `ReputationRegistry`, `ValidationRegistry`, `WorkEscrow`.
 6. **Markets and reach.**
 7. **Wiring.**
+
+## Choosing a build
+
+Both builds present the same ABI and the same behaviour; `test/Diamond.test.ts` asserts they
+produce identical ERC-5646 fingerprints for an identically-lived agent.
+
+**Deploy `AnimaAgent`** unless you have a reason not to. One address, one verification, no
+`DELEGATECALL` on the hot path, and 605 bytes of headroom.
+
+**Deploy `AnimaDiamond`** when you intend to add to the token. Order:
+
+1. `AnimaCoreFacet`, `AnimaAgentFacet`, `AnimaBrainFacet`, `AnimaLoupeFacet`, `AnimaInit`.
+2. Build the cut with the SDK's `deriveFacetCut`, never by hand. It takes `AnimaAgent`'s ABI as
+   the specification and throws rather than returning a partial cut if a function would go
+   unrouted, a facet claims one the token does not declare, or two facets claim one selector.
+   A hand-written selector list that is one function short becomes a permanent hole the moment
+   the constructor returns. `deployAnimaDiamond` in `test/helpers.ts` shows the call, and every
+   test in the suite runs through it.
+3. Deploy `AnimaDiamond(cuts, animaInit, initCalldata)`. The constructor rejects a duplicate
+   selector, a non-`Add` action and a facet with no code, and bubbles an initialiser revert
+   rather than leaving a half-built diamond on chain.
+4. Verify the result before wiring anything to it: `facets()` must report exactly your four
+   facets, `facetAddress(diamondCut selector)` must be the zero address, and each facet's
+   on-chain bytecode must match what you compiled.
+
+There is no step 5. There is no `diamondCut`, so the wiring you deploy is the wiring forever —
+which is the point. Get step 2 right; you do not get to fix it later.
 
 ## Known addresses, as of August 2026
 

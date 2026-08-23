@@ -12,6 +12,7 @@ import {
   encodeAbiParameters,
   keccak256,
   parseAbiParameters,
+  toFunctionSelector,
   toHex,
   type Address,
   type Hex,
@@ -409,4 +410,112 @@ export function targetLeaf(target: Address, selector: Hex): Hex {
   return keccak256(
     keccak256(encodeAbiParameters(parseAbiParameters("address, bytes4"), [target, selector]))
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                            EIP-2535 diamond cuts                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `keccak256("diamondCut((address,uint8,bytes4[])[],address,bytes)")[0..4]`. If a diamond routes
+ * this selector, it is mutable — whatever else its documentation says.
+ */
+export const DIAMOND_CUT_SELECTOR: Hex = "0x1f931c1c";
+
+/** ERC-165 id for `IDiamondLoupe`. */
+export const DIAMOND_LOUPE_INTERFACE_ID: Hex = "0x48e2b093";
+
+/** One entry of an EIP-2535 cut. Only `Add` (0) is meaningful for an immutable diamond. */
+export interface FacetCut {
+  facetAddress: Address;
+  action: 0;
+  functionSelectors: Hex[];
+}
+
+/** A compiled, deployed facet: its address and the ABI it was compiled from. */
+export interface FacetSource {
+  name: string;
+  address: Address;
+  abi: readonly { type: string }[];
+}
+
+function selectorsOf(abi: readonly { type: string }[]): Hex[] {
+  return abi
+    .filter((entry) => entry.type === "function")
+    .map((entry) => toFunctionSelector(entry as never) as Hex);
+}
+
+/**
+ * Derives the EIP-2535 cut for an immutable diamond from the ABI it must present.
+ *
+ * Hand-written selector lists are the standing hazard of this pattern: a diamond is deployed,
+ * the cut is welded shut, and only later does someone notice a function nobody routed. So the
+ * cut is computed instead — `tokenAbi` is the specification, and the facets partition it.
+ *
+ * Facets that inherit a shared base all carry the shared surface in their ABI, so every selector
+ * appears more than once and the split has to be decided rather than read off. The rule is:
+ * `specialised` facets claim the selectors they add over `base`, and `base` serves the whole
+ * remainder of `tokenAbi`. `additional` facets — the loupe, typically — contribute functions the
+ * token itself does not declare and are added wholesale.
+ *
+ * Throws rather than returning a partial cut, on any of: a `tokenAbi` function no facet can
+ * serve, a facet claiming a function `tokenAbi` does not declare, or two facets claiming one
+ * selector. Each of those, silently accepted, is a permanently wrong diamond.
+ */
+export function deriveFacetCut(options: {
+  tokenAbi: readonly { type: string }[];
+  base: FacetSource;
+  specialised: FacetSource[];
+  additional?: FacetSource[];
+}): FacetCut[] {
+  const { tokenAbi, base, specialised, additional = [] } = options;
+
+  const baseSelectors = new Set(selectorsOf(base.abi));
+  const token = selectorsOf(tokenAbi);
+  const tokenSet = new Set(token);
+
+  const claimedBy = new Map<Hex, string>();
+  const cuts: FacetCut[] = [];
+
+  for (const facet of specialised) {
+    const claims = selectorsOf(facet.abi).filter((s) => !baseSelectors.has(s));
+    for (const selector of claims) {
+      const other = claimedBy.get(selector);
+      if (other) throw new Error(`${selector} is claimed by both ${other} and ${facet.name}`);
+      if (!tokenSet.has(selector)) {
+        throw new Error(`${facet.name} routes ${selector}, which the token ABI does not declare`);
+      }
+      claimedBy.set(selector, facet.name);
+    }
+    if (claims.length === 0) throw new Error(`${facet.name} adds nothing over ${base.name}`);
+    cuts.push({ facetAddress: facet.address, action: 0, functionSelectors: claims });
+  }
+
+  const remainder = token.filter((s) => !claimedBy.has(s));
+  const unservable = remainder.filter((s) => !baseSelectors.has(s));
+  if (unservable.length) {
+    throw new Error(`${base.name} cannot serve ${unservable.join(", ")} — the diamond would be incomplete`);
+  }
+  cuts.unshift({ facetAddress: base.address, action: 0, functionSelectors: remainder });
+
+  for (const facet of additional) {
+    const claims = selectorsOf(facet.abi);
+    for (const selector of claims) {
+      if (tokenSet.has(selector) || claimedBy.has(selector)) {
+        throw new Error(`${facet.name} collides with the token ABI at ${selector}`);
+      }
+      claimedBy.set(selector, facet.name);
+    }
+    cuts.push({ facetAddress: facet.address, action: 0, functionSelectors: claims });
+  }
+
+  return cuts;
+}
+
+/**
+ * True when `cut` routes no `diamondCut`. Necessary for immutability, and not sufficient — also
+ * confirm each facet's deployed bytecode, since a facet could hold one under another selector.
+ */
+export function cutIsImmutable(cut: FacetCut[]): boolean {
+  return !cut.some((entry) => entry.functionSelectors.includes(DIAMOND_CUT_SELECTOR));
 }

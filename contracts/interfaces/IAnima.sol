@@ -87,32 +87,48 @@ struct AutonomyPolicy {
     bytes32 targetsRoot; //   merkle root of the allowlisted (target, selector) pairs
 }
 
+/// @notice Everything about an agent that fits in four words, packed so the hot path —
+///         `isController`, `locked`, `_update` — touches as few slots as possible.
+/// @dev Declared here rather than inside an implementation so that every implementation
+///      of this standard shares one byte-for-byte layout. {IAnima-getStateFingerprint}
+///      ABI-encodes this struct wholesale, so a field reordered in one implementation and
+///      not another would silently produce two different fingerprints for the same agent.
+struct AgentCore {
+    bytes32 manifestHash; //  slot 0
+    bytes32 brainRoot; //     slot 1
+    address guardian; //      slot 2 ─┐ 20
+    AgentStatus status; //            │  1
+    SealPolicy seal; //               │  1
+    uint32 version; //                │  4
+    uint32 lockCount; //              │  4
+    uint16 disputeCount; //  ─────────┘  2  = 32/32
+    uint64 brainEpoch; //     slot 3 ─┐  8
+    uint64 createdAt; //              │  8
+    uint64 operatorEpoch; // ─────────┘  8  = 24/32
+}
+
+/// @notice An ERC-4907 tenancy: who may drive the agent, and until when.
+struct Lease {
+    address user;
+    uint64 expires;
+}
+
 /*//////////////////////////////////////////////////////////////////////////////
                                  CORE INTERFACE
 //////////////////////////////////////////////////////////////////////////////*/
 
 /**
- * @title IAnima — Sovereign Agent Token
- * @notice An ERC-721 in which each token is a complete, economically accountable AI agent:
- *         an identity, a wallet, private state, a declared model, a leash, and a bond.
- *
- *         ANIMA is a *composition* standard. Rather than inventing a parallel universe it
- *         binds together the specs that already won, and adds only the pieces nobody
- *         shipped:
- *
- *           ERC-721/165/2981/4906  liquidity, royalties, metadata invalidation
- *           ERC-8004               identity, reputation, validation registries
- *           ERC-6551               the agent's own wallet (token bound account)
- *           ERC-7857               encrypted state with re-keying on transfer
- *           ERC-4907               rent an agent without selling it
- *           ERC-5192               conditional lock while mid-job or under dispute
- *
- *         The additions are: an on-chain manifest commitment (so an agent cannot swap its
- *         endpoints after you read its card), a machine-readable seal policy (so private
- *         state makes an honest promise), a published autonomy policy (so counterparties
- *         can see the leash), and a slashable bond (so reputation costs something).
+ * @title IAnimaEvents — the observable surface of an ANIMA agent
+ * @notice Every event and error the standard defines, split out from {IAnima} so that a
+ *         partial implementation can speak the same language without having to claim it
+ *         implements the whole interface.
+ * @dev This exists for the EIP-2535 build. A facet holds one slice of the token's
+ *      behaviour, so it cannot inherit {IAnima} — that would oblige it to implement
+ *      functions living in a sibling facet. Inheriting the vocabulary alone lets the
+ *      shared base emit exactly the events the monolith emits, from one definition, so the
+ *      two builds cannot drift into logging different things.
  */
-interface IAnima {
+interface IAnimaEvents {
     /*//////////////////////////////////////////////////////////////
                                   EVENTS
     //////////////////////////////////////////////////////////////*/
@@ -155,7 +171,30 @@ interface IAnima {
     error ZeroAddress();
     error SignatureExpired(uint256 deadline);
     error InvalidSignature();
+}
 
+/**
+ * @title IAnima — Sovereign Agent Token
+ * @notice An ERC-721 in which each token is a complete, economically accountable AI agent:
+ *         an identity, a wallet, private state, a declared model, a leash, and a bond.
+ *
+ *         ANIMA is a *composition* standard. Rather than inventing a parallel universe it
+ *         binds together the specs that already won, and adds only the pieces nobody
+ *         shipped:
+ *
+ *           ERC-721/165/2981/4906  liquidity, royalties, metadata invalidation
+ *           ERC-8004               identity, reputation, validation registries
+ *           ERC-6551               the agent's own wallet (token bound account)
+ *           ERC-7857               encrypted state with re-keying on transfer
+ *           ERC-4907               rent an agent without selling it
+ *           ERC-5192               conditional lock while mid-job or under dispute
+ *
+ *         The additions are: an on-chain manifest commitment (so an agent cannot swap its
+ *         endpoints after you read its card), a machine-readable seal policy (so private
+ *         state makes an honest promise), a published autonomy policy (so counterparties
+ *         can see the leash), and a slashable bond (so reputation costs something).
+ */
+interface IAnima is IAnimaEvents {
     /*//////////////////////////////////////////////////////////////
                              IDENTITY & MANIFEST
     //////////////////////////////////////////////////////////////*/
