@@ -185,7 +185,15 @@ a Sovereign Agent Mesh control plane binds a peer id to an OIDC subject at a cen
 provider; publishing the same peer id against the token gives a second, permissionless way to
 check it.
 
-### 11. Omnichain that doesn't launder accountability
+### 11. Approvals that expire, and a button to revoke them all
+
+ERC-721's `setApprovalForAll` is unbounded in time, unbounded in scope, and not enumerable —
+the direct cause of the largest class of NFT user losses. ICRC-37 and CW-721 both solved it years
+ago outside EVM. ANIMA ports it: the standard signature still works, `setApprovalForAllUntil`
+time-boxes a grant, and `revokeAllApprovals` kills every outstanding one in a single write —
+without needing to remember who they were granted to.
+
+### 12. Omnichain that doesn't launder accountability
 
 An agent's bond and reputation are chain-local claims other contracts hold against it.
 Burn-and-mint would strand them behind an id nobody owns — an agent that can leave its

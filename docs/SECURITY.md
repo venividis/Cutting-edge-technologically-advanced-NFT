@@ -143,6 +143,13 @@ the agent trapped the client with no path to dispute; an agent's reputation coul
 unreadable for a few dollars of spam; a backdated `startsAt` skipped the fair window entirely;
 and resolving one dispute handed spending authority back while other clients were still owed.
 
+### Verification
+
+A second pass of independent skeptics re-read the fixed code and tried to refute every finding.
+All 23 were rejected — each rejection being a confirmation that the exploit path no longer
+executes, several verified by running the suite. That is the useful outcome: not that the
+findings were wrong, but that the fixes close them.
+
 ### The pattern
 
 Most of these are one shape: **an authorisation that outlives the relationship it was granted
@@ -150,6 +157,34 @@ under.** A session key outliving its granter, a queued withdrawal outliving its 
 allowlist outliving a sale, a controller role reaching further than the role implies. The token
 already applied "autonomy does not survive a sale" to its own state; the bugs were all the places
 that rule had not been carried through.
+
+## What sealed state actually guarantees
+
+Worth stating precisely, because the whole category is sold dishonestly.
+
+**No cryptographic construction makes a seller forget.** If a seller could ever run the agent,
+they held the plaintext, and no re-encryption, threshold gate or enclave oracle retroactively
+deletes what is already on their disk. What is achievable is two narrower things, and ANIMA is
+built for exactly those:
+
+- **Forward secrecy.** `brainEpoch` advances on every re-key, and a key released for one epoch
+  opens that epoch and nothing after it. The seller cannot read what the agent learns once it is
+  no longer theirs.
+- **Verifiable delivery.** The buyer provably receives a working key to a ciphertext whose hash
+  chains back to the pre-sale state, and the marketplace can pin that root in the order.
+
+Re-encrypting the historical corpus buys nothing against someone who already read it, so ANIMA
+does not charge for it. True non-retention requires a different product shape entirely — the
+plaintext never leaves an enclave and *no* owner ever holds it, which is what ERC-7857's
+`authorizeUsage` branch describes and what `SealPolicy` exists to distinguish.
+
+## Configuration is the attack surface
+
+The dominant bridge failure mode is no longer Solidity. Nomad (2022) was an upgrade parameter.
+The KelpDAO incident (April 2026, ~$292M) was a **1-of-1 DVN configuration** plus compromised
+RPC nodes — no contract bug at all. A signer or DVN set that relies on one party is not a quorum,
+and an audit that stops at the source misses the thing that actually breaks. Deployment
+configuration and post-upgrade invariant assertions belong in scope.
 
 ## Deliberate non-goals
 

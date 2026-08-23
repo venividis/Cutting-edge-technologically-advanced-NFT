@@ -355,3 +355,80 @@ describe("AnimaAgent — token bound account", () => {
     );
   });
 });
+
+describe("AnimaAgent — expiring, revocable approvals", () => {
+  it("keeps ERC-721 semantics for an unbounded grant", async () => {
+    const p = await deployProtocol();
+    const id = await mintAgent(p, p.alice.account.address);
+    await p.anima.write.setApprovalForAll([p.bob.account.address, true], { account: p.alice.account });
+
+    assert.equal(await p.anima.read.isApprovedForAll([p.alice.account.address, p.bob.account.address]), true);
+    await p.anima.write.transferFrom([p.alice.account.address, p.carol.account.address, id], {
+      account: p.bob.account,
+    });
+    assert.equal(getAddress(await p.anima.read.ownerOf([id])), getAddress(p.carol.account.address));
+  });
+
+  it("lapses a time-boxed approval on schedule", async () => {
+    const p = await deployProtocol();
+    const id = await mintAgent(p, p.alice.account.address);
+    const until = BigInt(await p.networkHelpers.time.latest()) + 3600n;
+    await p.anima.write.setApprovalForAllUntil([p.bob.account.address, until], { account: p.alice.account });
+
+    assert.equal(await p.anima.read.isApprovedForAll([p.alice.account.address, p.bob.account.address]), true);
+    await p.networkHelpers.time.increase(3601);
+
+    // The grant a marketplace still holds in five years is the one that drains people.
+    assert.equal(await p.anima.read.isApprovedForAll([p.alice.account.address, p.bob.account.address]), false);
+    await expectRevert(
+      p.anima.write.transferFrom([p.alice.account.address, p.carol.account.address, id], {
+        account: p.bob.account,
+      })
+    );
+  });
+
+  it("revokes every outstanding approval in one call", async () => {
+    const p = await deployProtocol();
+    const id = await mintAgent(p, p.alice.account.address);
+    for (const w of [p.bob, p.carol, p.deployer]) {
+      await p.anima.write.setApprovalForAll([w.account.address, true], { account: p.alice.account });
+    }
+    assert.equal(await p.anima.read.isApprovedForAll([p.alice.account.address, p.deployer.account.address]), true);
+
+    // ERC-721 has no way to do this; you must remember every grant you ever made.
+    await p.anima.write.revokeAllApprovals([], { account: p.alice.account });
+
+    for (const w of [p.bob, p.carol, p.deployer]) {
+      assert.equal(await p.anima.read.isApprovedForAll([p.alice.account.address, w.account.address]), false);
+    }
+    await expectRevert(
+      p.anima.write.transferFrom([p.alice.account.address, p.carol.account.address, id], {
+        account: p.bob.account,
+      })
+    );
+  });
+
+  it("reports when an approval lapses, so a holder can see what is outstanding", async () => {
+    const p = await deployProtocol();
+    await mintAgent(p, p.alice.account.address);
+    const until = BigInt(await p.networkHelpers.time.latest()) + 900n;
+    await p.anima.write.setApprovalForAllUntil([p.bob.account.address, until], { account: p.alice.account });
+    assert.equal(await p.anima.read.approvalExpiryOf([p.alice.account.address, p.bob.account.address]), until);
+
+    await p.anima.write.setApprovalForAll([p.carol.account.address, true], { account: p.alice.account });
+    assert.equal(
+      await p.anima.read.approvalExpiryOf([p.alice.account.address, p.carol.account.address]),
+      2n ** 64n - 1n,
+      "an unbounded grant is recorded as such, not hidden"
+    );
+  });
+
+  it("refuses an expiry that is already in the past", async () => {
+    const p = await deployProtocol();
+    await mintAgent(p, p.alice.account.address);
+    await expectRevert(
+      p.anima.write.setApprovalForAllUntil([p.bob.account.address, 1n], { account: p.alice.account }),
+      "SignatureExpired"
+    );
+  });
+});

@@ -137,6 +137,27 @@ Recorded with dates because several changed recently in ways that break older in
   `AgentHandles` publishes the same peer id against the token, so a mesh can check the chain
   instead of an identity provider.
 
+## One capability ported from outside EVM
+
+ERC-721's `setApprovalForAll` is unbounded in time, unbounded in scope, and not enumerable
+on-chain — the direct cause of the largest class of NFT user losses. Two ecosystems arrived
+independently at the fix: ICRC-37 puts `expires_at` on every approval with batch revocation, and
+CW-721 puts `expires` on both `Approve` and `ApproveAll`.
+
+ANIMA ports it. `setApprovalForAll` keeps its ERC-721 signature and semantics, because breaking
+it would break every marketplace; alongside it sit `setApprovalForAllUntil` and an O(1)
+`revokeAllApprovals`, with `approvalExpiryOf` so a holder can see what is outstanding.
+Enumeration is left to indexers via events — a per-owner operator list would cost more bytecode
+than the token has left, and the log answers the question equally well.
+
+This is the same defect as every finding in the security review: an authorisation that outlives
+the relationship it was granted under.
+
+Worth noting for cross-ecosystem reach: Solana's Metaplex Agent Registry (June 2026) adopted
+ERC-8004 as its agent registration schema outright — its `AgentIdentity` plugin points at an
+ERC-8004 registration JSON. Conforming to ERC-8004 rather than competing with it is what makes
+an agent legible outside EVM at all.
+
 ## Trust boundaries
 
 | Party | Can | Cannot |

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
 import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -133,6 +134,11 @@ contract AnimaAgent is
     ///         move them into `Disputed`. A small, explicit allowlist — never open-ended.
     mapping(address module => bool) public isModule;
 
+    /// @notice Bumped by an owner to revoke every operator approval they have ever granted.
+    mapping(address owner => uint64) public approvalEpoch;
+    /// @dev keccak256(owner, epoch, operator) => expiry. Zero means not approved.
+    mapping(bytes32 key => uint64 expiresAt) private _operatorExpiry;
+
     /*//////////////////////////////////////////////////////////////
                              EVENTS / ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -140,6 +146,8 @@ contract AnimaAgent is
     event VerifierSet(address indexed verifier, SealPolicy policy);
     event ModuleSet(address indexed module, bool allowed);
     event AgentLockChanged(uint256 indexed agentId, uint32 lockCount);
+    event OperatorApprovalTimed(address indexed owner, address indexed operator, uint64 expiresAt);
+    event AllApprovalsRevoked(address indexed owner, uint64 epoch);
 
     error NotModule(address caller);
     error NotOwnerOf(uint256 agentId, address caller);
@@ -757,6 +765,77 @@ contract AnimaAgent is
             // re-arm the agent, having read what it is about to be allowed to do.
             _setStatus(tokenId, AgentStatus.Paused);
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        EXPIRING, REVOCABLE APPROVALS
+    //////////////////////////////////////////////////////////////*/
+
+    /*
+     * ERC-721's `setApprovalForAll` is unbounded in time, unbounded in scope, and not
+     * enumerable on-chain. It is the direct cause of the largest class of user losses in NFTs:
+     * a grant made to a marketplace in 2021 is still live in 2026, and nobody can list what
+     * they have outstanding. Two ecosystems arrived independently at the fix — ICRC-37 puts
+     * `expires_at` on every approval and supports batch revocation; CW-721 puts `expires` on
+     * both `Approve` and `ApproveAll`.
+     *
+     * This is the same defect as every finding in this codebase's security review: an
+     * authorisation that outlives the relationship it was granted under. So ANIMA ports it.
+     *
+     * `setApprovalForAll` keeps its ERC-721 semantics and signature — an unbounded grant is
+     * still expressible, because breaking it would break every marketplace. What is added is a
+     * time-boxed form and an O(1) revoke-all. Enumeration is left to indexers via the events:
+     * storing a per-owner operator list on-chain would cost more bytecode than this contract
+     * has left, and an event log answers the question just as well.
+     */
+
+    /// @inheritdoc IERC721
+    /// @dev Routed through the timed store so that {revokeAllApprovals} can reach it. An
+    ///      unbounded grant is recorded as `type(uint64).max`.
+    function setApprovalForAll(address operator, bool approved) public override(ERC721, IERC721) {
+        _setTimedApproval(_msgSender(), operator, approved ? type(uint64).max : 0);
+    }
+
+    /// @notice Approve an operator only until `expiresAt`. The form every long-lived grant
+    ///         should use.
+    function setApprovalForAllUntil(address operator, uint64 expiresAt) external {
+        if (expiresAt != 0 && expiresAt <= block.timestamp) revert SignatureExpired(expiresAt);
+        _setTimedApproval(_msgSender(), operator, expiresAt);
+    }
+
+    /// @notice Revoke every operator approval this caller has granted, in one write.
+    /// @dev The button ERC-721 never had. Approvals are keyed by epoch, so incrementing it
+    ///      invalidates all of them at once regardless of how many there were or whether the
+    ///      owner can still remember who they were granted to.
+    function revokeAllApprovals() external {
+        uint64 next;
+        unchecked {
+            next = ++approvalEpoch[_msgSender()];
+        }
+        emit AllApprovalsRevoked(_msgSender(), next);
+    }
+
+    /// @inheritdoc IERC721
+    function isApprovedForAll(address owner_, address operator) public view override(ERC721, IERC721) returns (bool) {
+        uint64 expiresAt = _operatorExpiry[_approvalKey(owner_, operator)];
+        return expiresAt != 0 && expiresAt >= block.timestamp;
+    }
+
+    /// @notice When an operator's approval lapses. Zero means no live approval;
+    ///         `type(uint64).max` means an unbounded ERC-721 grant.
+    function approvalExpiryOf(address owner_, address operator) external view returns (uint64) {
+        return _operatorExpiry[_approvalKey(owner_, operator)];
+    }
+
+    function _setTimedApproval(address owner_, address operator, uint64 expiresAt) private {
+        if (operator == address(0)) revert ZeroAddress();
+        _operatorExpiry[_approvalKey(owner_, operator)] = expiresAt;
+        emit ApprovalForAll(owner_, operator, expiresAt != 0);
+        emit OperatorApprovalTimed(owner_, operator, expiresAt);
+    }
+
+    function _approvalKey(address owner_, address operator) private view returns (bytes32) {
+        return keccak256(abi.encode(owner_, approvalEpoch[owner_], operator));
     }
 
     /*//////////////////////////////////////////////////////////////
