@@ -1,0 +1,12 @@
+node_modules/
+artifacts/
+cache/
+types/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+dist/
+.scratch-env.sh

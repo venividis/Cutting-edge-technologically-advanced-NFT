@@ -1,0 +1,393 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { network } from "hardhat";
+import {
+  keccak256,
+  toHex,
+  zeroAddress,
+  encodeAbiParameters,
+  encodeFunctionData,
+  parseAbiParameters,
+  type Abi,
+} from "viem";
+import { deriveFacetCut } from "../sdk/src/index.js";
+
+export const ZERO32 = "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
+export const ACCOUNT_SALT = ZERO32;
+export const DAY = 86400n;
+
+export const SealPolicy = {
+  None: 0,
+  Committed: 1,
+  ReKeyed: 2,
+  SealedTEE: 3,
+  SealedZK: 4,
+  Threshold: 5,
+} as const;
+
+export const AgentStatus = {
+  Inactive: 0,
+  Active: 1,
+  Paused: 2,
+  Disputed: 3,
+  Retired: 4,
+} as const;
+
+export const JobState = {
+  None: 0,
+  Offered: 1,
+  Active: 2,
+  Delivered: 3,
+  Disputed: 4,
+  Settled: 5,
+  Cancelled: 6,
+} as const;
+
+export function blankModel() {
+  return { weightsRoot: ZERO32, runtimeMeasurement: ZERO32, attestationKind: 0, modelId: "" };
+}
+
+export function model(id: string, weights = "weights-v1") {
+  return {
+    weightsRoot: keccak256(toHex(weights)),
+    runtimeMeasurement: ZERO32,
+    attestationKind: 1,
+    modelId: id,
+  };
+}
+
+export function shard(description: string, content: string, kind = 1) {
+  return {
+    dataHash: keccak256(toHex(content)),
+    keyCommitment: keccak256(toHex(`key:${content}`)),
+    size: 1024n,
+    kind,
+    uri: `ipfs://${description}`,
+    description,
+  };
+}
+
+/**
+ * Recomputes BrainLib's commitment off-chain. Tests assert the contract agrees, which is the
+ * only way to catch a divergence between the on-chain root and what an indexer would derive.
+ */
+export function brainRoot(shards: ReturnType<typeof shard>[]) {
+  const LEAF_TAG = keccak256(toHex("anima.BrainShard.v1"));
+  const ROOT_TAG = keccak256(toHex("anima.BrainRoot.v1"));
+  let root = keccak256(
+    encodeAbiParameters(parseAbiParameters("bytes32, uint256"), [ROOT_TAG, BigInt(shards.length)])
+  );
+  for (const s of shards) {
+    const leaf = keccak256(
+      encodeAbiParameters(
+        parseAbiParameters("bytes32, bytes32, bytes32, uint64, uint8, bytes32, bytes32"),
+        [
+          LEAF_TAG,
+          s.dataHash,
+          s.keyCommitment,
+          s.size,
+          s.kind,
+          keccak256(toHex(s.uri)),
+          keccak256(toHex(s.description)),
+        ]
+      )
+    );
+    root = keccak256(encodeAbiParameters(parseAbiParameters("bytes32, bytes32"), [root, leaf]));
+  }
+  return root;
+}
+
+export type Protocol = Awaited<ReturnType<typeof deployProtocol>>;
+
+/**
+ * Which build of the token the suite runs against. `ANIMA_IMPL=diamond` swaps the monolithic
+ * {AnimaAgent} for the EIP-2535 assembly of facets without changing a single test.
+ *
+ * That substitutability is the point. The diamond is only worth having if it is the *same
+ * token* — so rather than write a parallel suite that asserts the diamond behaves the way we
+ * hope, every existing test is re-run against it. `npm run test:both` runs both.
+ */
+export const ANIMA_IMPL = (process.env.ANIMA_IMPL ?? "monolith").toLowerCase();
+
+const ANIMA_ABI: Abi = JSON.parse(
+  readFileSync("artifacts/contracts/core/AnimaAgent.sol/AnimaAgent.json", "utf8")
+).abi;
+
+type AnimaCtorArgs = readonly [
+  string,
+  string,
+  `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
+  bigint,
+];
+
+/**
+ * Deploys the diamond and returns it typed as {AnimaAgent}, because as far as any caller is
+ * concerned that is what it is.
+ *
+ * The cut is *derived*, never hand-written: {deriveFacetCut} treats the monolith's ABI as the
+ * specification and refuses to produce a cut if a function goes unrouted, a facet claims one the
+ * token does not declare, or two facets claim the same selector. Using the SDK's own function
+ * here rather than a test-local copy means every test in this suite exercises the code an
+ * integrator would deploy with.
+ */
+async function deployAnimaDiamond(viem: any, args: AnimaCtorArgs) {
+  // Every facet pins the ERC-6551 configuration as its own immutable, so they all take it and
+  // the diamond's constructor checks they agree. `deployProtocol` passes the monolith's
+  // constructor tuple, so split it here rather than making callers know two shapes.
+  const [name_, symbol_, owner_, registry_, accountImpl_, salt_, verifier_, keyRegistry_, royaltyTo_, royaltyBps_] =
+    args;
+  const config = {
+    registry: registry_,
+    accountImplementation: accountImpl_,
+    accountSalt: salt_,
+    keyRegistry: keyRegistry_,
+  } as const;
+
+  const [core, agent, brain, loupe, init] = await Promise.all([
+    viem.deployContract("AnimaCoreFacet", [config]),
+    viem.deployContract("AnimaAgentFacet", [config]),
+    viem.deployContract("AnimaBrainFacet", [config]),
+    viem.deployContract("AnimaLoupeFacet"),
+    viem.deployContract("AnimaInit", [config]),
+  ]);
+
+  const cuts = deriveFacetCut({
+    tokenAbi: ANIMA_ABI,
+    base: { name: "AnimaCoreFacet", address: core.address, abi: core.abi },
+    specialised: [
+      { name: "AnimaAgentFacet", address: agent.address, abi: agent.abi },
+      { name: "AnimaBrainFacet", address: brain.address, abi: brain.abi },
+    ],
+    additional: [{ name: "AnimaLoupeFacet", address: loupe.address, abi: loupe.abi }],
+  });
+
+  const diamond = await viem.deployContract("AnimaDiamond", [
+    cuts,
+    init.address,
+    encodeFunctionData({
+      abi: init.abi,
+      functionName: "init",
+      args: [name_, symbol_, owner_, verifier_, royaltyTo_, royaltyBps_],
+    }),
+  ]);
+
+  return {
+    anima: await viem.getContractAt("AnimaAgent", diamond.address),
+    diamond: {
+      address: diamond.address as `0x${string}`,
+      loupe: await viem.getContractAt("AnimaLoupeFacet", diamond.address),
+      facets: { core: core.address, agent: agent.address, brain: brain.address, loupe: loupe.address },
+      init: init.address as `0x${string}`,
+      config,
+      cuts,
+      selectors: {
+        core: cuts[0].functionSelectors,
+        agent: cuts[1].functionSelectors,
+        brain: cuts[2].functionSelectors,
+      },
+    },
+  };
+}
+
+export async function deployProtocol(
+  opts: { entryPoint?: `0x${string}`; impl?: "monolith" | "diamond" } = {}
+) {
+  const connection = await network.create();
+  const { viem, networkHelpers } = connection;
+  const wallets = await viem.getWalletClients();
+  const [deployer, alice, bob, carol, guardian, validator, treasury] = wallets;
+  const publicClient = await viem.getPublicClient();
+
+  const registry = await viem.deployContract("ERC6551Registry");
+  const accountImpl = await viem.deployContract("AgentAccount", [opts.entryPoint ?? zeroAddress]);
+  const keyRegistry = await viem.deployContract("EncryptionKeyRegistry");
+  const nullVerifier = await viem.deployContract("NullTransferVerifier");
+
+  const animaArgs = [
+    "ANIMA Agents",
+    "ANIMA",
+    deployer.account.address,
+    registry.address,
+    accountImpl.address,
+    ACCOUNT_SALT,
+    nullVerifier.address,
+    keyRegistry.address,
+    treasury.account.address,
+    500n, // 5% declared royalty
+  ] as const;
+
+  const built =
+    (opts.impl ?? ANIMA_IMPL) === "diamond"
+      ? await deployAnimaDiamond(viem, animaArgs)
+      : { anima: await viem.deployContract("AnimaAgent", animaArgs), diamond: undefined };
+  const anima = built.anima;
+
+  const usdc = await viem.deployContract("MockERC20", ["USD Coin", "USDC", 6]);
+
+  const bonds = await viem.deployContract("BondVault", [
+    usdc.address,
+    anima.address,
+    Number(7n * DAY),
+    deployer.account.address,
+  ]);
+  const reputation = await viem.deployContract("ReputationRegistry", [anima.address, deployer.account.address]);
+  const validation = await viem.deployContract("ValidationRegistry", [anima.address, deployer.account.address]);
+
+  const escrow = await viem.deployContract("WorkEscrow", [
+    usdc.address,
+    anima.address,
+    bonds.address,
+    reputation.address,
+    validation.address,
+    deployer.account.address,
+    100n, // 1% protocol fee
+    treasury.account.address,
+  ]);
+
+  const market = await viem.deployContract("AgentMarket", [
+    anima.address,
+    bonds.address,
+    deployer.account.address,
+    250n, // 2.5%
+    treasury.account.address,
+  ]);
+
+  const comms = await viem.deployContract("AgentComms", [anima.address, anima.address]);
+  const meter = await viem.deployContract("InferenceMeter", [anima.address, Number(3n * DAY)]);
+  const swapRouter = await viem.deployContract("AgentSwapRouter", [
+    anima.address,
+    anima.address,
+    deployer.account.address,
+  ]);
+
+  // Wire the module allowlists. Everything that can lock an agent or move its collateral is
+  // registered explicitly; nothing is open-ended.
+  await anima.write.setModule([escrow.address, true]);
+  await anima.write.setModule([market.address, true]);
+  await bonds.write.setModule([escrow.address, true]);
+  await bonds.write.setArbiter([escrow.address, true]);
+  await reputation.write.setSettlementModule([escrow.address, true]);
+  // A job that can slash requires a validator the registry already recognises: a freshly
+  // generated key is indistinguishable on-chain from an independent referee.
+  await validation.write.setValidator([validator.account.address, true]);
+
+  return {
+    connection,
+    viem,
+    networkHelpers,
+    publicClient,
+    wallets,
+    deployer,
+    alice,
+    bob,
+    carol,
+    guardian,
+    validator,
+    treasury,
+    registry,
+    accountImpl,
+    keyRegistry,
+    nullVerifier,
+    anima,
+    /** Facet wiring, present only when the suite is running the EIP-2535 build. */
+    diamond: built.diamond,
+    usdc,
+    bonds,
+    reputation,
+    validation,
+    escrow,
+    market,
+    comms,
+    meter,
+    swapRouter,
+  };
+}
+
+/** Mint an agent owned by `owner`, returning its id. */
+export async function mintAgent(
+  p: Protocol,
+  owner: `0x${string}`,
+  opts: {
+    uri?: string;
+    manifest?: string;
+    shards?: ReturnType<typeof shard>[];
+    seal?: number;
+    modelId?: string;
+  } = {}
+) {
+  const uri = opts.uri ?? "https://agents.example/1.json";
+  const manifestHash = opts.manifest ? keccak256(toHex(opts.manifest)) : ZERO32;
+  const shards = opts.shards ?? [];
+  const hash = await p.anima.write.mintAgent([
+    owner,
+    uri,
+    manifestHash,
+    opts.modelId ? model(opts.modelId) : blankModel(),
+    shards,
+    opts.seal ?? SealPolicy.None,
+    [],
+  ]);
+  await p.publicClient.waitForTransactionReceipt({ hash });
+  return await p.anima.read.totalMinted();
+}
+
+/**
+ * Every custom error any contract in this build declares, as name -> 4-byte selector(s).
+ *
+ * Needed because a revert's *name* only reaches the client if something decodes it, and what
+ * decodes it is the artifact registered for the address that reverted. A diamond reverts from the
+ * diamond's address while the error is declared on a facet, so the node reports the raw selector
+ * and no name. Matching on the selector as well makes an assertion mean the same thing on both
+ * builds — and makes it strictly stronger, since it now also holds when nothing decoded at all.
+ */
+const ERROR_SELECTORS: Map<string, string[]> = (() => {
+  const byName = new Map<string, string[]>();
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".json") && !entry.name.endsWith(".dbg.json")) {
+        let abi: { type: string; name?: string; inputs?: { type: string }[] }[];
+        try {
+          ({ abi } = JSON.parse(readFileSync(full, "utf8")));
+        } catch {
+          continue;
+        }
+        for (const item of abi ?? []) {
+          if (item.type !== "error" || !item.name) continue;
+          const selector = keccak256(
+            toHex(`${item.name}(${(item.inputs ?? []).map((i) => i.type).join(",")})`)
+          ).slice(0, 10);
+          const seen = byName.get(item.name) ?? [];
+          if (!seen.includes(selector)) byName.set(item.name, [...seen, selector]);
+        }
+      }
+    }
+  };
+  walk("artifacts/contracts");
+  return byName;
+})();
+
+export async function expectRevert(promise: Promise<unknown>, fragment?: string) {
+  try {
+    await promise;
+  } catch (e) {
+    const msg = String((e as Error).message ?? e);
+    if (fragment && !msg.includes(fragment)) {
+      const selectors = ERROR_SELECTORS.get(fragment) ?? [];
+      const lower = msg.toLowerCase();
+      if (!selectors.some((s) => lower.includes(s.toLowerCase()))) {
+        const also = selectors.length ? ` (nor its selector ${selectors.join(" / ")})` : "";
+        throw new Error(`expected revert containing "${fragment}"${also}, got:\n${msg}`);
+      }
+    }
+    return msg;
+  }
+  throw new Error(`expected revert${fragment ? ` containing "${fragment}"` : ""}, but call succeeded`);
+}

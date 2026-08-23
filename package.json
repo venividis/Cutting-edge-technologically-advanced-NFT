@@ -1,0 +1,28 @@
+{
+  "name": "anima-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ANIMA — an agent-native NFT standard and protocol for autonomous AI agents",
+  "scripts": {
+    "build": "hardhat build",
+    "test": "hardhat test",
+    "clean": "hardhat clean",
+    "test:diamond": "ANIMA_IMPL=diamond hardhat test",
+    "test:both": "hardhat test && ANIMA_IMPL=diamond hardhat test"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",
+    "@types/node": "^22.19.0",
+    "hardhat": "^3.14.0",
+    "typescript": "^5.9.3",
+    "viem": "^2.55.19"
+  },
+  "dependencies": {
+    "@layerzerolabs/oapp-evm": "^0.4.1",
+    "@layerzerolabs/onft-evm": "^0.2.4",
+    "@openzeppelin/contracts": "^5.6.1",
+    "@openzeppelin/contracts-upgradeable": "^5.6.1",
+    "solady": "^0.1.26"
+  }
+}

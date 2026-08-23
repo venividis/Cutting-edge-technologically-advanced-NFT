@@ -1,0 +1,57 @@
+{
+  "chainId": 84532,
+  "deployer": "0xb76d63330A3Fff184322Ca06270368e901A33bc7",
+  "contracts": {
+    "registry": "0x000000006551c19487814612e58FE06813775758",
+    "accountImpl": "0xB97ea50e956E36606eC5DD159dC7f25CA732bc6d",
+    "keyRegistry": "0x6B9f84C60F4cAd50589a67a4687b99f4f07E61e6",
+    "verifier": "0x9B231446E0B096c75A02B9542d748aaFe612C0A6",
+    "facetCore": "0x4A815892c26eb5Ab35b17fd85b881d7610428c47",
+    "facetAgent": "0x79c4Fe69D445dcf8c72392Ea3554aeb423EAb545",
+    "facetBrain": "0xEebD273549156F636c6FF24D7DebC115aFFf21c0",
+    "facetLoupe": "0xda7d5f48b94067f1F3b35fe2c52e0c03ba2AaBa2",
+    "animaInit": "0x86E5e6E0B47d1Bf6CA8DDc4A37866108Bc694c85",
+    "anima": "0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3",
+    "usdc": "0x1CBD046B76Cba78bF0acc3eB095FDFf375881e3e",
+    "bonds": "0xcfd3E22a9b8B419fE53E47886b2bf621d327cC76",
+    "reputation": "0xb201eF54e44A81c4e141ced20f2fFCBF06350579",
+    "validation": "0x0eFca108B2A456649D40F4F69DD0FFc7dd69162d",
+    "escrow": "0xFBA84694C5F0Ee5A33fad6D732f327db7644af4A",
+    "market": "0x280296FEaA460354e1d86dAF0f3afCA631927cD0",
+    "comms": "0xD0081791398a0f5504672a0cb46afC733feCF34b",
+    "meter": "0x3657704749d06d38B222024393cB35d3D83c7A58",
+    "handles": "0x9e8c0dE328201Ed7Ee4f41a16b9A829aE933CDE6",
+    "roles": "0xF4dA6c25F2972B0833BaCCC8235773ea1dF36F8f"
+  },
+  "cast": {
+    "client": {
+      "address": "0x3ee6BE46dEeD6cbDE1B65c4e850D4326F7699b10",
+      "keyFile": "client.key"
+    },
+    "validator": {
+      "address": "0xe6FFB9333fC20BD802722e38A11D9766090866b1",
+      "keyFile": "validator.key"
+    },
+    "buyer": {
+      "address": "0x65480b8001800eCEBc445f8187db43EDCFe92da1",
+      "keyFile": "buyer.key"
+    }
+  },
+  "wiring": [
+    "anima.setModule(escrow)",
+    "anima.setModule(market)",
+    "anima.setModule(roles)",
+    "bonds.setModule(escrow)",
+    "bonds.setArbiter(escrow)",
+    "reputation.setSettlementModule(escrow)",
+    "validation.setValidator(validator)",
+    "mint aUSD"
+  ],
+  "note": "Testnet only. Deployer and cast keys are burners held outside this repository and are destroyed with the session that made them.",
+  "omni": {
+    "home": "0xbaA01630c858EF1DA96bb47FA726043afea0e169",
+    "mirror": "0xB97ea50e956E36606eC5DD159dC7f25CA732bc6d",
+    "peered": true,
+    "roundTripped": true
+  }
+}
