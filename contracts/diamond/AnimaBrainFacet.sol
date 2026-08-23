@@ -5,6 +5,7 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 
 import {AnimaBase} from "./AnimaBase.sol";
+import {AnimaConfig} from "./IAnimaConfigured.sol";
 import {AnimaStorage} from "./AnimaStorage.sol";
 import {
     IAnima,
@@ -28,6 +29,8 @@ import {BrainLib} from "../libraries/BrainLib.sol";
  *      indexer sees one consistent history.
  */
 contract AnimaBrainFacet is AnimaBase, IERC4906, ReentrancyGuardTransient {
+    constructor(AnimaConfig memory config) AnimaBase(config) {}
+
     /*//////////////////////////////////////////////////////////////
                           MINT  /  ERC-8004 REGISTER
     //////////////////////////////////////////////////////////////*/
@@ -188,7 +191,7 @@ contract AnimaBrainFacet is AnimaBase, IERC4906, ReentrancyGuardTransient {
         if (!_isAuthorized(holder, msg.sender, agentId)) revert NotOwnerOf(agentId, msg.sender);
 
         AnimaStorage.Layout storage $ = _s();
-        bytes32 recipientKeyId = $.keyRegistry.keyIdOf(to);
+        bytes32 recipientKeyId = _KEY_REGISTRY.keyIdOf(to);
         if (recipientKeyId == bytes32(0)) revert NoEncryptionKey(to);
 
         AgentCore storage c = $.core[agentId];

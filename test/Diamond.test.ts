@@ -211,10 +211,97 @@ describe("AnimaDiamond — the routing table", () => {
       );
     }
 
-    // anima.storage.core field 0 is the ERC-6551 registry, written once by the initialiser.
+    // anima.storage.core field 0 is the re-key verifier, written by the initialiser. The
+    // ERC-6551 configuration is deliberately NOT in this namespace — it is immutable per facet.
     const animaSlot = "0x2134dd8a40292237c0a0658c1368c4805ba84a926576fc8c56170c3a72e5a700";
     const raw = await p.publicClient.getStorageAt({ address, slot: animaSlot });
-    assert.equal(getAddress(`0x${raw!.slice(-40)}`), getAddress(p.registry.address));
+    assert.equal(getAddress(`0x${raw!.slice(-40)}`), getAddress(p.nullVerifier.address));
+  });
+});
+
+describe("AnimaDiamond — the pinned ERC-6551 configuration", () => {
+  /**
+   * The four values the monolith holds as `immutable` are immutable per facet here, so that
+   * `accountOf` — which eight protocol contracts call on their settlement paths to find where an
+   * agent's money goes — reads no storage at all. The price of that is facets that could be
+   * deployed disagreeing, which is checked away rather than paid for.
+   */
+  it("reports the same configuration as the monolith, from every facet", async () => {
+    const mono = await deployProtocol({ impl: "monolith" });
+    const dia = await deployProtocol({ impl: "diamond" });
+
+    assert.equal(getAddress(await dia.anima.read.REGISTRY()), getAddress(await mono.anima.read.REGISTRY()));
+    assert.equal(
+      getAddress(await dia.anima.read.ACCOUNT_IMPLEMENTATION()),
+      getAddress(await mono.anima.read.ACCOUNT_IMPLEMENTATION())
+    );
+    assert.equal(await dia.anima.read.ACCOUNT_SALT(), await mono.anima.read.ACCOUNT_SALT());
+    assert.equal(getAddress(await dia.anima.read.KEY_REGISTRY()), getAddress(await mono.anima.read.KEY_REGISTRY()));
+
+    // And every facet that carries it carries the identical copy.
+    const { core, agent, brain, loupe } = dia.diamond!.facets;
+    const hashes = await Promise.all(
+      [core, agent, brain].map(async (address) =>
+        (await dia.viem.getContractAt("AnimaCoreFacet", address)).read.animaConfigHash()
+      )
+    );
+    assert.equal(new Set(hashes).size, 1, "facets disagree about the ERC-6551 configuration");
+
+    // The loupe carries none, so it has nothing to agree about and is skipped by the check.
+    await expectRevert(
+      (await dia.viem.getContractAt("AnimaCoreFacet", loupe)).read.animaConfigHash(),
+      ""
+    );
+  });
+
+  it("refuses to deploy when a facet was built against a different configuration", async () => {
+    const p = await deployProtocol({ impl: "diamond" });
+    const { config, cuts, init } = p.diamond!;
+
+    // A second ERC-6551 registry — the mistake this check exists to catch is a facet compiled
+    // and deployed against the wrong one, which would give agents two different wallet addresses
+    // depending on which function you asked.
+    const otherRegistry = await p.viem.deployContract("ERC6551Registry");
+    const rogue = await p.viem.deployContract("AnimaAgentFacet", [
+      { ...config, registry: otherRegistry.address },
+    ]);
+
+    const rogueCuts = cuts.map((c: { facetAddress: string }, i: number) =>
+      i === 1 ? { ...cuts[1], facetAddress: rogue.address } : c
+    );
+
+    await expectRevert(
+      p.viem.deployContract("AnimaDiamond", [
+        rogueCuts,
+        init,
+        encodeFunctionData({
+          abi: (await p.viem.getContractAt("AnimaInit", init)).abi,
+          functionName: "init",
+          args: ["ANIMA Agents", "ANIMA", p.deployer.account.address, p.nullVerifier.address, zeroAddress, 0n],
+        }),
+      ]),
+      "FacetConfigMismatch"
+    );
+  });
+
+  it("refuses to deploy a diamond whose facets carry no configuration at all", async () => {
+    const p = await deployProtocol({ impl: "diamond" });
+    const { loupe } = p.diamond!.facets;
+
+    await expectRevert(
+      p.viem.deployContract("AnimaDiamond", [
+        [
+          {
+            facetAddress: loupe,
+            action: 0,
+            functionSelectors: [toFunctionSelector("function facetAddresses() view returns (address[])")],
+          },
+        ],
+        zeroAddress,
+        "0x",
+      ]),
+      "NoConfiguredFacet"
+    );
   });
 });
 
@@ -260,18 +347,7 @@ describe("AnimaDiamond — immutability", () => {
     // Two independent guards, either of which would be sufficient: the selector was never
     // routed, so the fallback rejects it before `initializer` is ever consulted.
     await expectRevert(
-      init.write.init([
-        "Hijacked",
-        "HIJ",
-        p.bob.account.address,
-        p.registry.address,
-        p.accountImpl.address,
-        "0x" + "00".repeat(32),
-        p.nullVerifier.address,
-        p.keyRegistry.address,
-        p.bob.account.address,
-        0n,
-      ]),
+      init.write.init(["Hijacked", "HIJ", p.bob.account.address, p.nullVerifier.address, p.bob.account.address, 0n]),
       "FunctionNotFound"
     );
     assert.equal(getAddress(await p.anima.read.owner()), getAddress(p.deployer.account.address));
@@ -282,18 +358,7 @@ describe("AnimaDiamond — immutability", () => {
     const standalone = await p.viem.getContractAt("AnimaInit", p.diamond!.init);
 
     await standalone.write.init(
-      [
-        "Someone Else's Token",
-        "NOPE",
-        p.bob.account.address,
-        p.registry.address,
-        p.accountImpl.address,
-        "0x" + "00".repeat(32),
-        p.nullVerifier.address,
-        p.keyRegistry.address,
-        p.bob.account.address,
-        0n,
-      ],
+      ["Someone Else's Token", "NOPE", p.bob.account.address, p.nullVerifier.address, p.bob.account.address, 0n],
       { account: p.bob.account }
     );
 
@@ -391,11 +456,7 @@ describe("AnimaDiamond — construction", () => {
             "Broken",
             "BRK",
             p.deployer.account.address,
-            zeroAddress, // no ERC-6551 registry
-            p.accountImpl.address,
-            `0x${"00".repeat(32)}`,
-            p.nullVerifier.address,
-            p.keyRegistry.address,
+            zeroAddress, // no re-key verifier
             zeroAddress,
             0n,
           ],

@@ -3,8 +3,8 @@
 ```bash
 npm install
 npx hardhat build
-npx hardhat test          # 210 tests — do not deploy on a red suite
-npm run test:diamond      # the same 210 against the EIP-2535 build
+npx hardhat test          # 214 tests — do not deploy on a red suite
+npm run test:diamond      # the same 214 against the EIP-2535 build
 ```
 
 ## Order and why it matters
@@ -34,7 +34,10 @@ produce identical ERC-5646 fingerprints for an identically-lived agent.
 
 **Deploy `AnimaDiamond`** when you intend to add to the token. Order:
 
-1. `AnimaCoreFacet`, `AnimaAgentFacet`, `AnimaBrainFacet`, `AnimaLoupeFacet`, `AnimaInit`.
+1. `AnimaCoreFacet`, `AnimaAgentFacet`, `AnimaBrainFacet` and `AnimaInit`, each taking the same
+   `AnimaConfig` — the ERC-6551 registry, the account implementation, the salt, the key registry.
+   Pass one struct value to all four; they hold it as `immutable`, which is what keeps `accountOf`
+   free of storage reads. Then `AnimaLoupeFacet`, which takes nothing.
 2. Build the cut with the SDK's `deriveFacetCut`, never by hand. It takes `AnimaAgent`'s ABI as
    the specification and throws rather than returning a partial cut if a function would go
    unrouted, a facet claims one the token does not declare, or two facets claim one selector.
@@ -42,8 +45,9 @@ produce identical ERC-5646 fingerprints for an identically-lived agent.
    the constructor returns. `deployAnimaDiamond` in `test/helpers.ts` shows the call, and every
    test in the suite runs through it.
 3. Deploy `AnimaDiamond(cuts, animaInit, initCalldata)`. The constructor rejects a duplicate
-   selector, a non-`Add` action and a facet with no code, and bubbles an initialiser revert
-   rather than leaving a half-built diamond on chain.
+   selector, a non-`Add` action and a facet with no code; refuses to deploy if any two facets
+   report a different `animaConfigHash()`, or if none reports one at all; and bubbles an
+   initialiser revert rather than leaving a half-built diamond on chain.
 4. Verify the result before wiring anything to it: `facets()` must report exactly your four
    facets, `facetAddress(diamondCut selector)` must be the zero address, and each facet's
    on-chain bytecode must match what you compiled.

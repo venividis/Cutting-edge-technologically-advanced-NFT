@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {IDiamond} from "./IDiamond.sol";
 import {DiamondStorage} from "./DiamondStorage.sol";
+import {IAnimaConfigured} from "./IAnimaConfigured.sol";
 
 /**
  * @title AnimaDiamond — an EIP-2535 diamond with the cut welded shut
@@ -40,6 +41,8 @@ contract AnimaDiamond is IDiamond {
     error EmptyFacetCut(address facet);
     error SelectorAlreadyBound(bytes4 selector, address boundTo);
     error InitializationFailed();
+    error FacetConfigMismatch(address facet, bytes32 expected, bytes32 found);
+    error NoConfiguredFacet();
 
     /**
      * @param cuts Facets to wire in, all of action `Add`. Every selector must be unique
@@ -68,6 +71,13 @@ contract AnimaDiamond is IDiamond {
             }
         }
 
+        // Every facet carries the ERC-6551 configuration as its own `immutable` — that is what
+        // makes `accountOf` free of storage reads, and it is worth ~6,300 gas on every
+        // settlement in the protocol. The price of per-facet immutables is that they could be
+        // deployed disagreeing, which would give the token agents whose wallet address depends
+        // on which function you asked. So it is checked here, once, permanently.
+        _requireFacetsAgree(init);
+
         // EIP-2535: the event is required for all cuts, "including cuts in the constructor".
         // For an immutable diamond it is the only one that will ever be emitted, which makes
         // it the permanent, indexable record of what this address actually is.
@@ -82,6 +92,35 @@ contract AnimaDiamond is IDiamond {
                 }
             }
         }
+    }
+
+    /// @dev Collects {IAnimaConfigured-animaConfigHash} from every wired facet and from the
+    ///      initialiser, and requires the ones that answer to agree. A facet that does not
+    ///      implement the interface — the loupe, for instance — carries no configuration and is
+    ///      skipped; at least one must answer, or the diamond has no configuration at all.
+    function _requireFacetsAgree(address init) private view {
+        address[] storage facets = DiamondStorage.layout().facetAddresses;
+        bytes32 expected;
+        bool seen;
+
+        for (uint256 i; i <= facets.length; ++i) {
+            address target = i == facets.length ? init : facets[i];
+            if (target == address(0)) continue;
+
+            (bool ok, bytes memory data) =
+                target.staticcall(abi.encodeCall(IAnimaConfigured.animaConfigHash, ()));
+            if (!ok || data.length != 32) continue;
+
+            bytes32 found = abi.decode(data, (bytes32));
+            if (!seen) {
+                expected = found;
+                seen = true;
+            } else if (found != expected) {
+                revert FacetConfigMismatch(target, expected, found);
+            }
+        }
+
+        if (!seen) revert NoConfiguredFacet();
     }
 
     /// @dev The only executable code this contract has after construction. `payable` so that

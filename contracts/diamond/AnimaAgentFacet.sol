@@ -5,6 +5,7 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 
 import {AnimaBase} from "./AnimaBase.sol";
+import {AnimaConfig} from "./IAnimaConfigured.sol";
 import {AnimaStorage} from "./AnimaStorage.sol";
 import {AgentCore, AgentStatus, ModelIdentity, AutonomyPolicy, Lease, IAnima} from "../interfaces/IAnima.sol";
 import {IERC4907} from "../interfaces/IRentable.sol";
@@ -21,35 +22,37 @@ import {EncryptionKeyRegistry} from "../core/EncryptionKeyRegistry.sol";
  *      {AnimaCoreFacet} and {AnimaBase}.
  */
 contract AnimaAgentFacet is AnimaBase, IERC4907, IERC4906 {
+    constructor(AnimaConfig memory config) AnimaBase(config) {}
+
     /*//////////////////////////////////////////////////////////////
                      CONSTRUCTION-TIME CONFIGURATION
     //////////////////////////////////////////////////////////////*/
 
     /// @notice The canonical, chain-agnostic ERC-6551 registry.
-    /// @dev A field rather than an `immutable`, because a facet's immutable is baked into
-    ///      *that facet's* code: three facets would each carry their own copy and could be
-    ///      deployed disagreeing. One authoritative value, written once at initialisation.
+    /// @dev Immutable in this facet's own code, so reading it under `delegatecall` costs
+    ///      nothing. Every facet's copy is checked identical at construction — see
+    ///      {IAnimaConfigured}.
     function REGISTRY() external view returns (IERC6551Registry) {
-        return _s().registry;
+        return _REGISTRY;
     }
 
     function ACCOUNT_IMPLEMENTATION() external view returns (address) {
-        return _s().accountImplementation;
+        return _ACCOUNT_IMPLEMENTATION;
     }
 
     function ACCOUNT_SALT() external view returns (bytes32) {
-        return _s().accountSalt;
+        return _ACCOUNT_SALT;
     }
 
     /// @notice Chain-wide registry of recipients' encryption keys. Shared across every
     ///         ANIMA collection so a user publishes a key once, not once per contract.
     function KEY_REGISTRY() external view returns (EncryptionKeyRegistry) {
-        return _s().keyRegistry;
+        return _KEY_REGISTRY;
     }
 
     /// @notice See {IAnima-keyRegistry}.
     function keyRegistry() external view returns (address) {
-        return address(_s().keyRegistry);
+        return address(_KEY_REGISTRY);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -153,16 +156,17 @@ contract AnimaAgentFacet is AnimaBase, IERC4907, IERC4906 {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice See {IAnima-accountOf}.
+    /// @dev Every read here is of an immutable, so this costs no storage at all — which matters
+    ///      because eight protocol contracts call it on their settlement paths to find where an
+    ///      agent's money goes.
     function accountOf(uint256 agentId) public view returns (address) {
-        AnimaStorage.Layout storage $ = _s();
-        return $.registry.account($.accountImplementation, $.accountSalt, block.chainid, address(this), agentId);
+        return _REGISTRY.account(_ACCOUNT_IMPLEMENTATION, _ACCOUNT_SALT, block.chainid, address(this), agentId);
     }
 
     /// @notice See {IAnima-deployAccount}.
     function deployAccount(uint256 agentId) external returns (address) {
         _requireOwned(agentId);
-        AnimaStorage.Layout storage $ = _s();
-        return $.registry.createAccount($.accountImplementation, $.accountSalt, block.chainid, address(this), agentId);
+        return _REGISTRY.createAccount(_ACCOUNT_IMPLEMENTATION, _ACCOUNT_SALT, block.chainid, address(this), agentId);
     }
 
     /// @notice ERC-8004: the address this agent transacts from.

@@ -21,6 +21,9 @@ import {IIdentityRegistry} from "../interfaces/IERC8004.sol";
 import {IERC4907} from "../interfaces/IRentable.sol";
 import {ITransferVerifier} from "../interfaces/ITransferVerifier.sol";
 import {AnimaStorage} from "./AnimaStorage.sol";
+import {AnimaConfig, IAnimaConfigured} from "./IAnimaConfigured.sol";
+import {IERC6551Registry} from "../interfaces/IERC6551.sol";
+import {EncryptionKeyRegistry} from "../core/EncryptionKeyRegistry.sol";
 
 /**
  * @title AnimaBase — the invariants every ANIMA facet shares
@@ -40,6 +43,7 @@ import {AnimaStorage} from "./AnimaStorage.sol";
  */
 abstract contract AnimaBase is
     IAnimaEvents,
+    IAnimaConfigured,
     ERC721Upgradeable,
     ERC2981Upgradeable,
     EIP712Upgradeable,
@@ -59,6 +63,41 @@ abstract contract AnimaBase is
     /// @dev ERC-7572 publishes no interfaceId; this is the community-computed value.
     bytes4 internal constant _INTERFACE_ID_ERC7572 = 0xe8a3d485;
     bytes4 internal constant _INTERFACE_ID_ERC5646 = 0xf5112315;
+
+    /*//////////////////////////////////////////////////////////////
+                       PINNED CONFIGURATION  (per facet)
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice The canonical, chain-agnostic ERC-6551 registry.
+    IERC6551Registry internal immutable _REGISTRY;
+    address internal immutable _ACCOUNT_IMPLEMENTATION;
+    bytes32 internal immutable _ACCOUNT_SALT;
+
+    /// @notice Chain-wide registry of recipients' encryption keys. Shared across every ANIMA
+    ///         collection so a user publishes a key once, not once per contract.
+    EncryptionKeyRegistry internal immutable _KEY_REGISTRY;
+
+    /// @dev Each facet holds its own copy, inlined into its runtime code, which is what makes
+    ///      `accountOf` free of storage reads under `delegatecall`. {AnimaDiamond} refuses to
+    ///      deploy unless every facet's copy hashes to the same value, so "each facet holds its
+    ///      own" cannot become "the facets disagree". See {IAnimaConfigured}.
+    constructor(AnimaConfig memory config) {
+        if (address(config.registry) == address(0) || config.accountImplementation == address(0)) {
+            revert ZeroAddress();
+        }
+        if (address(config.keyRegistry) == address(0)) revert ZeroAddress();
+        _REGISTRY = config.registry;
+        _ACCOUNT_IMPLEMENTATION = config.accountImplementation;
+        _ACCOUNT_SALT = config.accountSalt;
+        _KEY_REGISTRY = config.keyRegistry;
+    }
+
+    /// @inheritdoc IAnimaConfigured
+    /// @dev Not routed through the diamond — it is read by staticcall on the facet itself, at
+    ///      construction, and has no reason to exist on the token's public surface.
+    function animaConfigHash() public view returns (bytes32) {
+        return keccak256(abi.encode(_REGISTRY, _ACCOUNT_IMPLEMENTATION, _ACCOUNT_SALT, _KEY_REGISTRY));
+    }
 
     /*//////////////////////////////////////////////////////////////
                              EVENTS / ERRORS

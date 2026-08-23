@@ -50,11 +50,12 @@ EIP-2535, with **no `diamondCut` function**.
 |---|---:|---|
 | `diamond/AnimaDiamond.sol` | 177 B | Constructor and fallback. Wires the facets, emits `DiamondCut` once, and has no other code — nothing to call, nothing to change. |
 | `diamond/AnimaBase.sol` | — | Abstract. The transfer hook, the authorisation predicates, the approval store, `tokenURI`, ERC-165. Shared so no facet can disagree. |
-| `diamond/AnimaCoreFacet.sol` | 9.7 KB | ERC-721 surface, expiring approvals, royalties, locking, administration. 38 selectors. |
-| `diamond/AnimaAgentFacet.sol` | 14.9 KB | Manifest, metadata, model, wallet binding, policy, lifecycle, guardian, lease, ERC-5646 fingerprint. 34 selectors. |
-| `diamond/AnimaBrainFacet.sol` | 15.5 KB | Minting, ERC-8004 `register`, brain reads and writes, re-keying transfer. 11 selectors. |
+| `diamond/AnimaCoreFacet.sol` | 9.9 KB | ERC-721 surface, expiring approvals, royalties, locking, administration. 38 selectors. |
+| `diamond/AnimaAgentFacet.sol` | 15.1 KB | Manifest, metadata, model, wallet binding, policy, lifecycle, guardian, lease, ERC-5646 fingerprint. 34 selectors. |
+| `diamond/AnimaBrainFacet.sol` | 15.8 KB | Minting, ERC-8004 `register`, brain reads and writes, re-keying transfer. 11 selectors. |
 | `diamond/AnimaLoupeFacet.sol` | 1.7 KB | EIP-2535 introspection. 4 selectors. |
-| `diamond/AnimaInit.sol` | 9.2 KB | Delegatecalled once from the constructor. Its selector is never routed, so it is unreachable afterwards. |
+| `diamond/AnimaInit.sol` | 9.0 KB | Delegatecalled once from the constructor. Its selector is never routed, so it is unreachable afterwards. |
+| `diamond/IAnimaConfigured.sol` | — | The `AnimaConfig` struct and the one-function interface the constructor's agreement check reads. |
 
 **Why immutable.** The usual reason to build a diamond is upgradeability, and that is exactly the
 property this token must not have. A buyer's guarantee that a sale revokes the seller's session
@@ -80,12 +81,48 @@ namespaces, so all three regions are disjoint by construction rather than by rev
 and 2 of the diamond are asserted empty in the test suite — a facet that forgot and declared a
 plain state variable would land right there.
 
-The four values that are `immutable` in the monolith (the ERC-6551 registry, the account
-implementation and salt, the key registry) are plain fields here. Facet immutables *would* work —
-they are inlined into the facet's own runtime code, which is what executes under `delegatecall` —
-but they would have to be passed identically to every facet's constructor, and a diamond whose
-facets disagree about which registry is canonical mints agents whose wallet address depends on
-which function you asked. One authoritative copy is worth the `SLOAD`.
+**The pinned configuration, and what measuring it changed.** The four values that are `immutable`
+in the monolith — the ERC-6551 registry, the account implementation and salt, the key registry —
+are `immutable` per facet here too. They were diamond-storage fields first, on the reasoning that
+facet immutables could be deployed disagreeing about which registry is canonical, giving the token
+agents whose wallet address depends on which function you asked.
+
+The gas benchmark refuted that trade. Three cold `SLOAD`s made `accountOf` cost **+11,081 gas**
+against the monolith rather than the +4,700 every other call pays — and `accountOf` is the hottest
+cross-contract read in the protocol: `WorkEscrow`, `InferenceMeter`, `AgentComms`, `AgentMarket`
+(twice per fill), `AgentSwapRouter`, `AgentDerivativesDesk`, `AgentLaunchpad` and `OmniAgentHome`
+all call it on their settlement paths to find where an agent's money goes.
+
+So the values went back into facet code, and the hazard is removed by a check instead of a cost:
+every facet implements `IAnimaConfigured.animaConfigHash()`, and `AnimaDiamond`'s constructor
+collects it from each facet and from the initialiser and refuses to deploy unless they agree (a
+facet like the loupe that carries no configuration simply doesn't answer and is skipped; at least
+one must). `accountOf` is back to +4,731 and `getStateFingerprint` to +5,386.
+
+### What the diamond costs, measured
+
+`test/Gas.test.ts` deploys both builds on a fresh chain per probe and reports the delta. It fails
+the build if any call drifts outside 25% relative *and* 6,000 gas absolute, so the numbers in
+these docs cannot silently rot.
+
+```
+call                 monolith  diamond     delta      rel
+--------------------------------------------------------
+ownerOf                 24472    29062     +4590    18.8%
+tokenURI                30058    34511     +4453    14.8%
+supportsInterface       21998    26960     +4962    22.6%
+isApprovedForAll        28511    32853     +4342    15.2%
+accountOf               26863    31594     +4731    17.6%
+getStateFingerprint     54818    60204     +5386     9.8%
+mintAgent              311367   316587     +5220     1.7%
+transferFrom            85818    90499     +4681     5.5%
+updateBrain             68445    72833     +4388     6.4%
+```
+
+The overhead is flat at roughly 4,300–5,400 gas regardless of what the call does, which is exactly
+what one `DELEGATECALL` costs: a cold `SLOAD` of the selector table (2,100) plus a cold account
+access for the facet (2,600). It is therefore a rounding error on writes (1.7% on `mintAgent`) and
+a visible fraction only on the cheapest views, where the absolute number is still under 5,000.
 
 **How equivalence is established.** The facets partition the monolith's ABI. The cut is derived
 from that ABI at deploy time and the fixture refuses to build if a monolith function goes unrouted
@@ -97,7 +134,7 @@ must be byte-identical.
 
 ```
 23,971 B   monolith, 605 to spare
-15,526 B   largest facet, 9,050 to spare — and a fifth facet costs nothing
+15,758 B   largest facet, 8,818 to spare — and a fifth facet costs nothing
 ```
 
 ## Layer 2 — Accountability

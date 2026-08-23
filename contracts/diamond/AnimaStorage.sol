@@ -2,9 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {AgentCore, Lease, BrainShard, ModelIdentity, AutonomyPolicy} from "../interfaces/IAnima.sol";
-import {IERC6551Registry} from "../interfaces/IERC6551.sol";
 import {ITransferVerifier} from "../interfaces/ITransferVerifier.sol";
-import {EncryptionKeyRegistry} from "../core/EncryptionKeyRegistry.sol";
 
 /**
  * @title AnimaStorage — ERC-7201 namespaced state for the diamond build
@@ -26,22 +24,20 @@ import {EncryptionKeyRegistry} from "../core/EncryptionKeyRegistry.sol";
  *      own ERC-7201 namespaces (the `contracts-upgradeable` package), so the three
  *      state regions are provably disjoint by construction, not by review.
  *
- *      The four values that are `immutable` in the monolith are plain fields here. Facet
- *      immutables *would* work — they are inlined into the facet's own runtime code, which
- *      is what executes under `delegatecall` — but they would have to be passed identically
- *      to every facet's constructor, and a diamond whose facets disagree about which
- *      ERC-6551 registry is canonical is a diamond that mints agents whose wallets move
- *      depending on which function you asked. One authoritative copy, written once at
- *      initialisation, is worth the SLOAD.
+ *      Note what is *not* here. The four values that are `immutable` in the monolith — the
+ *      ERC-6551 registry, the account implementation and salt, the encryption key registry —
+ *      stay immutable, per facet, and are deliberately absent from this struct. They were
+ *      fields here at first; measuring showed that cost three cold `SLOAD`s on `accountOf`,
+ *      about 6,300 gas, on the hottest cross-contract read in the protocol — eight contracts
+ *      call it to find where an agent's money goes. The hazard that argued for storage, facets
+ *      deployed disagreeing about which registry is canonical, is instead removed by
+ *      {AnimaDiamond} refusing to deploy unless every facet reports the same
+ *      {IAnimaConfigured-animaConfigHash}. A check at construction beats a cost on every
+ *      settlement.
  */
 library AnimaStorage {
     /// @custom:storage-location erc7201:anima.storage.core
     struct Layout {
-        // ─── set once at initialisation, never written again ───────────────────────────
-        IERC6551Registry registry;
-        address accountImplementation;
-        bytes32 accountSalt;
-        EncryptionKeyRegistry keyRegistry;
         // ─── mutable protocol configuration ────────────────────────────────────────────
         ITransferVerifier verifier;
         string contractURI;

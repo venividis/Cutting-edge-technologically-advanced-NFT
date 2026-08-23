@@ -136,12 +136,24 @@ type AnimaCtorArgs = readonly [
  * integrator would deploy with.
  */
 async function deployAnimaDiamond(viem: any, args: AnimaCtorArgs) {
+  // Every facet pins the ERC-6551 configuration as its own immutable, so they all take it and
+  // the diamond's constructor checks they agree. `deployProtocol` passes the monolith's
+  // constructor tuple, so split it here rather than making callers know two shapes.
+  const [name_, symbol_, owner_, registry_, accountImpl_, salt_, verifier_, keyRegistry_, royaltyTo_, royaltyBps_] =
+    args;
+  const config = {
+    registry: registry_,
+    accountImplementation: accountImpl_,
+    accountSalt: salt_,
+    keyRegistry: keyRegistry_,
+  } as const;
+
   const [core, agent, brain, loupe, init] = await Promise.all([
-    viem.deployContract("AnimaCoreFacet"),
-    viem.deployContract("AnimaAgentFacet"),
-    viem.deployContract("AnimaBrainFacet"),
+    viem.deployContract("AnimaCoreFacet", [config]),
+    viem.deployContract("AnimaAgentFacet", [config]),
+    viem.deployContract("AnimaBrainFacet", [config]),
     viem.deployContract("AnimaLoupeFacet"),
-    viem.deployContract("AnimaInit"),
+    viem.deployContract("AnimaInit", [config]),
   ]);
 
   const cuts = deriveFacetCut({
@@ -157,7 +169,11 @@ async function deployAnimaDiamond(viem: any, args: AnimaCtorArgs) {
   const diamond = await viem.deployContract("AnimaDiamond", [
     cuts,
     init.address,
-    encodeFunctionData({ abi: init.abi, functionName: "init", args }),
+    encodeFunctionData({
+      abi: init.abi,
+      functionName: "init",
+      args: [name_, symbol_, owner_, verifier_, royaltyTo_, royaltyBps_],
+    }),
   ]);
 
   return {
@@ -167,6 +183,7 @@ async function deployAnimaDiamond(viem: any, args: AnimaCtorArgs) {
       loupe: await viem.getContractAt("AnimaLoupeFacet", diamond.address),
       facets: { core: core.address, agent: agent.address, brain: brain.address, loupe: loupe.address },
       init: init.address as `0x${string}`,
+      config,
       cuts,
       selectors: {
         core: cuts[0].functionSelectors,

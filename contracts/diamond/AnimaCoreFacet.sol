@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {AnimaBase} from "./AnimaBase.sol";
+import {AnimaConfig} from "./IAnimaConfigured.sol";
 import {AnimaStorage} from "./AnimaStorage.sol";
 import {IDiamondLoupe} from "./IDiamond.sol";
 import {AgentCore, AgentStatus} from "../interfaces/IAnima.sol";
@@ -18,6 +19,8 @@ import {ITransferVerifier} from "../interfaces/ITransferVerifier.sol";
  *      through some other facet's back door while it owes work.
  */
 contract AnimaCoreFacet is AnimaBase, IERC5192, IERC6454, IERC7572 {
+    constructor(AnimaConfig memory config) AnimaBase(config) {}
+
     /*//////////////////////////////////////////////////////////////
                         EXPIRING, REVOCABLE APPROVALS
     //////////////////////////////////////////////////////////////*/

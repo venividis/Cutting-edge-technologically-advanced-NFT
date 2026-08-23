@@ -5,7 +5,7 @@
 An identity, a wallet, private state, a declared model, a published leash, and a bond you
 can take from it when it fails.
 
-> Status: reference implementation. 27 contracts, 210 tests, 23 review findings fixed.
+> Status: reference implementation. 27 contracts, 214 tests, 23 review findings fixed.
 > Two interchangeable builds of the token — a monolith and an immutable EIP-2535 diamond —
 > proved equivalent by running the same suite against both.
 > Unaudited, no deployments.
@@ -225,9 +225,22 @@ call `facets()`, confirm no selector resolves to `diamondCut`, confirm each face
 
 | | monolith | diamond |
 |---|---:|---:|
-| largest deployed unit | 23,971 B | 15,526 B |
-| headroom before EIP-170 | **605 B** | **9,050 B**, per facet, and a new facet costs nothing |
-| cost per call | — | one `DELEGATECALL` |
+| largest deployed unit | 23,971 B | 15,758 B |
+| headroom before EIP-170 | **605 B** | **8,818 B**, per facet, and a new facet costs nothing |
+| gas per call | — | **+4,300 to +5,400**, flat |
+
+That overhead is measured, not asserted — `test/Gas.test.ts` prints the table over 18 calls and
+fails the build if it drifts outside a bound. It is exactly what one `DELEGATECALL` costs: a cold
+`SLOAD` of the selector table (2,100) plus a cold account access for the facet (2,600).
+
+Measuring is also what caught the one place it wasn't flat. Moving the token's four `immutable`s
+(ERC-6551 registry, account implementation, salt, key registry) into diamond storage cost three
+extra cold `SLOAD`s on `accountOf` — **+11,081 gas**, on the hottest cross-contract read in the
+protocol, since eight contracts call it on their settlement paths to find where an agent's money
+goes. They are now `immutable` per facet again, and the hazard that argued for storage — facets
+deployed disagreeing about which registry is canonical — is removed by the diamond's constructor
+refusing to deploy unless every facet reports the same config hash. A check at construction beats
+a cost on every settlement.
 
 Storage is ERC-7201 namespaced (`anima.storage.core`, `anima.storage.diamond`), and everything
 ERC-721/2981/712/Ownable needs lives in OpenZeppelin's own namespaces — so the regions are
@@ -274,7 +287,7 @@ escrow state machine).
 
 Stated here rather than buried, because a standard that hides them is worse than useless.
 
-- **Unaudited.** 210 tests and an adversarial review pass are not an audit.
+- **Unaudited.** 214 tests and an adversarial review pass are not an audit.
 - **Sealing protects future state, not past.** A prior owner who already exported plaintext
   keeps it. No cryptography fixes this; `SealPolicy` exists so you can price it.
 - **The attester quorum is a trust assumption.** Collusion of `threshold` attesters forges a
@@ -298,8 +311,8 @@ Stated here rather than buried, because a standard that hides them is worse than
 ```bash
 npm install
 npx hardhat build      # solc 0.8.28, viaIR, cancun
-npx hardhat test       # 210 tests against the monolith
-npm run test:diamond   # the same 210 against the EIP-2535 build
+npx hardhat test       # 214 tests against the monolith
+npm run test:diamond   # the same 214 against the EIP-2535 build
 npm run test:both      # both, in sequence
 ```
 
