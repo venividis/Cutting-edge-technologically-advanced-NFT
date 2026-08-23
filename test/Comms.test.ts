@@ -24,7 +24,7 @@ describe("AgentComms — priced attention", () => {
     const id = await inbox(p);
     const agentAccount = await p.anima.read.accountOf([id]);
 
-    await p.comms.write.send([id, 0n, ZERO32, HASH, "xmtp://topic"], { account: p.bob.account });
+    await p.comms.write.send([id, 0n, ZERO32, HASH, "xmtp://topic", p.usdc.address, USDC(1000)], { account: p.bob.account });
     assert.equal(await p.usdc.read.balanceOf([p.comms.address]), USDC(5));
     assert.equal(await p.usdc.read.balanceOf([agentAccount]), 0n);
 
@@ -38,7 +38,7 @@ describe("AgentComms — priced attention", () => {
   it("refunds the sender when the agent ignores the message", async () => {
     const p = await deployProtocol();
     const id = await inbox(p);
-    await p.comms.write.send([id, 0n, ZERO32, HASH, "xmtp://topic"], { account: p.bob.account });
+    await p.comms.write.send([id, 0n, ZERO32, HASH, "xmtp://topic", p.usdc.address, USDC(1000)], { account: p.bob.account });
 
     await expectRevert(p.comms.write.refund([1n]), "ReplyWindowOpen");
     await p.networkHelpers.time.increase(3601);
@@ -56,7 +56,7 @@ describe("AgentComms — priced attention", () => {
   it("refuses a late reply even when nobody has claimed the refund yet", async () => {
     const p = await deployProtocol();
     const id = await inbox(p);
-    await p.comms.write.send([id, 0n, ZERO32, HASH, ""], { account: p.bob.account });
+    await p.comms.write.send([id, 0n, ZERO32, HASH, "", p.usdc.address, USDC(1000)], { account: p.bob.account });
 
     await p.networkHelpers.time.increase(3601);
     await expectRevert(
@@ -71,7 +71,7 @@ describe("AgentComms — priced attention", () => {
   it("refuses a reply after a refund and a refund after a reply", async () => {
     const p = await deployProtocol();
     const id = await inbox(p);
-    await p.comms.write.send([id, 0n, ZERO32, HASH, ""], { account: p.bob.account });
+    await p.comms.write.send([id, 0n, ZERO32, HASH, "", p.usdc.address, USDC(1000)], { account: p.bob.account });
     await p.comms.write.reply([1n, HASH, ""], { account: p.alice.account });
 
     await p.networkHelpers.time.increase(3601);
@@ -83,11 +83,11 @@ describe("AgentComms — priced attention", () => {
     const id = await inbox(p, { open: false });
 
     await expectRevert(
-      p.comms.write.send([id, 0n, ZERO32, HASH, ""], { account: p.bob.account }),
+      p.comms.write.send([id, 0n, ZERO32, HASH, "", p.usdc.address, USDC(1000)], { account: p.bob.account }),
       "SenderNotAllowed"
     );
     await p.comms.write.setSenderAllowed([id, p.bob.account.address, true], { account: p.alice.account });
-    await p.comms.write.send([id, 0n, ZERO32, HASH, ""], { account: p.bob.account });
+    await p.comms.write.send([id, 0n, ZERO32, HASH, "", p.usdc.address, USDC(1000)], { account: p.bob.account });
   });
 
   it("allowlists a peer by agent id, so rotating session keys does not break it", async () => {
@@ -96,7 +96,7 @@ describe("AgentComms — priced attention", () => {
     const sender = await mintAgent(p, p.bob.account.address);
 
     await p.comms.write.setAgentSenderAllowed([recipient, sender, true], { account: p.alice.account });
-    await p.comms.write.send([recipient, sender, ZERO32, HASH, ""], { account: p.bob.account });
+    await p.comms.write.send([recipient, sender, ZERO32, HASH, "", p.usdc.address, USDC(1000)], { account: p.bob.account });
 
     const m = await p.comms.read.messageOf([1n]);
     assert.equal(m.fromAgentId, sender);
@@ -112,7 +112,7 @@ describe("AgentComms — authenticated identity", () => {
     // Agent impersonation is the attack that breaks every agent-to-agent protocol that
     // assumes good faith.
     await expectRevert(
-      p.comms.write.send([recipient, otherAgent, ZERO32, HASH, ""], { account: p.bob.account }),
+      p.comms.write.send([recipient, otherAgent, ZERO32, HASH, "", p.usdc.address, USDC(1000)], { account: p.bob.account }),
       "NotAgentController"
     );
   });
@@ -125,13 +125,13 @@ describe("AgentComms — authenticated identity", () => {
 
     await p.usdc.write.mint([p.carol.account.address, USDC(100)]);
     await p.usdc.write.approve([p.comms.address, USDC(100)], { account: p.carol.account });
-    await p.comms.write.send([recipient, sender, ZERO32, HASH, ""], { account: p.carol.account });
+    await p.comms.write.send([recipient, sender, ZERO32, HASH, "", p.usdc.address, USDC(1000)], { account: p.carol.account });
 
     await p.anima.write.transferFrom([p.bob.account.address, p.deployer.account.address, sender], {
       account: p.bob.account,
     });
     await expectRevert(
-      p.comms.write.send([recipient, sender, ZERO32, HASH, ""], { account: p.carol.account }),
+      p.comms.write.send([recipient, sender, ZERO32, HASH, "", p.usdc.address, USDC(1000)], { account: p.carol.account }),
       "NotAgentController"
     );
   });
@@ -152,7 +152,7 @@ describe("AgentComms — authenticated identity", () => {
     const p = await deployProtocol();
     const id = await inbox(p);
     await expectRevert(
-      p.comms.write.send([id, 0n, ZERO32, ZERO32, ""], { account: p.bob.account }),
+      p.comms.write.send([id, 0n, ZERO32, ZERO32, "", p.usdc.address, USDC(1000)], { account: p.bob.account }),
       "EmptyPayload"
     );
   });

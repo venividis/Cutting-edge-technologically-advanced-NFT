@@ -70,7 +70,8 @@ contract AnimaAgent is
         AgentStatus status; //            │  1
         SealPolicy seal; //               │  1
         uint32 version; //                │  4
-        uint32 lockCount; //     ─────────┘  4  = 30/32
+        uint32 lockCount; //              │  4
+        uint16 disputeCount; //  ─────────┘  2  = 32/32
         uint64 brainEpoch; //     slot 3 ─┐  8
         uint64 createdAt; //              │  8
         uint64 operatorEpoch; // ─────────┘  8  = 24/32
@@ -592,8 +593,15 @@ contract AnimaAgent is
         if (status == AgentStatus.Disputed || current == AgentStatus.Disputed || current == AgentStatus.Retired) {
             revert InvalidStatusTransition(current, status);
         }
-        if (status == AgentStatus.Retired) _requireOwnerOf(agentId);
-        else _requireController(agentId);
+        if (status == AgentStatus.Retired) {
+            _requireOwnerOf(agentId);
+            // Retirement is terminal and disables every session key, so standing an agent down
+            // while it owes a tenant or a client work would be a way to keep their money and
+            // hand back a corpse.
+            if (locked(agentId)) revert AgentLocked(agentId);
+        } else {
+            _requireController(agentId);
+        }
         _setStatus(agentId, status);
     }
 
@@ -669,7 +677,7 @@ contract AnimaAgent is
     ///      immovable exactly while it owes someone work or is answering for it.
     function locked(uint256 tokenId) public view returns (bool) {
         AgentCore storage c = _core[tokenId];
-        return c.lockCount != 0 || c.status == AgentStatus.Disputed;
+        return c.lockCount != 0 || c.disputeCount != 0;
     }
 
     /// @inheritdoc IERC6454
@@ -702,14 +710,19 @@ contract AnimaAgent is
     }
 
     /// @notice Move an agent into or out of `Disputed`. Module-only.
+    /// @dev Counted, not a boolean. An agent can owe several clients at once, and resolving the
+    ///      first dispute must not hand its spending authority back while the others are still
+    ///      open — that would make the kill switch a matter of timing.
     function setDisputed(uint256 agentId, bool disputed) external onlyModule {
         AgentCore storage c = _core[agentId];
         bool wasLocked = locked(agentId);
         if (disputed) {
+            c.disputeCount += 1;
             _setStatus(agentId, AgentStatus.Disputed);
             if (!wasLocked) emit Locked(agentId);
         } else {
-            if (c.status == AgentStatus.Disputed) _setStatus(agentId, AgentStatus.Paused);
+            if (c.disputeCount != 0) c.disputeCount -= 1;
+            if (c.disputeCount == 0 && c.status == AgentStatus.Disputed) _setStatus(agentId, AgentStatus.Paused);
             if (!locked(agentId) && wasLocked) emit Unlocked(agentId);
         }
     }

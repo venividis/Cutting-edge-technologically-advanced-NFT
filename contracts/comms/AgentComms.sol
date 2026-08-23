@@ -132,6 +132,8 @@ contract AgentComms is ReentrancyGuardTransient {
     error ReplyWindowOpen(uint64 replyBy);
     error BadReplyWindow(uint64 window);
     error EmptyPayload();
+    error PostageAboveLimit(uint128 postage, uint128 maxPostage);
+    error UnexpectedFeeToken(address expected, address actual);
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTION
@@ -184,12 +186,20 @@ contract AgentComms is ReentrancyGuardTransient {
     ///        anything to the recipient.
     /// @param threadId Free-form conversation key. Reuse it to continue a thread; derive it
     ///        however you like — this contract never interprets it.
+    /// @param expectedFeeToken The token the sender priced against.
+    /// @param maxPostage The most the sender is willing to pay.
+    /// @dev Those last two are not ceremony. Postage is read from live inbox configuration the
+    ///      recipient controls, so without a caller-supplied bound a recipient could watch a
+    ///      pending `send`, raise its postage to the sender's entire allowance, reply
+    ///      immediately, and collect it.
     function send(
         uint256 toAgentId,
         uint256 fromAgentId,
         bytes32 threadId,
         bytes32 payloadHash,
-        string calldata transportURI
+        string calldata transportURI,
+        address expectedFeeToken,
+        uint128 maxPostage
     ) external nonReentrant returns (uint256 messageId) {
         if (payloadHash == bytes32(0)) revert EmptyPayload();
         AGENTS.ownerOf(toAgentId); // reverts for an agent that does not exist
@@ -200,6 +210,10 @@ contract AgentComms is ReentrancyGuardTransient {
 
         Inbox memory box = inboxOf[toAgentId];
         if (!box.configured) revert InboxClosed(toAgentId);
+        if (box.postage > maxPostage) revert PostageAboveLimit(box.postage, maxPostage);
+        if (box.postage != 0 && box.feeToken != expectedFeeToken) {
+            revert UnexpectedFeeToken(expectedFeeToken, box.feeToken);
+        }
         if (!box.open) {
             bool permitted =
                 isAllowed[toAgentId][msg.sender] || (fromAgentId != 0 && isAllowedAgent[toAgentId][fromAgentId]);

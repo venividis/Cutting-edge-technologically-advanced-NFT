@@ -59,6 +59,11 @@ contract AgentAccount is
         uint128 spendCapWei; //  lifetime native budget for this key
         uint128 spentWei;
         bool revoked;
+        /// @dev The owner who granted it. A session is void the moment the agent changes
+        ///      hands, which is the same rule the token applies to operators and autonomy —
+        ///      and necessary for the same reason: otherwise a seller keeps a live, funded key
+        ///      on the buyer's wallet, invisible to every integrity check the sale performed.
+        address grantedBy;
     }
 
     struct Call {
@@ -89,7 +94,9 @@ contract AgentAccount is
     uint256 private _state;
 
     mapping(address signer => Session) private _sessions;
-    mapping(address target => mapping(bytes4 selector => bool)) public allowedCall;
+    /// @dev Namespaced by the owner who set it, so a buyer inherits an empty allowlist rather
+    ///      than whatever surface the seller opened up.
+    mapping(address grantedBy => mapping(address target => mapping(bytes4 selector => bool))) private _allowedCall;
 
     uint64 private _spendDay;
     uint128 private _spentToday;
@@ -205,8 +212,14 @@ contract AgentAccount is
     function grantSession(address signer, uint64 validAfter, uint64 validUntil, uint128 spendCapWei) external {
         _requireOwner();
         if (signer == address(0)) revert NotAuthorized(signer);
-        _sessions[signer] =
-            Session({validAfter: validAfter, validUntil: validUntil, spendCapWei: spendCapWei, spentWei: 0, revoked: false});
+        _sessions[signer] = Session({
+            validAfter: validAfter,
+            validUntil: validUntil,
+            spendCapWei: spendCapWei,
+            spentWei: 0,
+            revoked: false,
+            grantedBy: msg.sender
+        });
         unchecked {
             ++_state;
         }
@@ -227,10 +240,23 @@ contract AgentAccount is
     }
 
     /// @notice Allowlist a (target, selector) pair for session keys. Owner only.
+    /// @dev Bumps `state()`. Widening what a key may do is a change to this account's
+    ///      authorisation surface, and a buyer pinning `expectedAccountState` is asking exactly
+    ///      "has anything about this wallet changed since I quoted it?". A silent widening
+    ///      would let a seller re-arm a dormant key after the pin was taken.
     function setAllowedCall(address target, bytes4 selector, bool allowed) external {
         _requireOwner();
-        allowedCall[target][selector] = allowed;
+        _allowedCall[msg.sender][target][selector] = allowed;
+        unchecked {
+            ++_state;
+        }
         emit CallAllowed(target, selector, allowed);
+    }
+
+    /// @notice Whether session keys granted by the current owner may call this target.
+    function allowedCall(address target, bytes4 selector) public view returns (bool) {
+        address holder = owner();
+        return holder != address(0) && _allowedCall[holder][target][selector];
     }
 
     function _requireOwner() private view {
@@ -366,6 +392,8 @@ contract AgentAccount is
         if (s.revoked || s.validUntil == 0) revert SessionNotValid(signer);
         if (block.timestamp < s.validAfter) revert SessionNotValid(signer);
         if (block.timestamp > s.validUntil) revert SessionNotValid(signer);
+        // A key granted by a previous owner is dead, whatever its expiry says.
+        if (s.grantedBy != owner()) revert SessionNotValid(signer);
 
         IAnima a = anima();
         uint256 id = agentId();
@@ -382,7 +410,7 @@ contract AgentAccount is
         if (operation > 1) revert UnsupportedOperation(operation);
 
         bytes4 selector = data.length >= 4 ? bytes4(data[:4]) : bytes4(0);
-        if (!p.allowUnlistedTargets && !allowedCall[to][selector]) {
+        if (!p.allowUnlistedTargets && !allowedCall(to, selector)) {
             bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(to, selector))));
             if (p.targetsRoot == bytes32(0) || !MerkleProof.verify(proof, p.targetsRoot, leaf)) {
                 revert TargetNotAllowed(to, selector);
@@ -450,7 +478,7 @@ contract AgentAccount is
             validationData = SIG_VALIDATION_FAILED;
         } else {
             Session storage s = _sessions[signer];
-            if (s.revoked || s.validUntil == 0) {
+            if (s.revoked || s.validUntil == 0 || s.grantedBy != owner()) {
                 validationData = SIG_VALIDATION_FAILED;
             } else {
                 // Pack the session window into validationData so the bundler — not this
@@ -518,6 +546,7 @@ contract AgentAccount is
         Session storage s = _sessions[signer];
         if (s.revoked || s.validUntil == 0) revert SessionNotValid(signer);
         if (block.timestamp < s.validAfter || block.timestamp > s.validUntil) revert SessionNotValid(signer);
+        if (s.grantedBy != owner()) revert SessionNotValid(signer);
 
         IAnima a = anima();
         uint256 id = agentId();
@@ -530,7 +559,7 @@ contract AgentAccount is
         if (operation > 1) revert UnsupportedOperation(operation);
 
         bytes4 selector = _selectorOf(data);
-        if (!p.allowUnlistedTargets && !allowedCall[to][selector]) revert TargetNotAllowed(to, selector);
+        if (!p.allowUnlistedTargets && !allowedCall(to, selector)) revert TargetNotAllowed(to, selector);
 
         if (value != 0) {
             if (value > p.perTxWei) revert PerTxCapExceeded(value, p.perTxWei);

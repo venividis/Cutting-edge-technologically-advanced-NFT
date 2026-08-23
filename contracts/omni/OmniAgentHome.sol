@@ -101,7 +101,11 @@ contract OmniAgentHome is AnimaOApp, ReentrancyGuardTransient {
         address refundAddress,
         bool acknowledgeAssetsRemain
     ) external payable nonReentrant returns (MessagingReceipt memory receipt) {
-        if (to == bytes32(0)) revert InvalidReceiver();
+        // Validate the receiver exactly as the destination will interpret it. A right-padded
+        // address is non-zero as a word but decodes to address(0) on arrival, and by then the
+        // token is already escrowed and the message reverts on every retry — the agent would be
+        // stranded in this contract permanently.
+        _requireCleanReceiver(to);
         if (AGENTS.ownerOf(agentId) != msg.sender) revert NotAgentOwner(agentId, msg.sender);
         if (ANIMA.locked(agentId)) revert AgentBusy(agentId);
 
@@ -154,6 +158,10 @@ contract OmniAgentHome is AnimaOApp, ReentrancyGuardTransient {
     /*//////////////////////////////////////////////////////////////
                                 INTERNAL
     //////////////////////////////////////////////////////////////*/
+
+    function _requireCleanReceiver(bytes32 to) private pure {
+        if (uint256(to) >> 160 != 0 || _toAddress(to) == address(0)) revert InvalidReceiver();
+    }
 
     function _snapshot(uint256 agentId, bytes32 to) private view returns (AgentSnapshot memory s) {
         (string memory uri, bytes32 manifestHash,) = ANIMA.manifestOf(agentId);

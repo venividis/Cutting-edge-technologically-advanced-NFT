@@ -187,11 +187,15 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
     }
 
     /// @notice Abandon a pending withdrawal and return the collateral to active coverage.
+    /// @dev Gated on whoever *queued* it, not on whoever currently holds the agent. Gating on
+    ///      the holder would let a buyer cancel the seller's pending withdrawal, re-queue it to
+    ///      themselves, and walk off with collateral that was already on its way out — the sale
+    ///      price having reflected `availableCoverage`, which by then reads zero.
     function cancelUnbond(uint256 agentId) external {
-        _requireAgentOwner(agentId);
         Bond storage b = _bonds[agentId];
         uint256 amount = b.unbonding;
         if (amount == 0) revert NothingUnbonding(agentId);
+        if (b.unbondTo != msg.sender) revert NotAgentOwner(agentId, msg.sender);
         b.unbonding = 0;
         b.readyAt = 0;
         b.unbondTo = address(0);

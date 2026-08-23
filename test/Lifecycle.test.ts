@@ -280,10 +280,23 @@ describe("Lifecycle — an agent's whole life", () => {
     assert.equal(await p.anima.read.statusOf([agentId]), AgentStatus.Paused);
     assert.equal((await p.anima.read.policyOf([agentId])).perTxWei, 0n);
 
-    // The seller's session key is dead the moment the agent is paused.
+    // The seller's session key is dead outright — not merely blocked by the paused status, but
+    // void because it was granted by the previous owner. A buyer must never inherit a live,
+    // funded key belonging to the person who just sold them the agent.
     await expectRevert(
       account.write.execute([p.carol.account.address, 1n, "0x", 0], { account: p.carol.account }),
-      "AgentNotActive"
+      "SessionNotValid"
+    );
+
+    // Even re-arming the agent does not revive it; the buyer must grant their own.
+    await p.anima.write.setStatus([agentId, AgentStatus.Active], { account: p.deployer.account });
+    await p.anima.write.setPolicy(
+      [agentId, { ...lockedDownPolicy(), perTxWei: parseEther("1"), dailyWei: parseEther("1"), allowUnlistedTargets: true }],
+      { account: p.deployer.account }
+    );
+    await expectRevert(
+      account.write.execute([p.carol.account.address, 1n, "0x", 0], { account: p.carol.account }),
+      "SessionNotValid"
     );
 
     // The bond, the memory and the earned reputation all came with it.

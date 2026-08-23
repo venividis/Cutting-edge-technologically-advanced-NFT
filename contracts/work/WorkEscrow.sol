@@ -19,6 +19,7 @@ interface IAnimaLocking {
     function setDisputed(uint256 agentId, bool disputed) external;
     function accountOf(uint256 agentId) external view returns (address);
     function isController(uint256 agentId, address account) external view returns (bool);
+    function isOperator(uint256 agentId, address operator) external view returns (bool);
 }
 
 /**
@@ -137,6 +138,8 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
     error ZeroAmount();
     error ZeroAddress();
     error VerdictPending(bytes32 validationRequest);
+    error NotAgentPrincipal(uint256 jobId, address caller);
+    error ValidatorOwnsAgent(uint256 jobId, address validator);
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTION
@@ -236,9 +239,18 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
         Job storage j = _jobs[jobId];
         if (j.state != JobState.Offered) revert BadState(jobId, j.state);
         if (block.timestamp >= j.deadline) revert DeadlinePassed(j.deadline);
-        if (!IAnimaLocking(address(ANIMA)).isController(j.agentId, msg.sender)) {
-            revert NotAgentController(jobId, msg.sender);
+
+        // Only the owner or an operator may commit the agent's collateral. A rental tenant is a
+        // controller for the purpose of *operating* the agent, but letting one bind the owner's
+        // bond would let anyone who rents an agent for an hour arrange to forfeit its entire
+        // stake to an address they also control.
+        address holder = IERC721(address(ANIMA)).ownerOf(j.agentId);
+        if (msg.sender != holder && !IAnimaLocking(address(ANIMA)).isOperator(j.agentId, msg.sender)) {
+            revert NotAgentPrincipal(jobId, msg.sender);
         }
+        // The registry refuses a validator who holds the agent, so accepting here would leave
+        // the client unable to ever open a dispute — a trap that only springs after delivery.
+        if (j.validator != address(0) && j.validator == holder) revert ValidatorOwnsAgent(jobId, j.validator);
 
         j.state = JobState.Active;
         // Snapshot the payout address now. Reading it at settlement would let an owner

@@ -40,6 +40,8 @@ contract OmniAgentMirror is ERC721, AnimaOApp, ReentrancyGuardTransient {
         uint64 homeChainId;
         uint64 syncedAt;
         uint8 seal;
+        /// @dev The endpoint the mirror arrived from, and the only one it may be sent back to.
+        uint32 homeEid;
         bytes32 homeToken;
         string agentURI;
     }
@@ -52,6 +54,7 @@ contract OmniAgentMirror is ERC721, AnimaOApp, ReentrancyGuardTransient {
     error NotMirrorOwner(uint256 agentId, address caller);
     error InvalidReceiver();
     error UnknownMirror(uint256 agentId);
+    error OnlyHomeRoute(uint32 expected, uint32 requested);
 
     constructor(
         string memory name_,
@@ -101,6 +104,7 @@ contract OmniAgentMirror is ERC721, AnimaOApp, ReentrancyGuardTransient {
             homeChainId: s.homeChainId,
             syncedAt: uint64(block.timestamp),
             seal: s.seal,
+            homeEid: origin.srcEid,
             homeToken: s.homeToken,
             agentURI: s.agentURI
         });
@@ -127,7 +131,12 @@ contract OmniAgentMirror is ERC721, AnimaOApp, ReentrancyGuardTransient {
         return _quote(dstEid, _snapshot(agentId, to).encode(), options, false);
     }
 
-    /// @notice Send the mirror onward — home, or to another chain the owner has peered.
+    /// @notice Send the mirror home.
+    /// @dev Home-only, deliberately. `OmniAgentHome` tracks a single endpoint id per agent, so a
+    ///      mirror forwarded chain-to-chain would arrive from an endpoint the home side is not
+    ///      expecting; it would burn itself on departure and then revert on every delivery
+    ///      retry, stranding the escrowed original forever. Allowing the hop would require the
+    ///      home side to be told about it, which is a message that can itself be lost.
     function send(
         uint32 dstEid,
         bytes32 to,
@@ -136,8 +145,10 @@ contract OmniAgentMirror is ERC721, AnimaOApp, ReentrancyGuardTransient {
         MessagingFee calldata fee,
         address refundAddress
     ) external payable nonReentrant returns (MessagingReceipt memory receipt) {
-        if (to == bytes32(0)) revert InvalidReceiver();
+        if (uint256(to) >> 160 != 0 || _toAddress(to) == address(0)) revert InvalidReceiver();
         if (_ownerOf(agentId) != msg.sender) revert NotMirrorOwner(agentId, msg.sender);
+        uint32 homeEid = _replicas[agentId].homeEid;
+        if (dstEid != homeEid) revert OnlyHomeRoute(homeEid, dstEid);
 
         AgentSnapshot memory snapshot = _snapshot(agentId, to);
 
