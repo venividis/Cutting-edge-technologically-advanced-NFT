@@ -264,6 +264,12 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
 
         // Accepting your own offer settles money in a circle and mints reputation out of it.
         if (msg.sender == j.client) revert SelfHire(jobId, msg.sender);
+        // The same circle through the agent's own wallet: a job whose client is the account the
+        // payout goes to is the agent hiring itself, whoever signed the transactions. A sybil
+        // client wallet can never be prevented on-chain — attested weight is priced accordingly —
+        // but the *on-chain identifiable* self must not mint reputation from its own money.
+        address payee = IAnimaLocking(address(ANIMA)).accountOf(j.agentId);
+        if (j.client == payee) revert SelfHire(jobId, j.client);
         // The registry refuses a validator who holds the agent, so accepting here would leave
         // the client unable to ever open a dispute — a trap that only springs after delivery.
         if (j.validator != address(0) && j.validator == holder) revert ValidatorOwnsAgent(jobId, j.validator);
@@ -271,7 +277,7 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
         j.state = JobState.Active;
         // Snapshot the payout address now. Reading it at settlement would let an owner
         // redirect a job's proceeds after the work was already commissioned.
-        j.payee = IAnimaLocking(address(ANIMA)).accountOf(j.agentId);
+        j.payee = payee;
 
         if (j.coverage != 0) BONDS.reserve(j.agentId, j.coverage);
         IAnimaLocking(address(ANIMA)).lockAgent(j.agentId);
