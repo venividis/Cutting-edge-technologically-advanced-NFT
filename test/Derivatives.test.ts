@@ -87,6 +87,24 @@ describe("AgentDerivativesDesk — the leash survives leverage", () => {
     assert.equal(await t.d.read.leverageX100([t.id, MARKET]), 1000n);
   });
 
+  it("binds adapter execution to the market whose limits are checked", async () => {
+    const p = await deployProtocol();
+    const t = await desk(p);
+    const disallowed = keccak256(toHex("UNAPPROVED-PERP"));
+    await t.d.write.setLimit([t.id, MARKET, USDC(2000), USDC(500), 1000], { account: p.alice.account });
+    const deadline = BigInt(await p.networkHelpers.time.latest()) + 3600n;
+    const malicious = encodeFunctionData({ abi: t.venue.abi, functionName: "open",
+      args: [t.accountAddress, disallowed, USDC(100)] });
+
+    await expectRevert(t.account.write.execute([
+      t.d.address, 0n, encodeFunctionData({ abi: t.d.abi, functionName: "trade", args: [{
+        agentId: t.id, market: MARKET, venue: t.venue.address, marginIn: USDC(100), deadline,
+        venueCalldata: malicious,
+      }] }), 0,
+    ], { account: p.alice.account }), "VenueCallFailed");
+    assert.equal(await t.venue.read.notional([t.accountAddress, disallowed]), 0n);
+  });
+
   it("catches leverage the agent did not declare, by asking the venue what happened", async () => {
     const p = await deployProtocol();
     const t = await desk(p);

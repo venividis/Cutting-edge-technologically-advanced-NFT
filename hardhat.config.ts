@@ -23,6 +23,27 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
+    unichainSepolia: {
+      type: "http",
+      chainType: "op",
+      url: process.env.UNICHAIN_SEPOLIA_RPC ?? "https://sepolia.unichain.org",
+      chainId: 1301,
+      accounts,
+    },
+    robinhoodTestnet: {
+      type: "http",
+      chainType: "generic",
+      url: process.env.ROBINHOOD_TESTNET_RPC ?? "https://rpc.testnet.chain.robinhood.com",
+      chainId: 46630,
+      accounts,
+    },
+    bscTestnet: {
+      type: "http",
+      chainType: "generic",
+      url: process.env.BSC_TESTNET_RPC ?? "https://bsc-testnet-rpc.publicnode.com",
+      chainId: 97,
+      accounts,
+    },
     baseSepolia: {
       type: "http",
       chainType: "op",

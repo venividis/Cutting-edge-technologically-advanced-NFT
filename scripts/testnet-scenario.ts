@@ -38,7 +38,8 @@ const shard = (description: string, content: string, kind: number) => ({
 });
 
 export async function main() {
-  const rec = JSON.parse(readFileSync("deployments/84532.json", "utf8"));
+  const deploymentPath = process.env.ANIMA_DEPLOYMENT ?? "deployments/84532.json";
+  const rec = JSON.parse(readFileSync(deploymentPath, "utf8"));
   const c = rec.contracts;
   const keyDir = process.env.ANIMA_KEY_DIR;
   if (!keyDir) throw new Error("ANIMA_KEY_DIR must point at the directory holding the cast keys");
@@ -201,7 +202,7 @@ export async function main() {
     escrowAsClient.write.acceptDelivery([jobId, 9200n, 2, "research", "ipfs://feedback", ZERO32])
   );
   const balanceAfter = await usdc.read.balanceOf([predicted]);
-  console.log(`    → the AGENT's own wallet received ${(balanceAfter - balanceBefore) / 1_000_000n} aUSD (1% protocol fee)`);
+  console.log(`    → the AGENT's own wallet received ${((balanceAfter as bigint) - (balanceBefore as bigint)) / 1_000_000n} aUSD (1% protocol fee)`);
   const [count, score, weight] = await reputation.read.getAttestedSummary([agentId, [], "", ""]);
   console.log(`    → attested reputation: ${count} review, score ${score}, backed by ${weight / 1_000_000n} aUSD of settled work`);
 

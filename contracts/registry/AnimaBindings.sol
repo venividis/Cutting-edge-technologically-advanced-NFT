@@ -64,15 +64,30 @@ contract AnimaBindings is IERCAgentBindings {
 
     mapping(uint256 agentId => Binding) private _bindings;
 
+    /// @notice ERC-8004 registry whose agent owners are allowed to create bindings.
+    /// @dev ERC-8004 identity registries are ERC-721 contracts, so `ownerOf` is the
+    ///      canonical authorization source and continues to work with transferred records.
+    IERC721 public immutable IDENTITY_REGISTRY;
+
     error AlreadyBound(uint256 agentId);
+    error NotAgentOwner(uint256 agentId, address caller);
     error NotTokenOwner(address tokenContract, uint256 tokenId, address caller);
     error UnsupportedStandard(TokenStandard standard);
     error ZeroAddress();
+
+    constructor(address identityRegistry) {
+        if (identityRegistry == address(0)) revert ZeroAddress();
+        IDENTITY_REGISTRY = IERC721(identityRegistry);
+    }
 
     /// @notice Bind an ERC-8004 agent id to a master NFT. Permanent.
     function bind(uint256 agentId, TokenStandard standard, address tokenContract, uint256 tokenId) external {
         if (tokenContract == address(0)) revert ZeroAddress();
         if (_bindings[agentId].tokenContract != address(0)) revert AlreadyBound(agentId);
+        // Merely owning the proposed master token is insufficient: without this
+        // check an attacker can pre-bind somebody else's (or the next anticipated)
+        // ERC-8004 id permanently to an attacker-controlled NFT.
+        if (IDENTITY_REGISTRY.ownerOf(agentId) != msg.sender) revert NotAgentOwner(agentId, msg.sender);
 
         if (standard == TokenStandard.ERC721) {
             if (IERC721(tokenContract).ownerOf(tokenId) != msg.sender) {
