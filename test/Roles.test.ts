@@ -129,6 +129,112 @@ describe("AnimaRoles — ERC-7432 without touching the token", () => {
     });
   });
 
+  it("does not unlock while a revocable role is still active", async () => {
+    const p = await deployProtocol();
+    const { roles, id, now } = await withRoles(p);
+    const key = await roles.read.OPERATOR();
+
+    await roles.write.grantRole(
+      [
+        role({
+          roleId: key,
+          tokenAddress: p.anima.address,
+          tokenId: id,
+          recipient: p.bob.account.address,
+          expirationDate: now + 30n * DAY,
+        }),
+      ],
+      { account: p.alice.account }
+    );
+
+    await expectRevert(
+      roles.write.unlockToken([p.anima.address, id], { account: p.deployer.account }),
+      "StillLocked"
+    );
+    assert.equal(await p.anima.read.locked([id]), true);
+    await expectRevert(
+      p.anima.write.transferFrom([p.alice.account.address, p.deployer.account.address, id], {
+        account: p.alice.account,
+      }),
+      "AgentLocked"
+    );
+
+    await p.networkHelpers.time.increase(Number(30n * DAY) + 1);
+    await roles.write.unlockToken([p.anima.address, id], { account: p.deployer.account });
+    await p.anima.write.transferFrom([p.alice.account.address, p.deployer.account.address, id], {
+      account: p.alice.account,
+    });
+    assert.equal(await roles.read.hasRole([id, key, p.bob.account.address]), false);
+  });
+
+  it("keeps the lock through the longest live role after another role is revoked", async () => {
+    const p = await deployProtocol();
+    const { roles, id, now } = await withRoles(p);
+    const operator = await roles.read.OPERATOR();
+    const payer = await roles.read.PAYER();
+
+    for (const [key, expirationDate] of [[operator, now + 30n * DAY], [payer, now + 60n * DAY]] as const) {
+      await roles.write.grantRole(
+        [
+          role({
+            roleId: key,
+            tokenAddress: p.anima.address,
+            tokenId: id,
+            recipient: p.bob.account.address,
+            expirationDate,
+          }),
+        ],
+        { account: p.alice.account }
+      );
+    }
+
+    await roles.write.revokeRole([p.anima.address, id, payer], { account: p.alice.account });
+    assert.equal(await roles.read.lockedUntil([id]), now + 30n * DAY);
+    await expectRevert(roles.write.unlockToken([p.anima.address, id]), "StillLocked");
+  });
+
+  it("does not unlock after an irrevocable role expires while a longer revocable role is live", async () => {
+    const p = await deployProtocol();
+    const { roles, id, now } = await withRoles(p);
+    const auditor = await roles.read.AUDITOR();
+    const operator = await roles.read.OPERATOR();
+
+    await roles.write.grantRole(
+      [
+        role({
+          roleId: auditor,
+          tokenAddress: p.anima.address,
+          tokenId: id,
+          recipient: p.bob.account.address,
+          expirationDate: now + 10n * DAY,
+          revocable: false,
+        }),
+      ],
+      { account: p.alice.account }
+    );
+    await roles.write.grantRole(
+      [
+        role({
+          roleId: operator,
+          tokenAddress: p.anima.address,
+          tokenId: id,
+          recipient: p.carol.account.address,
+          expirationDate: now + 30n * DAY,
+        }),
+      ],
+      { account: p.alice.account }
+    );
+
+    assert.equal(await roles.read.lockedUntil([id]), now + 30n * DAY);
+    await p.networkHelpers.time.increase(Number(10n * DAY) + 1);
+    await expectRevert(
+      roles.write.unlockToken([p.anima.address, id], { account: p.deployer.account }),
+      "StillLocked"
+    );
+    assert.equal(await roles.read.hasRole([id, operator, p.carol.account.address]), true);
+    assert.equal(await p.anima.read.locked([id]), true);
+  });
+
   it("caps an irrevocable role, so a grant cannot lock an agent forever", async () => {
     const p = await deployProtocol();
     const { roles, id, now } = await withRoles(p);

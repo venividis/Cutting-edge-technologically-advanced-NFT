@@ -81,7 +81,10 @@ contract AnimaRoles is IERC7432, IERC165 {
     address public immutable AGENTS;
 
     mapping(uint256 tokenId => mapping(bytes32 roleId => RoleRecord)) private _roles;
-    /// @notice Latest expiry among this token's irrevocable roles; it cannot unlock before then.
+    mapping(uint256 tokenId => bytes32[] roleIds) private _roleIds;
+    mapping(uint256 tokenId => mapping(bytes32 roleId => uint256 indexPlusOne)) private _roleIdIndex;
+    mapping(uint256 tokenId => uint64) private _irrevocableLockedUntil;
+    /// @notice Latest expiry among this token's roles; it cannot unlock before then.
     mapping(uint256 tokenId => uint64) public lockedUntil;
     mapping(uint256 tokenId => bool) public isLockedHere;
     mapping(address owner => mapping(address operator => bool)) private _approvals;
@@ -136,9 +139,14 @@ contract AnimaRoles is IERC7432, IERC165 {
             if (duration > MAX_IRREVOCABLE_DURATION) {
                 revert IrrevocableTooLong(duration, MAX_IRREVOCABLE_DURATION);
             }
-            if (_role.expirationDate > lockedUntil[_role.tokenId]) {
-                lockedUntil[_role.tokenId] = _role.expirationDate;
+            if (_role.expirationDate > _irrevocableLockedUntil[_role.tokenId]) {
+                _irrevocableLockedUntil[_role.tokenId] = _role.expirationDate;
             }
+        }
+
+        if (_roleIdIndex[_role.tokenId][_role.roleId] == 0) {
+            _roleIds[_role.tokenId].push(_role.roleId);
+            _roleIdIndex[_role.tokenId][_role.roleId] = _roleIds[_role.tokenId].length;
         }
 
         _roles[_role.tokenId][_role.roleId] = RoleRecord({
@@ -147,6 +155,7 @@ contract AnimaRoles is IERC7432, IERC165 {
             revocable: _role.revocable,
             data: _role.data
         });
+        _recomputeLockedUntil(_role.tokenId);
 
         // Freeze the agent in place rather than taking it into escrow. The owner keeps it; it
         // just cannot be sold out from under the grantee.
@@ -183,11 +192,39 @@ contract AnimaRoles is IERC7432, IERC165 {
         }
 
         delete _roles[_tokenId][_roleId];
+        _removeRoleId(_tokenId, _roleId);
+        _recomputeLockedUntil(_tokenId);
         emit RoleRevoked(AGENTS, _tokenId, _roleId);
     }
 
+    function _removeRoleId(uint256 tokenId, bytes32 roleId) private {
+        uint256 indexPlusOne = _roleIdIndex[tokenId][roleId];
+        if (indexPlusOne == 0) return;
+
+        bytes32[] storage roleIds = _roleIds[tokenId];
+        uint256 index = indexPlusOne - 1;
+        uint256 last = roleIds.length - 1;
+        if (index != last) {
+            bytes32 movedRoleId = roleIds[last];
+            roleIds[index] = movedRoleId;
+            _roleIdIndex[tokenId][movedRoleId] = indexPlusOne;
+        }
+        roleIds.pop();
+        delete _roleIdIndex[tokenId][roleId];
+    }
+
+    function _recomputeLockedUntil(uint256 tokenId) private {
+        uint64 latest = _irrevocableLockedUntil[tokenId];
+        bytes32[] storage roleIds = _roleIds[tokenId];
+        for (uint256 i; i < roleIds.length; ++i) {
+            uint64 expirationDate = _roles[tokenId][roleIds[i]].expirationDate;
+            if (expirationDate > latest) latest = expirationDate;
+        }
+        lockedUntil[tokenId] = latest;
+    }
+
     /// @inheritdoc IERC7432
-    /// @dev Permissionless once nothing irrevocable is outstanding: an agent should return to
+    /// @dev Permissionless once no role remains live: an agent should return to
     ///      circulation without needing its grantees to cooperate.
     function unlockToken(address _tokenAddress, uint256 _tokenId) external {
         _requireOurs(_tokenAddress);
