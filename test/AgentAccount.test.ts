@@ -353,7 +353,7 @@ describe("AgentAccount — the ERC-4337 path cannot be used to slip the leash", 
           dailyWei: parseEther("0.01"),
           expiry: 0n,
           allowDelegateCall: false,
-          allowUnlistedTargets: false,
+          allowUnlistedTargets: true,
           targetsRoot: ZERO32,
         },
       ],
@@ -383,6 +383,36 @@ describe("AgentAccount — the ERC-4337 path cannot be used to slip the leash", 
       }),
       "UseExecuteUserOp"
     );
+
+    const callData = encodeFunctionData({
+      abi: account.abi,
+      functionName: "execute",
+      args: [p.bob.account.address, 1n, "0x", 0],
+    });
+    const userOpMessage = { raw: toHex("session-user-op") } as const;
+    const userOpHash = hashMessage(userOpMessage);
+    const signature = encodeAbiParameters(
+      parseAbiParameters("address, bytes"),
+      [p.carol.account.address, await p.carol.signMessage({ message: userOpMessage })]
+    );
+    const userOp = {
+      sender: accountAddress,
+      nonce: 0n,
+      initCode: "0x" as const,
+      callData,
+      accountGasLimits: ZERO32,
+      preVerificationGas: 0n,
+      gasFees: ZERO32,
+      paymasterAndData: "0x" as const,
+      signature,
+    };
+    const validated = await account.simulate.validateUserOp([userOp, userOpHash, 0n], {
+      account: p.deployer.account,
+    });
+    assert.notEqual(validated.result, 1n, "a valid session operation must not return SIG_VALIDATION_FAILED");
+    const before = await p.publicClient.getBalance({ address: p.bob.account.address });
+    await account.write.executeUserOp([userOp, userOpHash], { account: p.deployer.account });
+    assert.equal(await p.publicClient.getBalance({ address: p.bob.account.address }), before + 1n);
   });
 });
 

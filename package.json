@@ -7,6 +7,9 @@
   "scripts": {
     "anima": "node cli/anima.mjs",
     "compiler:cache": "bash scripts/cache-solc.sh",
+    "ui": "vite --host 0.0.0.0",
+    "ui:build": "vite build",
+    "ui:preview": "vite preview --host 0.0.0.0",
     "build": "hardhat build",
     "test": "hardhat test",
     "test:cli": "node --test test/Cli.test.mjs",
@@ -19,6 +22,7 @@
     "@types/node": "^22.19.0",
     "hardhat": "^3.14.0",
     "typescript": "^5.9.3",
+    "vite": "^7.1.3",
     "viem": "^2.55.19"
   },
   "dependencies": {

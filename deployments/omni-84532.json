@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "home": {
+    "network": "baseSepolia",
+    "chainId": 84532,
+    "anima": "0xb3d92c766e3Cb356Db381feB21958a9Ebb974365",
+    "oapp": "0x9a4D3C3Dc0cf5B6536Ff7FC035a2Defe8Cd9fF69"
+  },
+  "mirrors": {
+    "robinhoodTestnet": {
+      "chainId": 46630,
+      "oapp": "0xF38B732Af93a9A6d89012DB9481ff03C98BE054c"
+    },
+    "bscTestnet": {
+      "chainId": 97,
+      "oapp": "0xF38B732Af93a9A6d89012DB9481ff03C98BE054c"
+    },
+    "unichainSepolia": {
+      "chainId": 1301,
+      "oapp": "0xF38B732Af93a9A6d89012DB9481ff03C98BE054c"
+    },
+    "sepolia": {
+      "chainId": 11155111,
+      "oapp": "0xB72e8A3f41cF5Ad26891c7F1A6c696c7F5bFc312"
+    }
+  },
+  "journeys": {
+    "robinhoodTestnet": {
+      "agentId": "2",
+      "brainRoot": "0xc1dbf23477a2308e321c564364b2adacfdec484e0555564565f1bdac2f2165cc",
+      "brainEpoch": "1",
+      "manifestHash": "0xd74da0cfd3cfba3b0ba102019102f972a54917ec046380325308759f01b6ef23",
+      "outboundTx": "0x2c6800583503288e2a0764d32249d839db69775c301f97799fa73aa629aea320",
+      "returnTx": "0x68397c6067e3d545fc2b9055387b05c7fee2ce0f06908f14fa4d320940371880",
+      "completed": true
+    },
+    "bscTestnet": {
+      "agentId": "3",
+      "brainRoot": "0x1760a90f901830cfff7d1d7e51a86ae974cf94cf51909782c582567fdd329dde",
+      "brainEpoch": "1",
+      "manifestHash": "0x5b518c86d084d3b0c0d6e9d86cad8bc8630e105e5d26a28a805000fd7faaec8c",
+      "outboundTx": "0x304ab64e100bda3dcb51562f4b5513cbcc56f9b097fe98b950708edc20f0bbd2",
+      "returnTx": "0x6bd92c1b6194b1903150f07ce146d2f16ea1d451371e10ac15354bced9a831d6",
+      "completed": true
+    },
+    "unichainSepolia": {
+      "agentId": "4",
+      "brainRoot": "0x05c5fcab32880fbb2359ba22e81ebd8bacdfe96b2e2762ee1561fddae84184de",
+      "brainEpoch": "1",
+      "manifestHash": "0x74fa24c0176583d832beccec9ded22401480ef4cac507522f335cfddcc79baae",
+      "outboundTx": "0x5462e54453301d77a78d1ad2757f0380777638a6c00358033a5780c0901e33cb"
+    },
+    "sepolia": {
+      "agentId": "5",
+      "brainRoot": "0x3d66a097a3bcb7ffc21104ae4e432acdf8e0f0521217a67d95c8195bf74fa742",
+      "brainEpoch": "1",
+      "manifestHash": "0x583a6b80b6eaf8f3bf166faf7fa05822b1924be98016389e6ddfd71671964b25",
+      "outboundTx": "0x1e1ee8863b813447428fb5650628159ba5992986e21682e0e3a76d3a8371945b",
+      "returnTx": "0xd6b9a4aa591a02a8b42bdf636a642f7f53f9811627d475c40c02d2e757479efb",
+      "completed": true
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Security model
 
-Unaudited. 235 tests and an adversarial review pass are not an audit.
+Unaudited. 244 tests and an adversarial review pass are not an audit.
 
 ## Invariants
 
@@ -73,6 +73,12 @@ Each is enforced in code and covered by a test.
     A zero peer is never trusted, so an unconfigured route fails closed.
 35. **Only an agent this contract sent out may return, and only from the chain it went to.**
 36. **A busy agent cannot bridge.**
+37. **A mirror collection has exactly one home route.** Numeric ERC-721 ids are only unique
+    inside a collection, so a second home must deploy a separate mirror. The incompatible route
+    is rejected during configuration, before any source NFT can be escrowed for an undeliverable
+    packet.
+38. **An enabled inbound rate limit has a non-zero window.** A positive capacity paired with a
+    zero-second window is rejected rather than silently resetting on every message.
 
 ## Attack classes considered
 

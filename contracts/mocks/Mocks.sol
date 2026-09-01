@@ -96,6 +96,8 @@ contract MockPerpVenue is IPerpVenueAdapter {
 
     mapping(address account => mapping(bytes32 market => uint256)) public notional;
 
+    error AdapterBindingMismatch();
+
     constructor(IERC20 quote_) {
         QUOTE = quote_;
     }
@@ -106,6 +108,26 @@ contract MockPerpVenue is IPerpVenueAdapter {
 
     function setMarginToConsumeBps(uint256 bps) external {
         marginToConsumeBps = bps;
+    }
+
+    function executeTrade(address account, bytes32 market, bytes calldata venueData) external {
+        bytes4 selector = bytes4(venueData[:4]);
+        if (selector == this.open.selector) {
+            (address encodedAccount, bytes32 encodedMarket, uint256 margin) =
+                abi.decode(venueData[4:], (address, bytes32, uint256));
+            if (encodedAccount != account || encodedMarket != market) revert AdapterBindingMismatch();
+            uint256 take = (margin * marginToConsumeBps) / 10_000;
+            if (take != 0) QUOTE.safeTransferFrom(msg.sender, address(this), take);
+            notional[account][market] += (margin * leverageX100) / 100;
+        } else if (selector == this.close.selector) {
+            (address encodedAccount, bytes32 encodedMarket, uint256 marginBack) =
+                abi.decode(venueData[4:], (address, bytes32, uint256));
+            if (encodedAccount != account || encodedMarket != market) revert AdapterBindingMismatch();
+            notional[account][market] = 0;
+            QUOTE.safeTransfer(msg.sender, marginBack);
+        } else {
+            revert AdapterBindingMismatch();
+        }
     }
 
     /// @dev Notional is derived from the requested size, not from what the venue actually

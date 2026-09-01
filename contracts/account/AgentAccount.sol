@@ -471,10 +471,16 @@ contract AgentAccount is
             validationData = SIG_VALIDATION_FAILED;
         } else if (signer == owner()) {
             validationData = SIG_VALIDATION_SUCCESS;
-        } else if (userOp.callData.length < 4 || bytes4(userOp.callData[:4]) != this.executeUserOp.selector) {
-            // Defence in depth alongside the guard in `_authorize`: a session key's operation
-            // must route through `executeUserOp` so the responsible signer is resolved and
-            // charged. Reject anything else at validation, before it costs the account gas.
+        } else if (
+            userOp.callData.length < 4
+                || (
+                    bytes4(userOp.callData[:4]) != this.execute.selector
+                        && bytes4(userOp.callData[:4]) != this.executeBatch.selector
+                )
+        ) {
+            // `executeUserOp` receives the full operation from EntryPoint and dispatches its
+            // callData as one of these two inner calls. Reject every other selector during
+            // validation, before it costs the account gas.
             validationData = SIG_VALIDATION_FAILED;
         } else {
             Session storage s = _sessions[signer];

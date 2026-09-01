@@ -65,6 +65,7 @@ abstract contract AnimaOApp is ILayerZeroReceiver, Ownable2Step {
     error UntrustedPeer(uint32 srcEid, bytes32 sender);
     error NoPeerConfigured(uint32 dstEid);
     error IncorrectFee(uint256 expected, uint256 provided);
+    error InvalidRateLimit();
     error InboundRateLimited(uint32 srcEid, uint64 used, uint64 capacity, uint64 windowEndsAt);
 
     constructor(address endpoint_, address delegate_, address owner_) Ownable(owner_) {
@@ -74,7 +75,7 @@ abstract contract AnimaOApp is ILayerZeroReceiver, Ownable2Step {
 
     /// @notice Register the trusted contract on a remote chain. Setting a peer is the entire
     ///         trust decision for that route, so it stays with the owner alone.
-    function setPeer(uint32 eid, bytes32 peer) external onlyOwner {
+    function setPeer(uint32 eid, bytes32 peer) public virtual onlyOwner {
         peers[eid] = peer;
         emit PeerSet(eid, peer);
     }
@@ -83,6 +84,7 @@ abstract contract AnimaOApp is ILayerZeroReceiver, Ownable2Step {
     /// @param capacity Messages per window. Zero disables the limit — the default, so that a
     ///        deployment must opt in deliberately rather than inherit a number nobody chose.
     function setInboundLimit(uint32 srcEid, uint64 windowSeconds, uint64 capacity) external onlyOwner {
+        if (capacity != 0 && windowSeconds == 0) revert InvalidRateLimit();
         RateLimit storage r = inboundLimit[srcEid];
         r.windowSeconds = windowSeconds;
         r.capacity = capacity;
