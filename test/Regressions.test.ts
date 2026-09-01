@@ -626,4 +626,24 @@ describe("ERC-6492 — listing from an account that is not deployed yet", () => 
     assert.equal(await lib.read.checkView([p.alice.account.address, hashMessage(message), sig]), true);
     assert.equal(await lib.read.checkView([p.bob.account.address, hashMessage(message), sig]), false);
   });
+
+  it("rejects a wrapped EOA signature when preparation does not deploy the signer", async () => {
+    const p = await deployProtocol();
+    const lib = await p.viem.deployContract("ERC6492Harness");
+    const message = "wrapped EOA";
+    const hash = hashMessage(message);
+    const innerSignature = await p.alice.signMessage({ message });
+
+    // EOAs and counterfactual contracts both begin without code. A valid EOA signature must
+    // not make arbitrary preparation calldata acceptable: the preparation has to turn the
+    // claimed signer into a contract before its inner signature can be considered.
+    const wrapped = (encodeAbiParameters(
+      [{ type: "address" }, { type: "bytes" }, { type: "bytes" }],
+      [p.registry.address, "0x", innerSignature]
+    ) + "6492".repeat(16)) as `0x${string}`;
+
+    await lib.write.check([p.alice.account.address, hash, wrapped]);
+    assert.equal(await lib.read.lastResult(), false);
+    assert.equal(await p.publicClient.getCode({ address: p.alice.account.address }), undefined);
+  });
 });
