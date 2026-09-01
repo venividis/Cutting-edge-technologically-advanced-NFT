@@ -1,6 +1,6 @@
 # Security model
 
-Unaudited. 239 tests and an adversarial review pass are not an audit.
+Unaudited. 244 tests and an adversarial review pass are not an audit.
 
 ## Invariants
 
