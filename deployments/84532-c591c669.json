@@ -1,0 +1,50 @@
+{
+  "chainId": 84532,
+  "deployer": "0xc591C669162cD4da8aB9BfA2c2e68d538A312C00",
+  "contracts": {
+    "registry": "0x000000006551c19487814612e58FE06813775758",
+    "accountImpl": "0xB19c1B3A091F57d80BbA3A45176312f08113CAAe",
+    "keyRegistry": "0xa99c0086eDC39eFD88c12AFcF97143EeB3941927",
+    "verifier": "0xBfa097CDc6a62dAe001eECE8363617F3638067c3",
+    "anima": "0xe86ddbf15f715aa99200860f73ccfc768e26b0b3",
+    "facetCore": "0xf6be371ffd2229bbcfeec97f483f1a25c0ca3add",
+    "facetAgent": "0x427847c8e2eec7dabfed61f80557d0af006cedec",
+    "facetBrain": "0x46a0541b6ade4afad7b37998e55dd0e9e269bc0f",
+    "facetLoupe": "0xf52f7e1a469c34bd457c4892018b2b7f60f86a5c",
+    "animaInit": "0x5bdc9731bb7b497fb54b31102ef3fc4ff0a1f19e",
+    "usdc": "0xdeE30BAa96d3a373DeB7B736e2d2aD7AefD7CF9D",
+    "bonds": "0xC1cEC72b34Da77A8373df2e6aC013E3a5457d0ea",
+    "reputation": "0x3Fdc0C4CA02934468F0aCA9f633d30a63A8bAaf9",
+    "validation": "0xE4b7Fed17e7848926883A794D827A7dfF8136Aa0",
+    "escrow": "0x30110e4cc3b882022872bAb1A63668BAc83EED24",
+    "market": "0x03dAa87EC222fd0f89ab1e97999C1add15C6d538",
+    "comms": "0x727AD1ce20b813AF51791FDfB54aF53140daa337",
+    "meter": "0xcd81280418B0c569A568521cea5409135d520Cf2",
+    "handles": "0x6F5B5e19d7Cf87192080fE0A6A34E044A8B438AC",
+    "roles": "0x9B5aF5070Ba712deD8fd10f4bA8293158B210484"
+  },
+  "cast": {
+    "client": {
+      "address": "0x42245E13C762C6ad3Df4c1C1685a2EB252485cED",
+      "keyFile": "client.key"
+    },
+    "validator": {
+      "address": "0x3Dd68DB28F6F7e0563A55E5e0b065bDbA76436C5",
+      "keyFile": "validator.key"
+    },
+    "buyer": {
+      "address": "0x9C44BFdbDd1FC39158869F097De2ce8C1E15C49b",
+      "keyFile": "buyer.key"
+    }
+  },
+  "wiring": [
+    "anima.setModule(escrow)",
+    "anima.setModule(market)",
+    "anima.setModule(roles)",
+    "bonds.setModule(escrow)",
+    "bonds.setArbiter(escrow)",
+    "reputation.setSettlementModule(escrow)",
+    "validation.setValidator(validator)",
+    "mint aUSD"
+  ]
+}

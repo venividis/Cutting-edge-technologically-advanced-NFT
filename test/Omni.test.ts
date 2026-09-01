@@ -16,6 +16,7 @@ const LZ_OPTIONS = lzReceiveOptions(300_000n);
 
 const EID_HOME = 30101;
 const EID_AWAY = 30184;
+const EID_OTHER_HOME = 30231;
 const FEE = { nativeFee: 10n ** 15n, lzTokenFee: 0n };
 
 async function bridge(p: Awaited<ReturnType<typeof deployProtocol>>) {
@@ -132,6 +133,14 @@ describe("OmniAgentHome — leaving", () => {
 });
 
 describe("OmniAgent — bridge authentication", () => {
+  it("rejects a zero-length inbound rate-limit window", async () => {
+    const p = await deployProtocol();
+    const b = await bridge(p);
+
+    // Otherwise every delivery starts a new window and a positive capacity is ineffective.
+    await expectRevert(b.mirror.write.setInboundLimit([EID_HOME, 0n, 1n]), "InvalidInboundLimit");
+  });
+
   it("rejects a message that did not come from the local endpoint", async () => {
     const p = await deployProtocol();
     const b = await bridge(p);
@@ -213,6 +222,49 @@ describe("OmniAgent — bridge authentication", () => {
 });
 
 describe("OmniAgentMirror — coming home", () => {
+  it("does not let a second home route seize an existing replica id", async () => {
+    const p = await deployProtocol();
+    const b = await bridge(p);
+    const id = await mintAgent(p, p.alice.account.address);
+
+    await p.anima.write.approve([b.home.address, id], { account: p.alice.account });
+    await b.home.write.send(
+      [EID_AWAY, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, false],
+      { account: p.alice.account, value: FEE.nativeFee }
+    );
+    await b.endpointAway.write.deliver([b.endpointHome.address, 0n, b.mirror.address, ZERO32]);
+
+    // A second configured home is trusted to deliver its own agents, but its token ids occupy
+    // a different namespace. It must not be able to overwrite id #1 from the first home.
+    const endpointOther = await p.viem.deployContract("MockLZEndpoint", [EID_OTHER_HOME]);
+    const homeOther = await p.viem.deployContract("OmniAgentHome", [
+      p.anima.address,
+      endpointOther.address,
+      p.deployer.account.address,
+      p.deployer.account.address,
+    ]);
+    await homeOther.write.setPeer([EID_AWAY, pad(b.mirror.address)]);
+    await b.mirror.write.setPeer([EID_OTHER_HOME, pad(homeOther.address)]);
+
+    // Return the first replica so the underlying token can make a genuine departure through
+    // the other trusted route with the colliding id.
+    await b.mirror.write.send(
+      [EID_HOME, pad(p.alice.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address],
+      { account: p.alice.account, value: FEE.nativeFee }
+    );
+    await b.endpointHome.write.deliver([b.endpointAway.address, 0n, b.home.address, ZERO32]);
+    await p.anima.write.approve([homeOther.address, id], { account: p.alice.account });
+    await homeOther.write.send(
+      [EID_AWAY, pad(p.bob.account.address), id, LZ_OPTIONS, FEE, p.alice.account.address, false],
+      { account: p.alice.account, value: FEE.nativeFee }
+    );
+
+    await expectRevert(
+      b.endpointAway.write.deliver([endpointOther.address, 0n, b.mirror.address, ZERO32]),
+      "ConflictingReplica"
+    );
+  });
+
   it("burns the mirror and releases the original", async () => {
     const p = await deployProtocol();
     const b = await bridge(p);

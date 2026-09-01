@@ -29,24 +29,37 @@ interface Record_ {
 }
 
 export async function main() {
-  const connection = await network.connect({ network: process.env.HARDHAT_NETWORK ?? "baseSepolia" });
+  // With Hardhat 3 the CLI-selected network lives on the default connection; it is not exposed
+  // through HARDHAT_NETWORK. Supplying our own fallback here silently ignored `--network` and
+  // could make an operator transact on Base while believing they selected another chain.
+  const connection = await network.connect();
   const { viem } = connection as any;
   const publicClient = await viem.getPublicClient();
   const [wallet] = await viem.getWalletClients();
   const deployer = getAddress(wallet.account.address);
   const chainId = await publicClient.getChainId();
+  const startingBalance = await publicClient.getBalance({ address: deployer });
 
-  const path = `deployments/${chainId}.json`;
+  // Multiple independent operators can deploy on the same testnet. An explicit record keeps
+  // their resumable state separate without weakening the signer check below.
+  const path = process.env.ANIMA_DEPLOYMENT_FILE ?? `deployments/${chainId}.json`;
   const rec: Record_ = existsSync(path)
     ? JSON.parse(readFileSync(path, "utf8"))
     : { chainId, deployer, contracts: {}, cast: {}, wiring: [] };
+  if (rec.chainId !== chainId) throw new Error(`deployment record chain ${rec.chainId} does not match RPC chain ${chainId}`);
+  if (getAddress(rec.deployer) !== deployer) {
+    throw new Error(
+      `deployment record ${path} belongs to ${rec.deployer}, not connected signer ${deployer}; ` +
+        `refusing to fund its cast or reuse its privileged wiring state`
+    );
+  }
   const save = () => writeFileSync(path, `${JSON.stringify(rec, null, 2)}\n`);
 
   const keyDir = process.env.ANIMA_KEY_DIR;
   if (!keyDir) throw new Error("ANIMA_KEY_DIR must point at a directory outside this repository");
 
   console.log(`\nchain ${chainId}   deployer ${deployer}`);
-  console.log(`balance ${Number(await publicClient.getBalance({ address: deployer })) / 1e18} ETH`);
+  console.log(`balance ${Number(startingBalance) / 1e18} ETH`);
   console.log(`record  ${path}\n`);
 
   /** Deploy once, then reuse. The unit of resumability. */
@@ -212,9 +225,15 @@ export async function main() {
     console.log("  minted 100,000 aUSD to deployer, client, buyer");
   }
 
-  const spent = 0.05 - Number(await publicClient.getBalance({ address: deployer })) / 1e18;
+  const spent = Number(startingBalance - (await publicClient.getBalance({ address: deployer }))) / 1e18;
   console.log(`\ndeployed. ~${spent.toFixed(5)} ETH spent.`);
-  console.log(`token: https://sepolia.basescan.org/address/${anima}`);
+  const explorer: Record<number, string> = {
+    84532: "https://sepolia.basescan.org",
+    11155420: "https://sepolia-optimism.etherscan.io",
+    421614: "https://sepolia.arbiscan.io",
+    11155111: "https://sepolia.etherscan.io",
+  };
+  console.log(`token: ${explorer[chainId] ? `${explorer[chainId]}/address/${anima}` : anima}`);
   return rec;
 }
 

@@ -16,11 +16,10 @@
 import { readFileSync } from "node:fs";
 import { network } from "hardhat";
 import {
-  createWalletClient, http, keccak256, toHex, encodeFunctionData, getAddress, parseEventLogs,
+  createWalletClient, custom, defineChain, fallback, http, keccak256, toHex, encodeFunctionData, getAddress, parseEventLogs,
   parseEther, zeroAddress, type Address, type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
 import { manifestHash, serialiseManifest, lockedDownPolicy, ShardKind, type AgentManifest } from "../sdk/src/index.js";
 
 const ZERO32 = `0x${"00".repeat(32)}` as Hex;
@@ -38,22 +37,66 @@ const shard = (description: string, content: string, kind: number) => ({
 });
 
 export async function main() {
-  const rec = JSON.parse(readFileSync("deployments/84532.json", "utf8"));
-  const c = rec.contracts;
   const keyDir = process.env.ANIMA_KEY_DIR;
   if (!keyDir) throw new Error("ANIMA_KEY_DIR must point at the directory holding the cast keys");
 
-  const { viem } = (await network.connect({ network: "baseSepolia" })) as any;
+  // Use the connection selected by Hardhat's `--network`; hard-coding Base here made a command
+  // that named another network transact on Base instead.
+  const { viem } = (await network.connect()) as any;
   const publicClient = await viem.getPublicClient();
+  const chainId = await publicClient.getChainId();
+  const deploymentFile = process.env.ANIMA_DEPLOYMENT_FILE ?? `deployments/${chainId}.json`;
+  const rec = JSON.parse(readFileSync(deploymentFile, "utf8"));
+  if (rec.chainId !== chainId) {
+    throw new Error(`deployment record chain ${rec.chainId} does not match RPC chain ${chainId}`);
+  }
+  const c = rec.contracts;
   const [ownerWallet] = await viem.getWalletClients();
   const owner = getAddress(ownerWallet.account.address);
+  if (getAddress(rec.deployer) !== owner) {
+    throw new Error(`deployment belongs to ${rec.deployer}, not connected signer ${owner}`);
+  }
 
-  const rpc = process.env.BASE_SEPOLIA_RPC ?? "https://sepolia.base.org";
+  const rpcByChain: Record<number, string> = {
+    84532: process.env.BASE_SEPOLIA_RPC ?? "https://sepolia.base.org",
+    11155420: process.env.OP_SEPOLIA_RPC ?? "https://sepolia.optimism.io",
+    421614: process.env.ARBITRUM_SEPOLIA_RPC ?? "https://sepolia-rollup.arbitrum.io/rpc",
+    11155111: process.env.SEPOLIA_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com",
+  };
+  const backupRpcByChain: Partial<Record<number, string[]>> = {
+    84532: ["https://base-sepolia.gateway.tenderly.co", "https://base-sepolia-rpc.publicnode.com"],
+    11155111: ["https://ethereum-sepolia-rpc.publicnode.com"],
+  };
+  const explorerByChain: Record<number, string> = {
+    84532: "https://sepolia.basescan.org",
+    11155420: "https://sepolia-optimism.etherscan.io",
+    421614: "https://sepolia.arbiscan.io",
+    11155111: "https://sepolia.etherscan.io",
+  };
+  const rpc = rpcByChain[chainId];
+  if (!rpc) throw new Error(`no RPC configured for chain ${chainId}`);
+  const explorer = explorerByChain[chainId];
+  const walletChain = defineChain({
+    id: chainId,
+    name: `ANIMA testnet ${chainId}`,
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: [rpc] } },
+  });
   const asCast = (role: string) =>
     createWalletClient({
       account: privateKeyToAccount(readFileSync(`${keyDir}/${rec.cast[role].keyFile}`, "utf8").trim() as Hex),
-      chain: baseSepolia,
-      transport: http(rpc),
+      chain: walletChain,
+      // Public testnet RPCs are routinely flaky; a lifecycle should not abort on one dropped
+      // nonce or fee request before a transaction has even been signed. Reuse Hardhat's working
+      // connection first; direct Node fetches can be routed differently by corporate proxies.
+      transport: fallback(
+        [
+          custom({ request: (args) => publicClient.request(args as any) }),
+          ...[rpc, ...(backupRpcByChain[chainId] ?? [])].map((url) =>
+            http(url, { retryCount: 3, retryDelay: 1_000 })
+          ),
+        ]
+      ),
     });
   const client = asCast("client");
   const buyer = asCast("buyer");
@@ -77,7 +120,7 @@ export async function main() {
       if ((await publicClient.getBlockNumber({ cacheTime: 0 })) >= receipt.blockNumber) break;
       await new Promise((r) => setTimeout(r, 1000));
     }
-    done.push(`${String(++step).padStart(2)}. ${label.padEnd(46)} https://sepolia.basescan.org/tx/${hash}`);
+    done.push(`${String(++step).padStart(2)}. ${label.padEnd(46)} ${explorer}/tx/${hash}`);
     console.log(done[done.length - 1]);
     return receipt;
   };
@@ -93,7 +136,7 @@ export async function main() {
   const reputation = await at("ReputationRegistry", c.reputation);
 
   console.log(`\nowner  ${owner}\nclient ${rec.cast.client.address}\nbuyer  ${rec.cast.buyer.address}\n`);
-  console.log(`token  https://sepolia.basescan.org/address/${c.anima}\n`);
+  console.log(`token  ${explorer}/address/${c.anima}\n`);
 
   /* ─── act 1: birth ─────────────────────────────────────────────────────────────────── */
 
@@ -119,7 +162,6 @@ export async function main() {
   const agentId: bigint = (minted as any).args.tokenId;
   console.log(`    → agent #${agentId}`);
 
-  const chainId = await publicClient.getChainId();
   const manifest: AgentManifest = {
     name: "Atlas",
     description: "Research agent, live on Base Sepolia",

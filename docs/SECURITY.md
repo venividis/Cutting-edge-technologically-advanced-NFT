@@ -73,6 +73,11 @@ Each is enforced in code and covered by a test.
     A zero peer is never trusted, so an unconfigured route fails closed.
 35. **Only an agent this contract sent out may return, and only from the chain it went to.**
 36. **A busy agent cannot bridge.**
+37. **A mirror token id stays bound to one home collection.** Numeric ERC-721 ids are only
+    unique inside a collection, so another trusted home route cannot overwrite an existing
+    replica with the same id.
+38. **An enabled inbound rate limit has a non-zero window.** A positive capacity paired with a
+    zero-second window is rejected rather than silently resetting on every message.
 
 ## Attack classes considered
 
