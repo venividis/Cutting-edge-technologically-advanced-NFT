@@ -5,8 +5,11 @@
   "type": "module",
   "description": "ANIMA — an agent-native NFT standard and protocol for autonomous AI agents",
   "scripts": {
+    "anima": "node cli/anima.mjs",
+    "compiler:cache": "bash scripts/cache-solc.sh",
     "build": "hardhat build",
     "test": "hardhat test",
+    "test:cli": "node --test test/Cli.test.mjs",
     "clean": "hardhat clean",
     "test:diamond": "ANIMA_IMPL=diamond hardhat test",
     "test:both": "hardhat test && ANIMA_IMPL=diamond hardhat test"

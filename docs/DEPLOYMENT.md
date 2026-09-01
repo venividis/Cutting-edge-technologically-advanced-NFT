@@ -3,8 +3,8 @@
 ```bash
 npm install
 npx hardhat build
-npx hardhat test          # 231 tests — do not deploy on a red suite
-npm run test:diamond      # the same 231 against the EIP-2535 build
+npx hardhat test          # 235 tests — do not deploy on a red suite
+npm run test:diamond      # the same 235 against the EIP-2535 build
 ```
 
 ## Order and why it matters
