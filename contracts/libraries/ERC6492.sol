@@ -42,11 +42,13 @@ library ERC6492 {
                 (address factory, bytes memory factoryCalldata, bytes memory innerSignature) =
                     abi.decode(inner, (address, bytes, bytes));
 
-                // A failed preparation is not fatal: the account may have been deployed by
-                // someone else between quoting and settling, in which case the plain 1271 check
-                // below still succeeds.
+                // An EOA is indistinguishable from a counterfactual account before preparation.
+                // Require the wrapper to actually deploy the signer before checking the inner
+                // signature; otherwise an EOA could attach an arbitrary privileged call and
+                // still pass below with its ordinary ECDSA signature.
                 (bool ok,) = factory.call(factoryCalldata);
                 ok;
+                if (signer.code.length == 0) return false;
                 return SignatureChecker.isValidSignatureNow(signer, hash, innerSignature);
             }
             // Deployed after the signature was produced: strip the wrapper and check normally.
