@@ -126,6 +126,23 @@ contract MockPerpVenue is IPerpVenueAdapter {
     function positionNotional(address account, bytes32 market) external view returns (uint256) {
         return notional[account][market];
     }
+
+    function validateTradeCalldata(
+        address expectedAccount,
+        bytes32 expectedMarket,
+        bytes calldata venueCalldata
+    ) external pure returns (bool) {
+        // Both supported calls have three static arguments. Requiring the canonical length also
+        // prevents an adapter from accepting ambiguous payloads with ignored trailing data.
+        if (venueCalldata.length != 4 + 32 * 3) return false;
+
+        bytes4 selector = bytes4(venueCalldata[:4]);
+        if (selector == MockPerpVenue.open.selector || selector == MockPerpVenue.close.selector) {
+            (address account, bytes32 market,) = abi.decode(venueCalldata[4:], (address, bytes32, uint256));
+            return account == expectedAccount && market == expectedMarket;
+        }
+        return false;
+    }
 }
 
 /// @notice Exposes {ERC6492} so its state-changing validation can be exercised from tests.

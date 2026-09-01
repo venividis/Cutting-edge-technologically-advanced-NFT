@@ -20,11 +20,18 @@ interface IAnimaDeskView {
  * @title IPerpVenueAdapter
  * @notice Thin read adapter over a perpetuals venue, so the desk can check what a position
  *         actually became rather than what the agent said it would be.
- * @dev Deliberately read-only. The desk forwards opaque calldata to the venue and then asks the
- *      adapter what happened, which is the derivatives equivalent of measuring a swap by balance
- *      delta instead of trusting its return value.
+ * @dev The adapter validates venue-specific calldata before the desk forwards it, then reports
+ *      what happened. This binds the call to the authenticated account and allowed market while
+ *      still measuring the resulting position instead of trusting the call's return value.
  */
 interface IPerpVenueAdapter {
+    /// @notice Validate that an opaque venue call targets the authenticated account and market.
+    /// @dev Implementations must reject every unsupported selector and malformed payload.
+    function validateTradeCalldata(address account, bytes32 market, bytes calldata venueCalldata)
+        external
+        view
+        returns (bool);
+
     /// @return Absolute notional of `account`'s open position in `market`, in quote units.
     function positionNotional(address account, bytes32 market) external view returns (uint256);
 }
@@ -125,6 +132,7 @@ contract AgentDerivativesDesk is Ownable2Step, ReentrancyGuardTransient {
     error PortfolioCapExceeded(uint256 total, uint128 cap);
     error LeverageCapExceeded(uint256 leverageX100, uint16 cap);
     error VenueCallFailed(bytes reason);
+    error InvalidVenueCalldata(address venue, address account, bytes32 market);
     error Expired(uint256 deadline);
     error BadLeverage(uint16 maxLeverageX100);
 
@@ -225,6 +233,9 @@ contract AgentDerivativesDesk is Ownable2Step, ReentrancyGuardTransient {
 
         MarketLimit memory lim = _limits[r.agentId][r.market];
         if (!lim.allowed) revert MarketNotAllowed(r.agentId, r.market);
+        if (!adapter.validateTradeCalldata(account, r.market, r.venueCalldata)) {
+            revert InvalidVenueCalldata(r.venue, account, r.market);
+        }
 
         // ---- move collateral, measuring both directions ----
         uint256 heldBefore = QUOTE.balanceOf(address(this));

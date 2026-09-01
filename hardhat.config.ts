@@ -1,5 +1,8 @@
 import type { HardhatUserConfig } from "hardhat/config";
 import hardhatToolboxViem from "@nomicfoundation/hardhat-toolbox-viem";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
 
 /**
  * The deployer key is read from the environment and never from a file in this repository.
@@ -14,6 +17,9 @@ const config: HardhatUserConfig = {
     profiles: {
       default: {
         version: "0.8.28",
+        // Use the pinned solc-js package so builds do not depend on
+        // binaries.soliditylang.org being reachable at test time.
+        path: require.resolve("solc/soljson.js"),
         settings: {
           optimizer: { enabled: true, runs: 200 },
           viaIR: true,
