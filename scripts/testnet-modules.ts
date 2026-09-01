@@ -44,7 +44,8 @@ const receipts = (n: number) =>
   }));
 
 export async function main() {
-  const deploymentPath = process.env.ANIMA_DEPLOYMENT ?? "deployments/84532.json";
+  const deploymentPath = process.env.ANIMA_DEPLOYMENT ?? process.env.ANIMA_DEPLOYMENT_FILE
+    ?? "deployments/84532.json";
   const rec = JSON.parse(readFileSync(deploymentPath, "utf8"));
   const c = rec.contracts;
   const keyDir = process.env.ANIMA_KEY_DIR;
@@ -55,9 +56,15 @@ export async function main() {
   const [wallet] = await viem.getWalletClients();
   const owner = getAddress(wallet.account.address);
   const chainId = await publicClient.getChainId();
+  if (rec.chainId !== chainId) throw new Error(`deployment record chain ${rec.chainId} does not match RPC chain ${chainId}`);
+  if (getAddress(rec.deployer) !== owner) throw new Error(`deployment belongs to ${rec.deployer}, not connected signer ${owner}`);
 
+  const clientAccount = privateKeyToAccount(readFileSync(`${keyDir}/${rec.cast.client.keyFile}`, "utf8").trim() as Hex);
+  if (getAddress(clientAccount.address) !== getAddress(rec.cast.client.address)) {
+    throw new Error(`client key resolves to ${clientAccount.address}, expected ${rec.cast.client.address}`);
+  }
   const clientWallet = createWalletClient({
-    account: privateKeyToAccount(readFileSync(`${keyDir}/${rec.cast.client.keyFile}`, "utf8").trim() as Hex),
+    account: clientAccount,
     chain: baseSepolia,
     transport: http(process.env.BASE_SEPOLIA_RPC ?? "https://sepolia.base.org"),
   });

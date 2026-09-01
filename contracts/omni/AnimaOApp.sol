@@ -75,7 +75,7 @@ abstract contract AnimaOApp is ILayerZeroReceiver, Ownable2Step {
 
     /// @notice Register the trusted contract on a remote chain. Setting a peer is the entire
     ///         trust decision for that route, so it stays with the owner alone.
-    function setPeer(uint32 eid, bytes32 peer) external onlyOwner {
+    function setPeer(uint32 eid, bytes32 peer) public virtual onlyOwner {
         peers[eid] = peer;
         emit PeerSet(eid, peer);
     }

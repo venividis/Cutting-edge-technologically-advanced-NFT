@@ -53,10 +53,14 @@ export async function main() {
   const [selectedWallet] = await selected.viem.getWalletClients();
   const selectedOwner = getAddress(selectedWallet.account.address);
   const ownedPath = `deployments/${homeCfg.chainId}-${selectedOwner.toLowerCase()}.json`;
-  const deploymentPath = existsSync(ownedPath) ? ownedPath : `deployments/${homeCfg.chainId}.json`;
+  const deploymentPath = process.env.ANIMA_DEPLOYMENT ?? process.env.ANIMA_DEPLOYMENT_FILE
+    ?? (existsSync(ownedPath) ? ownedPath : `deployments/${homeCfg.chainId}.json`);
   if (!existsSync(deploymentPath)) throw new Error(`run testnet-deploy.ts on ${homeName} first`);
   const deployment = JSON.parse(readFileSync(deploymentPath, "utf8"));
   if (deployment.chainId !== homeCfg.chainId || !isAddress(deployment.contracts?.anima)) throw new Error(`invalid ${deploymentPath}`);
+  if (getAddress(deployment.deployer) !== selectedOwner) {
+    throw new Error(`deployment belongs to ${deployment.deployer}, not connected signer ${selectedOwner}`);
+  }
   const animaAddress = getAddress(deployment.contracts.anima);
   mkdirSync("deployments", { recursive: true });
   const statePath = `deployments/omni-${homeCfg.chainId}.json`;

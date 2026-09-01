@@ -16,6 +16,7 @@ const LZ_OPTIONS = lzReceiveOptions(300_000n);
 
 const EID_HOME = 30101;
 const EID_AWAY = 30184;
+const EID_OTHER_HOME = 30231;
 const FEE = { nativeFee: 10n ** 15n, lzTokenFee: 0n };
 
 async function bridge(p: Awaited<ReturnType<typeof deployProtocol>>) {
@@ -213,6 +214,27 @@ describe("OmniAgent — bridge authentication", () => {
 });
 
 describe("OmniAgentMirror — coming home", () => {
+  it("rejects a second home route before it can strand a colliding source NFT", async () => {
+    const p = await deployProtocol();
+    const b = await bridge(p);
+
+    // Numeric ERC-721 ids are collection-local. Refuse the incompatible route during setup,
+    // while its owner can still deploy a separate mirror, rather than after send() has escrowed
+    // a source NFT and left it with no deliverable destination.
+    const endpointOther = await p.viem.deployContract("MockLZEndpoint", [EID_OTHER_HOME]);
+    const homeOther = await p.viem.deployContract("OmniAgentHome", [
+      p.anima.address,
+      endpointOther.address,
+      p.deployer.account.address,
+      p.deployer.account.address,
+    ]);
+    await homeOther.write.setPeer([EID_AWAY, pad(b.mirror.address)]);
+    await expectRevert(
+      b.mirror.write.setPeer([EID_OTHER_HOME, pad(homeOther.address)]),
+      "OnlyOneHomeRoute"
+    );
+  });
+
   it("burns the mirror and releases the original", async () => {
     const p = await deployProtocol();
     const b = await bridge(p);

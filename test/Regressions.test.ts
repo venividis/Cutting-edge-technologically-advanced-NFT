@@ -237,7 +237,6 @@ describe("Regressions — the bridge cannot strand an agent", () => {
   async function bridge(p: Awaited<ReturnType<typeof deployProtocol>>) {
     const endpointHome = await p.viem.deployContract("MockLZEndpoint", [30101]);
     const endpointAway = await p.viem.deployContract("MockLZEndpoint", [30184]);
-    const endpointThird = await p.viem.deployContract("MockLZEndpoint", [30110]);
     const home = await p.viem.deployContract("OmniAgentHome", [
       p.anima.address,
       endpointHome.address,
@@ -251,18 +250,9 @@ describe("Regressions — the bridge cannot strand an agent", () => {
       p.deployer.account.address,
       p.deployer.account.address,
     ]);
-    const third = await p.viem.deployContract("OmniAgentMirror", [
-      "M3",
-      "M3",
-      endpointThird.address,
-      p.deployer.account.address,
-      p.deployer.account.address,
-    ]);
     await home.write.setPeer([30184, pad(mirror.address)]);
     await mirror.write.setPeer([30101, pad(home.address)]);
-    await mirror.write.setPeer([30110, pad(third.address)]);
-    await third.write.setPeer([30184, pad(mirror.address)]);
-    return { endpointHome, endpointAway, home, mirror, third };
+    return { endpointHome, endpointAway, home, mirror };
   }
 
   const FEE = { nativeFee: 10n ** 15n, lzTokenFee: 0n };
