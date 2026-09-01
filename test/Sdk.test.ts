@@ -300,11 +300,9 @@ describe("SDK — LayerZero executor options", () => {
     assert.equal(lzReceiveOptions(300_000n), "0x000301001101000000000000000000000000000493e0");
     assert.equal(lzReceiveOptions(200_000n), "0x00030100110100000000000000000000000000030d40");
 
-    // With a native drop the option grows by another uint128 and the length follows it.
-    assert.equal(
-      lzReceiveOptions(300_000n, 1n),
-      "0x0003010021010000000000000000000000000004" + "93e0" + "00000000000000000000000000000001"
-    );
+    // ANIMA's receivers do not forward or recover native value, so never construct an option
+    // that would leave a destination drop trapped in the bridge contract.
+    assert.throws(() => lzReceiveOptions(300_000n, 1n), /do not support native value/);
   });
 
   it("never emits the empty options a mock endpoint would accept", async () => {

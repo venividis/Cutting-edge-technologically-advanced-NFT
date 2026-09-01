@@ -540,7 +540,10 @@ export function cutIsImmutable(cut: FacetCut[]): boolean {
  *     <uint16>                length of what follows, including the option-type byte
  *     01                      OPTION_TYPE_LZRECEIVE
  *     <uint128 gas>           gas for lzReceive on the destination
- *     <uint128 value>         native drop, appended only when non-zero
+ *
+ * ANIMA's destination OApps do not accept native value. The optional `value` argument remains
+ * for source compatibility, but any non-zero value is rejected so currency cannot be trapped in
+ * the destination bridge contract.
  *
  * `sdk/../test/Omni.test.ts` asserts these bytes equal what the Solidity builder produces, so the
  * two cannot drift.
@@ -548,11 +551,14 @@ export function cutIsImmutable(cut: FacetCut[]): boolean {
  * @param gas Gas the destination's `lzReceive` may consume. An ANIMA agent arrival writes a
  *        snapshot and mints a replica; 300,000 is a sane starting point, and quoting will tell
  *        you if it is short.
- * @param value Native currency to drop on the destination, usually zero.
+ * @param value Must be zero; ANIMA's destination OApps cannot receive native drops.
  */
 export function lzReceiveOptions(gas: bigint, value = 0n): Hex {
+  if (value !== 0n) {
+    throw new Error("ANIMA lzReceive options do not support native value");
+  }
   const u128 = (n: bigint) => n.toString(16).padStart(32, "0");
-  const option = value === 0n ? u128(gas) : u128(gas) + u128(value);
+  const option = u128(gas);
   const lengthWithType = (option.length / 2 + 1).toString(16).padStart(4, "0");
   return `0x0003${"01"}${lengthWithType}${"01"}${option}` as Hex;
 }
