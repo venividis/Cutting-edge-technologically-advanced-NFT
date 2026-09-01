@@ -514,6 +514,15 @@ describe("ERC-5646 — one fingerprint over everything mutable", () => {
 });
 
 describe("Bridge rate limiting", () => {
+  it("refuses a zero-length window that would reset on every message", async () => {
+    const p = await deployProtocol();
+    const endpoint = await p.viem.deployContract("MockLZEndpoint", [30184]);
+    const mirror = await p.viem.deployContract("OmniAgentMirror", [
+      "M", "M", endpoint.address, p.deployer.account.address, p.deployer.account.address,
+    ]);
+    await expectRevert(mirror.write.setInboundLimit([30101, 0n, 1n]), "InvalidRateLimit");
+  });
+
   it("caps inbound messages per window and lets the window refill", async () => {
     const p = await deployProtocol();
     const endpointHome = await p.viem.deployContract("MockLZEndpoint", [30101]);

@@ -104,7 +104,7 @@ export interface DiamondConfig {
  *        against a chain that already holds the prerequisites, rather than testing a copy of it.
  */
 export async function deployDiamond(config: DiamondConfig, connection?: { viem: any }) {
-  const { viem } = connection ?? (await network.connect());
+  const { viem } = (connection ?? (await network.connect())) as { viem: any };
   const publicClient = await viem.getPublicClient();
   const log = (label: string, value: string) => console.log(`  ${label.padEnd(26)} ${value}`);
 

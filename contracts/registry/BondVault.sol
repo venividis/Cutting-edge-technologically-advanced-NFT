@@ -26,9 +26,9 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
  *      1. **Unbonding stays slashable.** Funds queued for withdrawal remain fully exposed
  *         for the entire cooldown. Otherwise an agent front-runs its own accountability by
  *         withdrawing the moment it knows a job went badly.
- *      2. **Slashing hits free capital first, reserved capital last.** Reserved funds are
- *         another client's coverage; burning those to pay this client's claim would let one
- *         failure cascade into everyone else's protection.
+ *      2. **Slashing cannot consume reserved capital.** Reserved funds are another client's
+ *         coverage; using those to pay an unrelated claim would let one failure cascade into
+ *         everyone else's protection. A job releases its own reservation before slashing.
  *      3. **Coverage is reserved, not merely counted.** `reserve` moves the number into a
  *         locked bucket, so the same collateral can never back two jobs at once.
  *
@@ -69,6 +69,9 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
     mapping(address arbiter => bool) public isArbiter;
 
     mapping(uint256 agentId => Bond) private _bonds;
+    /// @notice Reservation ownership is tracked per module so one integration cannot
+    ///         release collateral committed by another integration.
+    mapping(uint256 agentId => mapping(address module => uint128 amount)) private _moduleReserved;
 
     uint256 public totalBonded;
 
@@ -145,9 +148,14 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
         return b.total > committed ? b.total - committed : 0;
     }
 
-    /// @notice Total slashable collateral, including funds already queued for withdrawal.
+    /// @notice Slashable collateral, including queued withdrawals but excluding reservations.
     function slashableOf(uint256 agentId) external view returns (uint256) {
-        return _bonds[agentId].total;
+        Bond storage b = _bonds[agentId];
+        return uint256(b.total) - b.reserved;
+    }
+
+    function reservedBy(uint256 agentId, address module) external view returns (uint256) {
+        return _moduleReserved[agentId][module];
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -160,10 +168,13 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
         if (amount == 0) revert ZeroAmount();
         AGENTS.ownerOf(agentId); // reverts for a non-existent agent
 
+        uint256 balanceBefore = ASSET.balanceOf(address(this));
         ASSET.safeTransferFrom(msg.sender, address(this), amount);
-        _bonds[agentId].total += amount.toUint128();
-        totalBonded += amount;
-        emit Deposited(agentId, msg.sender, amount);
+        uint256 received = ASSET.balanceOf(address(this)) - balanceBefore;
+        if (received == 0) revert ZeroAmount();
+        _bonds[agentId].total += received.toUint128();
+        totalBonded += received;
+        emit Deposited(agentId, msg.sender, received);
     }
 
     /// @notice Begin withdrawing free collateral. It remains fully slashable until `readyAt`.
@@ -238,12 +249,15 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
         uint256 free = availableCoverage(agentId);
         if (amount > free) revert InsufficientFree(agentId, amount, free);
         _bonds[agentId].reserved += amount.toUint128();
+        _moduleReserved[agentId][msg.sender] += amount.toUint128();
         emit Reserved(agentId, msg.sender, amount);
     }
 
     function release(uint256 agentId, uint256 amount) external onlyModule {
         Bond storage b = _bonds[agentId];
-        if (amount > b.reserved) revert InsufficientReserved(agentId, amount, b.reserved);
+        uint256 moduleReserved = _moduleReserved[agentId][msg.sender];
+        if (amount > moduleReserved) revert InsufficientReserved(agentId, amount, moduleReserved);
+        _moduleReserved[agentId][msg.sender] = (moduleReserved - amount).toUint128();
         b.reserved -= amount.toUint128();
         emit Released(agentId, msg.sender, amount);
     }
@@ -253,10 +267,9 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Take `amount` from an agent's bond and pay it to the harmed party.
-    /// @dev Consumption order is free → unbonding → reserved. Reserved collateral is another
-    ///      client's protection and is touched only once nothing else remains, so a single
-    ///      bad job cannot silently strip the coverage every other client is relying on.
-    ///      The caller is expected to `release` its own reservation separately.
+    /// @dev Consumption order is free → unbonding. Reserved collateral belongs to live jobs
+    ///      and cannot be consumed by an unrelated arbiter. A job must `release` its own
+    ///      reservation before slashing it, as WorkEscrow does during settlement.
     function slash(uint256 agentId, uint256 amount, address beneficiary, bytes32 reason)
         external
         onlyArbiter
@@ -266,7 +279,8 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
         if (beneficiary == address(0)) revert ZeroAddress();
 
         Bond storage b = _bonds[agentId];
-        if (amount > b.total) revert InsufficientBond(agentId, amount, b.total);
+        uint256 slashable = uint256(b.total) - b.reserved;
+        if (amount > slashable) revert InsufficientBond(agentId, amount, slashable);
 
         uint256 remaining = amount;
 
@@ -285,12 +299,6 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
                 b.readyAt = 0;
                 b.unbondTo = address(0);
             }
-        }
-
-        if (remaining != 0) {
-            uint256 fromReserved = b.reserved < remaining ? b.reserved : remaining;
-            b.reserved -= fromReserved.toUint128();
-            remaining -= fromReserved;
         }
 
         b.total -= amount.toUint128();

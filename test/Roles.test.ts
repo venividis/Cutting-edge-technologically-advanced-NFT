@@ -129,6 +129,19 @@ describe("AnimaRoles — ERC-7432 without touching the token", () => {
     });
   });
 
+  it("cannot unlock while a live revocable role remains", async () => {
+    const p = await deployProtocol();
+    const { roles, id, now } = await withRoles(p);
+    await roles.write.grantRole(
+      [role({ roleId: await roles.read.OPERATOR(), tokenAddress: p.anima.address, tokenId: id,
+        recipient: p.bob.account.address, expirationDate: now + 30n * DAY })],
+      { account: p.alice.account }
+    );
+
+    await expectRevert(roles.write.unlockToken([p.anima.address, id], { account: p.carol.account }), "StillLocked");
+    assert.equal(await p.anima.read.locked([id]), true);
+  });
+
   it("caps an irrevocable role, so a grant cannot lock an agent forever", async () => {
     const p = await deployProtocol();
     const { roles, id, now } = await withRoles(p);

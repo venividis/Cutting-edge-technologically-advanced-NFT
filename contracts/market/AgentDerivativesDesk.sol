@@ -20,11 +20,11 @@ interface IAnimaDeskView {
  * @title IPerpVenueAdapter
  * @notice Thin read adapter over a perpetuals venue, so the desk can check what a position
  *         actually became rather than what the agent said it would be.
- * @dev Deliberately read-only. The desk forwards opaque calldata to the venue and then asks the
- *      adapter what happened, which is the derivatives equivalent of measuring a swap by balance
- *      delta instead of trusting its return value.
+ * @dev Execution is routed through the governance-approved adapter so the account and market
+ *      checked by the desk cannot diverge from the position changed at the venue.
  */
 interface IPerpVenueAdapter {
+    function executeTrade(address account, bytes32 market, bytes calldata venueData) external;
     /// @return Absolute notional of `account`'s open position in `market`, in quote units.
     function positionNotional(address account, bytes32 market) external view returns (uint256);
 }
@@ -233,8 +233,8 @@ contract AgentDerivativesDesk is Ownable2Step, ReentrancyGuardTransient {
             QUOTE.forceApprove(r.venue, r.marginIn);
         }
 
-        (bool ok, bytes memory reason) = r.venue.call(r.venueCalldata);
-        if (!ok) revert VenueCallFailed(reason);
+        try adapter.executeTrade(account, r.market, r.venueCalldata) { }
+        catch (bytes memory reason) { revert VenueCallFailed(reason); }
         QUOTE.forceApprove(r.venue, 0);
 
         // Whatever the venue did not consume, plus anything it returned, goes straight back.

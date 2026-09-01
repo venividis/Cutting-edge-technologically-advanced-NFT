@@ -44,7 +44,8 @@ const receipts = (n: number) =>
   }));
 
 export async function main() {
-  const rec = JSON.parse(readFileSync("deployments/84532.json", "utf8"));
+  const deploymentPath = process.env.ANIMA_DEPLOYMENT ?? "deployments/84532.json";
+  const rec = JSON.parse(readFileSync(deploymentPath, "utf8"));
   const c = rec.contracts;
   const keyDir = process.env.ANIMA_KEY_DIR;
   if (!keyDir) throw new Error("ANIMA_KEY_DIR must point at the directory holding the cast keys");
@@ -178,6 +179,7 @@ export async function main() {
     const workRoot = await meter.read.workRootOf([batch]);
     const deadline = BigInt((await publicClient.getBlock()).timestamp) + HOUR;
     const signature = await clientWallet.signTypedData({
+      account: clientWallet.account!,
       domain: { name: "AnimaInferenceMeter", version: "1", chainId, verifyingContract: c.meter as Address },
       types: { Voucher: [
         { name: "channelId", type: "uint256" }, { name: "cumulativeAmount", type: "uint256" },
@@ -201,7 +203,7 @@ export async function main() {
   await tx("…and again, at a new running total of 300", () =>
     meter.write.settle([channelId, aUSD(300), v2.deadline, v2.signature, batch2])
   );
-  console.log(`    → the agent's own wallet took ${(await usdc.read.balanceOf([account]) - before) / 1_000_000n} aUSD`);
+  console.log(`    → the agent's own wallet took ${((await usdc.read.balanceOf([account])) as bigint - (before as bigint)) / 1_000_000n} aUSD`);
 
   // Vouchers are cumulative, so an old one is worth nothing once a newer one is redeemed.
   let replay = "unexpectedly succeeded";
