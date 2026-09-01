@@ -126,7 +126,7 @@ a visible fraction only on the cheapest views, where the absolute number is stil
 
 **How equivalence is established.** The facets partition the monolith's ABI. The cut is derived
 from that ABI at deploy time and the fixture refuses to build if a monolith function goes unrouted
-or a facet routes one the monolith lacks — so `ANIMA_IMPL=diamond` re-runs all 189 protocol tests
+or a facet routes one the monolith lacks — so `ANIMA_IMPL=diamond` re-runs all 197 protocol tests
 against the diamond with no test changes at all. `test/Diamond.test.ts` adds the direct
 comparison: an identical agent is driven through the same sequence of state changes on both
 builds, and their ERC-5646 fingerprints — one hash over the whole of an agent's mutable state —

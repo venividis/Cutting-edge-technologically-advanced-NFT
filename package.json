@@ -5,6 +5,9 @@
   "type": "module",
   "description": "ANIMA — an agent-native NFT standard and protocol for autonomous AI agents",
   "scripts": {
+    "ui": "vite --host 0.0.0.0",
+    "ui:build": "vite build",
+    "ui:preview": "vite preview --host 0.0.0.0",
     "build": "hardhat build",
     "test": "hardhat test",
     "clean": "hardhat clean",
@@ -16,6 +19,7 @@
     "@types/node": "^22.19.0",
     "hardhat": "^3.14.0",
     "typescript": "^5.9.3",
+    "vite": "^7.1.3",
     "viem": "^2.55.19"
   },
   "dependencies": {

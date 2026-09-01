@@ -90,6 +90,30 @@ describe("BondVault — collateral that cannot be walked away from", () => {
     await expectRevert(p.bonds.write.reserve([id, 1n]), "InsufficientFree");
   });
 
+  it("does not let one module release or slash another module's reservation", async () => {
+    const p = await deployProtocol();
+    const id = await fundedAgent(p, USDC(500));
+    await p.bonds.write.setModule([p.deployer.account.address, true]);
+    await p.bonds.write.setModule([p.carol.account.address, true]);
+    await p.bonds.write.setArbiter([p.carol.account.address, true]);
+
+    await p.bonds.write.reserve([id, USDC(300)]);
+    await p.bonds.write.reserve([id, USDC(100)], { account: p.carol.account });
+
+    await expectRevert(
+      p.bonds.write.release([id, USDC(101)], { account: p.carol.account }),
+      "InsufficientReserved"
+    );
+    await expectRevert(
+      p.bonds.write.slash([id, USDC(101), p.bob.account.address, ZERO32], { account: p.carol.account }),
+      "InsufficientBond"
+    );
+
+    assert.equal(await p.bonds.read.reservedBy([id, p.deployer.account.address]), USDC(300));
+    assert.equal(await p.bonds.read.reservedBy([id, p.carol.account.address]), USDC(100));
+    assert.equal((await p.bonds.read.bondOf([id])).reserved, USDC(400));
+  });
+
   it("consumes free collateral before another client's reserved coverage", async () => {
     const p = await deployProtocol();
     const id = await fundedAgent(p, USDC(1000));

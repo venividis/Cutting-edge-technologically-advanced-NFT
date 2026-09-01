@@ -1,5 +1,5 @@
 {
-  "chainId": 11155111,
+  "chainId": 46630,
   "deployer": "0xc591C669162cD4da8aB9BfA2c2e68d538A312C00",
   "contracts": {
     "registry": "0x000000006551c19487814612e58FE06813775758",
@@ -25,15 +25,15 @@
   },
   "cast": {
     "client": {
-      "address": "0xa9Bd351cE0D66B2735059249A286a79437Ff264F",
+      "address": "0x889EDf3bc8B896F6071a994837f4053a1e6a3eA8",
       "keyFile": "client.key"
     },
     "validator": {
-      "address": "0xA9Cc05Eeb793C049BC6B7E9bE944a9ED2Cc9F1C0",
+      "address": "0x7fb3CA22BfCEa924b727b55a591e9B51568e00Ed",
       "keyFile": "validator.key"
     },
     "buyer": {
-      "address": "0x6536c0c50353F773cCC9b71EcE6Ab905120e6663",
+      "address": "0x4Cf194fe95486C15E624Fb9b9ea6f0c67D493A50",
       "keyFile": "buyer.key"
     }
   },
@@ -49,7 +49,7 @@
   ],
   "smoke": {
     "agentId": "1",
-    "account": "0x1639609E2F44f4A1F884BA58F7026136Af2A2A5f",
+    "account": "0x1E55F8C4003577d0B7691E9996A385FAF05F750b",
     "policy": true,
     "active": true,
     "executed": true

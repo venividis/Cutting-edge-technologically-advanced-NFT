@@ -83,6 +83,7 @@ contract AnimaRoles is IERC7432, IERC165 {
     mapping(uint256 tokenId => mapping(bytes32 roleId => RoleRecord)) private _roles;
     /// @notice Latest expiry among this token's irrevocable roles; it cannot unlock before then.
     mapping(uint256 tokenId => uint64) public lockedUntil;
+    mapping(uint256 tokenId => uint256) public activeRoleCount;
     mapping(uint256 tokenId => bool) public isLockedHere;
     mapping(address owner => mapping(address operator => bool)) private _approvals;
 
@@ -141,6 +142,8 @@ contract AnimaRoles is IERC7432, IERC165 {
             }
         }
 
+        RoleRecord storage existing = _roles[_role.tokenId][_role.roleId];
+        if (existing.recipient == address(0)) ++activeRoleCount[_role.tokenId];
         _roles[_role.tokenId][_role.roleId] = RoleRecord({
             recipient: _role.recipient,
             expirationDate: _role.expirationDate,
@@ -173,16 +176,19 @@ contract AnimaRoles is IERC7432, IERC165 {
         _requireOurs(_tokenAddress);
         RoleRecord storage r = _roles[_tokenId][_roleId];
 
-        // A grantee may always walk away from their own role; the owner may only end a role
-        // that was granted as revocable.
-        if (msg.sender != r.recipient) {
+        if (r.recipient == address(0)) return;
+
+        // A grantee may always walk away; anyone may clear an expired role; the owner may
+        // only end a live role that was granted as revocable.
+        if (msg.sender != r.recipient && r.expirationDate > block.timestamp) {
             _requireAuthorised(_tokenId);
-            if (!r.revocable && r.expirationDate > block.timestamp) {
+            if (!r.revocable) {
                 revert RoleNotRevocable(_tokenId, _roleId);
             }
         }
 
         delete _roles[_tokenId][_roleId];
+        --activeRoleCount[_tokenId];
         emit RoleRevoked(AGENTS, _tokenId, _roleId);
     }
 
@@ -191,6 +197,7 @@ contract AnimaRoles is IERC7432, IERC165 {
     ///      circulation without needing its grantees to cooperate.
     function unlockToken(address _tokenAddress, uint256 _tokenId) external {
         _requireOurs(_tokenAddress);
+        if (activeRoleCount[_tokenId] != 0) revert StillLocked(_tokenId, lockedUntil[_tokenId]);
         uint64 until = lockedUntil[_tokenId];
         if (block.timestamp < until) revert StillLocked(_tokenId, until);
         if (!isLockedHere[_tokenId]) return;

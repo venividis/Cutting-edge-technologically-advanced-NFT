@@ -47,6 +47,8 @@ contract OmniAgentMirror is ERC721, AnimaOApp, ReentrancyGuardTransient {
     }
 
     mapping(uint256 agentId => Replica) private _replicas;
+    /// @notice The one home route represented by this mirror collection.
+    uint32 public configuredHomeEid;
 
     event MirrorMinted(uint256 indexed agentId, address indexed to, uint32 indexed srcEid, bytes32 brainRoot);
     event MirrorBurned(uint256 indexed agentId, uint32 indexed dstEid, bytes32 to);
@@ -55,7 +57,7 @@ contract OmniAgentMirror is ERC721, AnimaOApp, ReentrancyGuardTransient {
     error InvalidReceiver();
     error UnknownMirror(uint256 agentId);
     error OnlyHomeRoute(uint32 expected, uint32 requested);
-    error ConflictingReplica(uint256 agentId, uint32 existingHomeEid, uint32 incomingHomeEid);
+    error OnlyOneHomeRoute(uint32 configured, uint32 requested);
 
     constructor(
         string memory name_,
@@ -64,6 +66,18 @@ contract OmniAgentMirror is ERC721, AnimaOApp, ReentrancyGuardTransient {
         address delegate_,
         address owner_
     ) ERC721(name_, symbol_) AnimaOApp(endpoint_, delegate_, owner_) {}
+
+    /// @notice Bind this mirror collection to exactly one home route.
+    /// @dev Rejecting a second route at configuration time is recoverable; rejecting its packet
+    ///      after the source NFT was escrowed is not. Separate home collections need separate
+    ///      mirror deployments because ERC-721 numeric ids are collection-local.
+    function setPeer(uint32 eid, bytes32 peer) public override onlyOwner {
+        if (peer != bytes32(0)) {
+            if (configuredHomeEid == 0) configuredHomeEid = eid;
+            else if (eid != configuredHomeEid) revert OnlyOneHomeRoute(configuredHomeEid, eid);
+        }
+        super.setPeer(eid, peer);
+    }
 
     /// @notice Always true. Read it before treating this token as a bondable agent.
     function isReplica() external pure returns (bool) {
@@ -96,20 +110,6 @@ contract OmniAgentMirror is ERC721, AnimaOApp, ReentrancyGuardTransient {
         AgentSnapshot memory s = AnimaOmniCodec.decode(message);
         address to = _toAddress(s.to);
         if (uint256(s.to) >> 160 != 0 || to == address(0)) revert InvalidReceiver();
-
-        // Token ids are only unique within their home collection. This mirror can trust peers
-        // on several chains, so an independently valid message from a second home must not be
-        // allowed to overwrite (and forcibly transfer) a replica that happens to share its id.
-        // Keep the binding after a burn as well: otherwise a different home could claim the id
-        // while the original is away and make its later return impossible to represent safely.
-        Replica storage existing = _replicas[s.agentId];
-        if (
-            existing.homeChainId != 0
-                && (existing.homeEid != origin.srcEid || existing.homeChainId != s.homeChainId
-                    || existing.homeToken != s.homeToken)
-        ) {
-            revert ConflictingReplica(s.agentId, existing.homeEid, origin.srcEid);
-        }
 
         _replicas[s.agentId] = Replica({
             brainRoot: s.brainRoot,

@@ -237,7 +237,6 @@ describe("Regressions — the bridge cannot strand an agent", () => {
   async function bridge(p: Awaited<ReturnType<typeof deployProtocol>>) {
     const endpointHome = await p.viem.deployContract("MockLZEndpoint", [30101]);
     const endpointAway = await p.viem.deployContract("MockLZEndpoint", [30184]);
-    const endpointThird = await p.viem.deployContract("MockLZEndpoint", [30110]);
     const home = await p.viem.deployContract("OmniAgentHome", [
       p.anima.address,
       endpointHome.address,
@@ -251,18 +250,9 @@ describe("Regressions — the bridge cannot strand an agent", () => {
       p.deployer.account.address,
       p.deployer.account.address,
     ]);
-    const third = await p.viem.deployContract("OmniAgentMirror", [
-      "M3",
-      "M3",
-      endpointThird.address,
-      p.deployer.account.address,
-      p.deployer.account.address,
-    ]);
     await home.write.setPeer([30184, pad(mirror.address)]);
     await mirror.write.setPeer([30101, pad(home.address)]);
-    await mirror.write.setPeer([30110, pad(third.address)]);
-    await third.write.setPeer([30184, pad(mirror.address)]);
-    return { endpointHome, endpointAway, home, mirror, third };
+    return { endpointHome, endpointAway, home, mirror };
   }
 
   const FEE = { nativeFee: 10n ** 15n, lzTokenFee: 0n };
@@ -514,6 +504,15 @@ describe("ERC-5646 — one fingerprint over everything mutable", () => {
 });
 
 describe("Bridge rate limiting", () => {
+  it("refuses a zero-length window that would reset on every message", async () => {
+    const p = await deployProtocol();
+    const endpoint = await p.viem.deployContract("MockLZEndpoint", [30184]);
+    const mirror = await p.viem.deployContract("OmniAgentMirror", [
+      "M", "M", endpoint.address, p.deployer.account.address, p.deployer.account.address,
+    ]);
+    await expectRevert(mirror.write.setInboundLimit([30101, 0n, 1n]), "InvalidRateLimit");
+  });
+
   it("caps inbound messages per window and lets the window refill", async () => {
     const p = await deployProtocol();
     const endpointHome = await p.viem.deployContract("MockLZEndpoint", [30101]);
@@ -616,5 +615,25 @@ describe("ERC-6492 — listing from an account that is not deployed yet", () => 
     const sig = await p.alice.signMessage({ message });
     assert.equal(await lib.read.checkView([p.alice.account.address, hashMessage(message), sig]), true);
     assert.equal(await lib.read.checkView([p.bob.account.address, hashMessage(message), sig]), false);
+  });
+
+  it("rejects a wrapped EOA signature when preparation does not deploy the signer", async () => {
+    const p = await deployProtocol();
+    const lib = await p.viem.deployContract("ERC6492Harness");
+    const message = "wrapped EOA";
+    const hash = hashMessage(message);
+    const innerSignature = await p.alice.signMessage({ message });
+
+    // EOAs and counterfactual contracts both begin without code. A valid EOA signature must
+    // not make arbitrary preparation calldata acceptable: the preparation has to turn the
+    // claimed signer into a contract before its inner signature can be considered.
+    const wrapped = (encodeAbiParameters(
+      [{ type: "address" }, { type: "bytes" }, { type: "bytes" }],
+      [p.registry.address, "0x", innerSignature]
+    ) + "6492".repeat(16)) as `0x${string}`;
+
+    await lib.write.check([p.alice.account.address, hash, wrapped]);
+    assert.equal(await lib.read.lastResult(), false);
+    assert.equal(await p.publicClient.getCode({ address: p.alice.account.address }), undefined);
   });
 });

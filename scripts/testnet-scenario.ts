@@ -16,7 +16,7 @@
 import { readFileSync } from "node:fs";
 import { network } from "hardhat";
 import {
-  createWalletClient, custom, defineChain, fallback, http, keccak256, toHex, encodeFunctionData, getAddress, parseEventLogs,
+  createWalletClient, custom, defineChain, keccak256, toHex, encodeFunctionData, getAddress, parseEventLogs,
   parseEther, zeroAddress, type Address, type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -40,64 +40,44 @@ export async function main() {
   const keyDir = process.env.ANIMA_KEY_DIR;
   if (!keyDir) throw new Error("ANIMA_KEY_DIR must point at the directory holding the cast keys");
 
-  // Use the connection selected by Hardhat's `--network`; hard-coding Base here made a command
-  // that named another network transact on Base instead.
   const { viem } = (await network.connect()) as any;
   const publicClient = await viem.getPublicClient();
   const chainId = await publicClient.getChainId();
-  const deploymentFile = process.env.ANIMA_DEPLOYMENT_FILE ?? `deployments/${chainId}.json`;
-  const rec = JSON.parse(readFileSync(deploymentFile, "utf8"));
-  if (rec.chainId !== chainId) {
-    throw new Error(`deployment record chain ${rec.chainId} does not match RPC chain ${chainId}`);
-  }
+  const deploymentPath = process.env.ANIMA_DEPLOYMENT ?? process.env.ANIMA_DEPLOYMENT_FILE
+    ?? `deployments/${chainId}.json`;
+  const rec = JSON.parse(readFileSync(deploymentPath, "utf8"));
+  if (rec.chainId !== chainId) throw new Error(`deployment record chain ${rec.chainId} does not match RPC chain ${chainId}`);
   const c = rec.contracts;
   const [ownerWallet] = await viem.getWalletClients();
   const owner = getAddress(ownerWallet.account.address);
-  if (getAddress(rec.deployer) !== owner) {
-    throw new Error(`deployment belongs to ${rec.deployer}, not connected signer ${owner}`);
-  }
+  if (getAddress(rec.deployer) !== owner) throw new Error(`deployment belongs to ${rec.deployer}, not connected signer ${owner}`);
 
-  const rpcByChain: Record<number, string> = {
-    84532: process.env.BASE_SEPOLIA_RPC ?? "https://sepolia.base.org",
-    11155420: process.env.OP_SEPOLIA_RPC ?? "https://sepolia.optimism.io",
-    421614: process.env.ARBITRUM_SEPOLIA_RPC ?? "https://sepolia-rollup.arbitrum.io/rpc",
-    11155111: process.env.SEPOLIA_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com",
+  const chainNames: Record<number, string> = {
+    84532: "Base Sepolia", 11155420: "OP Sepolia", 421614: "Arbitrum Sepolia", 11155111: "Ethereum Sepolia",
   };
-  const backupRpcByChain: Partial<Record<number, string[]>> = {
-    84532: ["https://base-sepolia.gateway.tenderly.co", "https://base-sepolia-rpc.publicnode.com"],
-    11155111: ["https://ethereum-sepolia-rpc.publicnode.com"],
+  const explorers: Record<number, string> = {
+    84532: "https://sepolia.basescan.org", 11155420: "https://sepolia-optimism.etherscan.io",
+    421614: "https://sepolia.arbiscan.io", 11155111: "https://sepolia.etherscan.io",
   };
-  const explorerByChain: Record<number, string> = {
-    84532: "https://sepolia.basescan.org",
-    11155420: "https://sepolia-optimism.etherscan.io",
-    421614: "https://sepolia.arbiscan.io",
-    11155111: "https://sepolia.etherscan.io",
-  };
-  const rpc = rpcByChain[chainId];
-  if (!rpc) throw new Error(`no RPC configured for chain ${chainId}`);
-  const explorer = explorerByChain[chainId];
+  const explorer = explorers[chainId];
+  if (!explorer) throw new Error(`no explorer configured for chain ${chainId}`);
   const walletChain = defineChain({
-    id: chainId,
-    name: `ANIMA testnet ${chainId}`,
+    id: chainId, name: chainNames[chainId] ?? `chain ${chainId}`,
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: { default: { http: [rpc] } },
+    rpcUrls: { default: { http: ["http://hardhat-connection"] } },
   });
-  const asCast = (role: string) =>
-    createWalletClient({
-      account: privateKeyToAccount(readFileSync(`${keyDir}/${rec.cast[role].keyFile}`, "utf8").trim() as Hex),
-      chain: walletChain,
-      // Public testnet RPCs are routinely flaky; a lifecycle should not abort on one dropped
-      // nonce or fee request before a transaction has even been signed. Reuse Hardhat's working
-      // connection first; direct Node fetches can be routed differently by corporate proxies.
-      transport: fallback(
-        [
-          custom({ request: (args) => publicClient.request(args as any) }),
-          ...[rpc, ...(backupRpcByChain[chainId] ?? [])].map((url) =>
-            http(url, { retryCount: 3, retryDelay: 1_000 })
-          ),
-        ]
-      ),
+  const asCast = (role: string) => {
+    const account = privateKeyToAccount(readFileSync(`${keyDir}/${rec.cast[role].keyFile}`, "utf8").trim() as Hex);
+    if (getAddress(account.address) !== getAddress(rec.cast[role].address)) {
+      throw new Error(`${role} key resolves to ${account.address}, expected ${rec.cast[role].address}`);
+    }
+    return createWalletClient({
+      account, chain: walletChain,
+      // Submit through exactly one transport. Failing over eth_sendRawTransaction after an
+      // ambiguous timeout can turn a mined transaction into an apparent script failure.
+      transport: custom({ request: (args) => publicClient.request(args as any) }),
     });
+  };
   const client = asCast("client");
   const buyer = asCast("buyer");
 
@@ -164,7 +144,7 @@ export async function main() {
 
   const manifest: AgentManifest = {
     name: "Atlas",
-    description: "Research agent, live on Base Sepolia",
+    description: `Research agent, live on ${chainNames[chainId] ?? `chain ${chainId}`}`,
     version: "1.0.0",
     anima: {
       registry: `eip155:${chainId}:${c.anima}`,
@@ -243,7 +223,7 @@ export async function main() {
     escrowAsClient.write.acceptDelivery([jobId, 9200n, 2, "research", "ipfs://feedback", ZERO32])
   );
   const balanceAfter = await usdc.read.balanceOf([predicted]);
-  console.log(`    → the AGENT's own wallet received ${(balanceAfter - balanceBefore) / 1_000_000n} aUSD (1% protocol fee)`);
+  console.log(`    → the AGENT's own wallet received ${((balanceAfter as bigint) - (balanceBefore as bigint)) / 1_000_000n} aUSD (1% protocol fee)`);
   const [count, score, weight] = await reputation.read.getAttestedSummary([agentId, [], "", ""]);
   console.log(`    → attested reputation: ${count} review, score ${score}, backed by ${weight / 1_000_000n} aUSD of settled work`);
 
@@ -320,9 +300,9 @@ export async function main() {
   reputation   ${(await reputation.read.getAttestedSummary([agentId, [], "", ""]))[0]} attested review, still attached
 ──────────────────────────────────────────────────────────────────────
 
-${done.length} transactions, all on Base Sepolia.
-agent:  https://sepolia.basescan.org/token/${c.anima}?a=${agentId}
-wallet: https://sepolia.basescan.org/address/${predicted}
+${done.length} transactions, all on ${chainNames[chainId] ?? `chain ${chainId}`}.
+agent:  ${explorer}/token/${c.anima}?a=${agentId}
+wallet: ${explorer}/address/${predicted}
 `);
 }
 
