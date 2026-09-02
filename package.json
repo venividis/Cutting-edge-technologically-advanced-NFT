@@ -14,6 +14,8 @@
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "test": "hardhat test",
     "test:cli": "node --test test/Cli.test.mjs",
+    "test:economy": "node --test test/EconomySim.test.mjs",
+    "simulate:economy": "node scripts/economy-sim.mjs docs/ECONOMY_SIMULATION.json",
     "clean": "hardhat clean",
     "test:diamond": "ANIMA_IMPL=diamond hardhat test",
     "test:both": "hardhat test && ANIMA_IMPL=diamond hardhat test"
