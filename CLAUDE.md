@@ -2,7 +2,7 @@
 
 ANIMA — an agent-native NFT protocol. One ERC-721 token is one complete, economically
 accountable AI agent: identity, wallet, private state, declared model, published autonomy
-policy, and a slashable bond. 26 deployable contracts, 249 tests, deployed and exercised on
+policy, and a slashable bond. 26 deployable contracts, 251 tests, deployed and exercised on
 Base Sepolia. Unaudited.
 
 ## Commands
