@@ -1,5 +1,5 @@
 /**
- * Live, multi-owner adversarial scenario for Base Sepolia.
+ * Live, multi-owner adversarial scenario for configured testnets.
  *
  * Three independently signed wallets each own an agent, fund its bond and conduct a
  * circular paid conversation.  Each wallet then deliberately attacks the next resident's
@@ -8,24 +8,43 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { network } from "hardhat";
-import { createWalletClient, getAddress, http, keccak256, parseEventLogs, toHex, zeroAddress,
+import { createWalletClient, defineChain, getAddress, http, keccak256, parseEventLogs, toHex, zeroAddress,
   type Address, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
 import { ProxyAgent } from "undici";
 
 const ZERO32 = `0x${"00".repeat(32)}` as Hex;
 const USD = (n: number) => BigInt(n) * 1_000_000n;
+const RPCS: Record<string, string> = {
+  unichainSepolia: process.env.UNICHAIN_SEPOLIA_RPC ?? "https://sepolia.unichain.org",
+  robinhoodTestnet: process.env.ROBINHOOD_TESTNET_RPC ?? "https://rpc.testnet.chain.robinhood.com",
+  bscTestnet: process.env.BSC_TESTNET_RPC ?? "https://bsc-testnet-rpc.publicnode.com",
+  baseSepolia: process.env.BASE_SEPOLIA_RPC ?? "https://sepolia.base.org",
+  opSepolia: process.env.OP_SEPOLIA_RPC ?? "https://sepolia.optimism.io",
+  arbitrumSepolia: process.env.ARBITRUM_SEPOLIA_RPC ?? "https://sepolia-rollup.arbitrum.io/rpc",
+  sepolia: process.env.SEPOLIA_RPC ?? "https://ethereum-sepolia-rpc.publicnode.com",
+};
 
 async function main() {
   const deploymentPath = process.env.ANIMA_DEPLOYMENT;
   if (!deploymentPath) throw new Error("ANIMA_DEPLOYMENT is required");
   const rec = JSON.parse(readFileSync(deploymentPath, "utf8"));
   const c = rec.contracts;
-  const { viem } = await network.connect({ network: "baseSepolia" }) as any;
+  const networkName = process.env.HARDHAT_NETWORK ?? "baseSepolia";
+  const { viem } = await network.connect({ network: networkName }) as any;
   const pc = await viem.getPublicClient();
   const [mayor] = await viem.getWalletClients();
-  const rpc = process.env.BASE_SEPOLIA_RPC ?? "https://sepolia.base.org";
+  const chainId = await pc.getChainId();
+  if (Number(rec.chainId) !== chainId) throw new Error(`deployment chain ${rec.chainId} does not match RPC chain ${chainId}`);
+  if (getAddress(rec.deployer) !== getAddress(mayor.account.address)) throw new Error("deployment/deployer mismatch");
+  const rpc = RPCS[networkName];
+  if (!rpc) throw new Error(`no HTTP RPC configured for ${networkName}`);
+  const actorChain = defineChain({
+    id: chainId,
+    name: networkName,
+    nativeCurrency: { name: "Testnet native token", symbol: "TEST", decimals: 18 },
+    rpcUrls: { default: { http: [rpc] } },
+  });
   const proxy = process.env.HTTPS_PROXY ?? process.env.https_proxy;
   const transport = () => http(rpc, {
     retryCount: 8,
@@ -37,7 +56,7 @@ async function main() {
   const residents: any[] = ["Ada", "Babbage", "Curie"].map((name) => {
     const privateKey = (savedKeys[name] ?? generatePrivateKey()) as Hex;
     const account = privateKeyToAccount(privateKey);
-    return { name, privateKey, account, wallet: createWalletClient({ account, chain: baseSepolia, transport: transport() }) };
+    return { name, privateKey, account, wallet: createWalletClient({ account, chain: actorChain, transport: transport() }) };
   });
   // Recovery material is deliberately outside the repository and is never printed.
   writeFileSync(keyPath, JSON.stringify(Object.fromEntries(residents.map(r => [r.name, r.privateKey])), null, 2), { mode: 0o600 });
@@ -47,7 +66,7 @@ async function main() {
     const receipt = await pc.waitForTransactionReceipt({ hash });
     if (receipt.status !== expected) throw new Error(`${label}: expected ${expected}, got ${receipt.status}: ${hash}`);
     evidence.push({ label, hash, status: receipt.status });
-    console.log(`${expected === "success" ? "✓" : "✓ REVERT"} ${label}: https://sepolia.basescan.org/tx/${hash}`);
+    console.log(`${expected === "success" ? "✓" : "✓ REVERT"} ${label}: ${hash}`);
     return receipt;
   };
   const at = async (name: string, address: Address, wallet?: any) =>
