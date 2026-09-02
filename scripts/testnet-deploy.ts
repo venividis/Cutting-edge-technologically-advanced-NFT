@@ -9,6 +9,7 @@
  * losing twenty contracts because the twenty-first timed out is not a failure mode worth having.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { basename } from "node:path";
 import { network } from "hardhat";
 import { getAddress, parseEther, parseUnits, zeroAddress, type Address } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
@@ -29,14 +30,23 @@ interface Record_ {
 }
 
 export async function main() {
-  const connection = await network.connect({ network: process.env.HARDHAT_NETWORK ?? "baseSepolia" });
+  // `hardhat run --network ...` selects the default connection. Passing a fallback here used to
+  // silently override the CLI and deploy to Base Sepolia regardless of the requested network.
+  const connection = await network.connect() as any;
   const { viem } = connection as any;
   const publicClient = await viem.getPublicClient();
   const [wallet] = await viem.getWalletClients();
   const deployer = getAddress(wallet.account.address);
   const chainId = await publicClient.getChainId();
 
-  const path = `deployments/${chainId}.json`;
+  const canonicalPath = `deployments/${chainId}.json`;
+  const canonicalRecord = existsSync(canonicalPath) ? JSON.parse(readFileSync(canonicalPath, "utf8")) : undefined;
+  // Never reuse a deployment owned by another key. This matters on Base Sepolia, where the
+  // checked-in historical record intentionally belongs to a destroyed burner.
+  const path = process.env.ANIMA_DEPLOYMENT ?? process.env.ANIMA_DEPLOYMENT_FILE
+    ?? (canonicalRecord && getAddress(canonicalRecord.deployer) !== deployer
+      ? `deployments/${chainId}-${deployer.toLowerCase()}.json`
+      : canonicalPath);
   const rec: Record_ = existsSync(path)
     ? JSON.parse(readFileSync(path, "utf8"))
     : { chainId, deployer, contracts: {}, cast: {}, wiring: [] };
@@ -70,17 +80,24 @@ export async function main() {
 
   // ---- prerequisites -------------------------------------------------------
   const registryCode = await publicClient.getCode({ address: CANONICAL_ERC6551_REGISTRY });
-  if (!registryCode || registryCode === "0x") {
+  let registry: Address;
+  if (registryCode && registryCode !== "0x") {
+    registry = CANONICAL_ERC6551_REGISTRY;
+  } else if (process.env.ALLOW_NONCANONICAL_ERC6551 === "true") {
+    // A behaviour-faithful registry is acceptable for isolated testnet exercises, but its
+    // noncanonical address must remain explicit in the deployment record and operator opt-in.
+    registry = await once("registry", "ERC6551Registry");
+  } else {
     throw new Error(
-      `no ERC-6551 registry at ${CANONICAL_ERC6551_REGISTRY} on chain ${chainId} — refusing to ` +
-        `fall back to a mock, which would derive agent wallets no wallet or indexer recognises`
+      `no ERC-6551 registry at ${CANONICAL_ERC6551_REGISTRY} on chain ${chainId}; set ` +
+        `ALLOW_NONCANONICAL_ERC6551=true only for an isolated testnet deployment`
     );
   }
-  rec.contracts.registry = CANONICAL_ERC6551_REGISTRY;
+  rec.contracts.registry = registry;
 
   const epCode = await publicClient.getCode({ address: ENTRYPOINT_V07 });
   const entryPoint = epCode && epCode !== "0x" ? ENTRYPOINT_V07 : zeroAddress;
-  console.log(`  ERC-6551 registry        ${CANONICAL_ERC6551_REGISTRY}  (canonical, live)`);
+  console.log(`  ERC-6551 registry        ${registry}  (${registry === CANONICAL_ERC6551_REGISTRY ? "canonical" : "testnet-local"}, live)`);
   console.log(`  EntryPoint v0.7          ${entryPoint === zeroAddress ? "absent — 4337 disabled" : entryPoint}\n`);
 
   // ---- layer 1 -------------------------------------------------------------
@@ -95,7 +112,7 @@ export async function main() {
         name: "ANIMA Agents",
         symbol: "ANIMA",
         owner: deployer,
-        registry: CANONICAL_ERC6551_REGISTRY,
+        registry,
         accountImplementation: accountImpl,
         keyRegistry,
         verifier,
@@ -148,15 +165,23 @@ export async function main() {
   // The protocol refuses a self-hire, so a believable scenario needs distinct parties. Keys are
   // written outside the repository and funded with just enough gas to act.
   console.log("\ncast");
+  const keyNamespace = basename(path, ".json").replace(/[^a-zA-Z0-9_.-]/g, "_");
   for (const role of ["client", "validator", "buyer"]) {
     if (rec.cast[role]) {
+      const stored = privateKeyToAccount(
+        readFileSync(`${keyDir}/${rec.cast[role].keyFile}`, "utf8").trim() as `0x${string}`
+      );
+      if (getAddress(stored.address) !== getAddress(rec.cast[role].address)) {
+        throw new Error(`${role} key resolves to ${stored.address}, expected ${rec.cast[role].address}`);
+      }
       console.log(`  ${role.padEnd(24)} ${rec.cast[role].address}  (reused)`);
       continue;
     }
     const pk = generatePrivateKey();
-    const file = `${keyDir}/${role}.key`;
+    const keyFile = `${keyNamespace}-${role}.key`;
+    const file = `${keyDir}/${keyFile}`;
     writeFileSync(file, pk, { mode: 0o600 });
-    rec.cast[role] = { address: getAddress(privateKeyToAccount(pk).address), keyFile: `${role}.key` };
+    rec.cast[role] = { address: getAddress(privateKeyToAccount(pk).address), keyFile };
     save();
     console.log(`  ${role.padEnd(24)} ${rec.cast[role].address}`);
   }

@@ -160,6 +160,8 @@ describe("AnimaRoles — ERC-7432 without touching the token", () => {
     );
 
     await p.networkHelpers.time.increase(Number(30n * DAY) + 1);
+    // Expired records are permissionlessly collectable before releasing the aggregate lock.
+    await roles.write.revokeRole([p.anima.address, id, key], { account: p.deployer.account });
     await roles.write.unlockToken([p.anima.address, id], { account: p.deployer.account });
     await p.anima.write.transferFrom([p.alice.account.address, p.deployer.account.address, id], {
       account: p.alice.account,
@@ -189,7 +191,7 @@ describe("AnimaRoles — ERC-7432 without touching the token", () => {
     }
 
     await roles.write.revokeRole([p.anima.address, id, payer], { account: p.alice.account });
-    assert.equal(await roles.read.lockedUntil([id]), now + 30n * DAY);
+    assert.equal(await roles.read.activeRoleCount([id]), 1n);
     await expectRevert(roles.write.unlockToken([p.anima.address, id]), "StillLocked");
   });
 
@@ -225,7 +227,7 @@ describe("AnimaRoles — ERC-7432 without touching the token", () => {
       { account: p.alice.account }
     );
 
-    assert.equal(await roles.read.lockedUntil([id]), now + 30n * DAY);
+    assert.equal(await roles.read.activeRoleCount([id]), 2n);
     await p.networkHelpers.time.increase(Number(10n * DAY) + 1);
     await expectRevert(
       roles.write.unlockToken([p.anima.address, id], { account: p.deployer.account }),

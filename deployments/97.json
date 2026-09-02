@@ -1,0 +1,57 @@
+{
+  "chainId": 97,
+  "deployer": "0xc591C669162cD4da8aB9BfA2c2e68d538A312C00",
+  "contracts": {
+    "registry": "0x000000006551c19487814612e58FE06813775758",
+    "accountImpl": "0x4609897E82c0767c47841c6D0F01546785f2103B",
+    "keyRegistry": "0x1144308fb48D6F9dE0945cA64C1E1A652ceb1563",
+    "verifier": "0xe91FA50694b23B547B7bCd43116822e0631835fA",
+    "anima": "0xbbd203d76eb2a2e493f458dff74b10c6659d12a3",
+    "facetCore": "0xc83fee21ed736fb0e318ab92202faaa5e321ed1f",
+    "facetAgent": "0xbb2af02830e0a244ab1d387103e4d4888eecd8b9",
+    "facetBrain": "0x2f21234db0b2d6009e0d69349fc9c62b4ae99569",
+    "facetLoupe": "0x1cbfc8650a980951617308429fe69d28d74ace4f",
+    "animaInit": "0x5c941bfec72ea57bbb95d510f231d111ed12f35b",
+    "usdc": "0xb3d92c766e3Cb356Db381feB21958a9Ebb974365",
+    "bonds": "0x3A62Fdcd9B73F41e0aa7D938d6E29BC51Ca76FD4",
+    "reputation": "0xFDd05cD20F41206698df54AA93dDBB721dC83Ec1",
+    "validation": "0xa10f1092EE3a017699a494A83875A7383A22f9e7",
+    "escrow": "0xC6bF11Ded3CA645703eB3Cd7c9E663772Ce14AB9",
+    "market": "0xB768d0ad7F8b7f0Fa79Af38da682F389538cb673",
+    "comms": "0x20291F8ea4554eFcC1C115a4834C3f6D2594d3cC",
+    "meter": "0xA9c0f8aeb07E61c05AfCA2F73E1fdDA66eF84d8f",
+    "handles": "0x6b15AD51344C178FDfc58e231171D18e18050879",
+    "roles": "0x23989eDD6a7e7CDb1b4bb44f42e11D5eB0EE5832"
+  },
+  "cast": {
+    "client": {
+      "address": "0x0137a60c7297c250091B5E1b1EFF5082Bd4459d3",
+      "keyFile": "client.key"
+    },
+    "validator": {
+      "address": "0xB6129B69024f9a4C06fEe744D9f1ea634c4862E9",
+      "keyFile": "validator.key"
+    },
+    "buyer": {
+      "address": "0xbF82002a659CEba9855b3f153a71BFa48DA5B262",
+      "keyFile": "buyer.key"
+    }
+  },
+  "wiring": [
+    "anima.setModule(escrow)",
+    "anima.setModule(market)",
+    "anima.setModule(roles)",
+    "bonds.setModule(escrow)",
+    "bonds.setArbiter(escrow)",
+    "reputation.setSettlementModule(escrow)",
+    "validation.setValidator(validator)",
+    "mint aUSD"
+  ],
+  "smoke": {
+    "agentId": "1",
+    "account": "0xCF8Fc6C54E6f96d967Aa617717720aAbfc817aAD",
+    "policy": true,
+    "active": true,
+    "executed": true
+  }
+}

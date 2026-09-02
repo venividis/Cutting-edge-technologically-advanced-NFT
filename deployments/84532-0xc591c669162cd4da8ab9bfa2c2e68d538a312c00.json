@@ -1,0 +1,293 @@
+{
+  "chainId": 84532,
+  "deployer": "0xc591C669162cD4da8aB9BfA2c2e68d538A312C00",
+  "contracts": {
+    "registry": "0x000000006551c19487814612e58FE06813775758",
+    "accountImpl": "0x4609897E82c0767c47841c6D0F01546785f2103B",
+    "keyRegistry": "0x1144308fb48D6F9dE0945cA64C1E1A652ceb1563",
+    "verifier": "0xC83feE21eD736Fb0e318ab92202FAaA5E321ed1F",
+    "anima": "0xb3d92c766e3cb356db381feb21958a9ebb974365",
+    "facetCore": "0xbb2af02830e0a244ab1d387103e4d4888eecd8b9",
+    "facetAgent": "0x2f21234db0b2d6009e0d69349fc9c62b4ae99569",
+    "facetBrain": "0x1cbfc8650a980951617308429fe69d28d74ace4f",
+    "facetLoupe": "0x5c941bfec72ea57bbb95d510f231d111ed12f35b",
+    "animaInit": "0xbbd203d76eb2a2e493f458dff74b10c6659d12a3",
+    "usdc": "0x3A62Fdcd9B73F41e0aa7D938d6E29BC51Ca76FD4",
+    "bonds": "0xFDd05cD20F41206698df54AA93dDBB721dC83Ec1",
+    "reputation": "0xa10f1092EE3a017699a494A83875A7383A22f9e7",
+    "validation": "0xC6bF11Ded3CA645703eB3Cd7c9E663772Ce14AB9",
+    "escrow": "0xB768d0ad7F8b7f0Fa79Af38da682F389538cb673",
+    "market": "0x20291F8ea4554eFcC1C115a4834C3f6D2594d3cC",
+    "comms": "0xA9c0f8aeb07E61c05AfCA2F73E1fdDA66eF84d8f",
+    "meter": "0x6b15AD51344C178FDfc58e231171D18e18050879",
+    "handles": "0x23989eDD6a7e7CDb1b4bb44f42e11D5eB0EE5832",
+    "roles": "0x2b978a2cC681C21D1DF8527b65F7C4f5e8053a11"
+  },
+  "cast": {
+    "client": {
+      "address": "0xE9d3d22A7a74114Fb5b44b8109C5d91a354FBa27",
+      "keyFile": "client.key"
+    },
+    "validator": {
+      "address": "0x41d037C76670074D23416e42Af0A32FC454D44B7",
+      "keyFile": "validator.key"
+    },
+    "buyer": {
+      "address": "0xf3FF7405f17EBFd36a8A572E19C2133Ede4AD6a1",
+      "keyFile": "buyer.key"
+    }
+  },
+  "wiring": [
+    "anima.setModule(escrow)",
+    "anima.setModule(market)",
+    "anima.setModule(roles)",
+    "bonds.setModule(escrow)",
+    "bonds.setArbiter(escrow)",
+    "reputation.setSettlementModule(escrow)",
+    "validation.setValidator(validator)",
+    "mint aUSD"
+  ],
+  "smoke": {
+    "agentId": "1",
+    "account": "0xEca46A834Cc8c05dCf0f4Bf895E3E55b0Fc94c38",
+    "policy": true,
+    "active": true,
+    "executed": true
+  },
+  "extended": {
+    "launchpad": "0x5ed9230C9eF2e53B0D26128902e59b02ca701624",
+    "liquidityDeployer": "0x8f2D580F72bdf54b3B595C545Ced39Aa79583aa0",
+    "swapRouter": "0x6DF966056DB85F39A97F0EC8a6928c0E281edeb8",
+    "swapVenue": "0x8dA10Ebb9Bbb522af79f5Acd76Dff7e67730773c",
+    "swapTokenIn": "0xea4CF66B6D44A28b901c976081f13A5B2B2CECB1",
+    "swapTokenOut": "0x37af9513F7fa8bdD97061Dfd33FC72eA9504d401",
+    "derivatives": "0x1177cFBe651AcC4920B64a2c002739b3fbCf85f6",
+    "perpVenue": "0x686B2a229C568b1292C7EFB4A6621E06C71feB1D",
+    "bindings": "0x4e0446853C042720F39b1D94ED858Abe5890EaD7",
+    "lastRun": {
+      "agentId": "9",
+      "marketAgentId": "11",
+      "completed": true
+    }
+  },
+  "townRun": {
+    "chainId": 84532,
+    "at": "2026-08-31T15:51:42.435Z",
+    "residents": [
+      {
+        "name": "Ada",
+        "address": "0x84CbdC72eFD88f0737e9A0337aA89A331105c90a",
+        "agentId": "12"
+      },
+      {
+        "name": "Babbage",
+        "address": "0xA3610c1826e6D119374b0F83c7167B3FD85ED129",
+        "agentId": "13"
+      },
+      {
+        "name": "Curie",
+        "address": "0x725d29FAEAEa31763e8dd60aaD85Bf09a5869D6f",
+        "agentId": "14"
+      }
+    ],
+    "successfulTransactions": 27,
+    "expectedReverts": 12,
+    "evidence": [
+      {
+        "label": "mint Ada's agent",
+        "hash": "0xe29482af5a9e9115e460759047919eb20007b5b8958994d7ada3045fd47af8a3",
+        "status": "success"
+      },
+      {
+        "label": "deploy Ada's agent wallet",
+        "hash": "0xf7d2f19980206267cfb94ea01854dda9a1307011ddea430038af5b5d4648d179",
+        "status": "success"
+      },
+      {
+        "label": "Ada approves vault",
+        "hash": "0x83d26c21124495a9ae4812fa1032c61275234802af9077f6a0358cfaa1334668",
+        "status": "success"
+      },
+      {
+        "label": "Ada bonds its agent",
+        "hash": "0x60ffc1605f86da9c20bb03f58dc521974eaa9021fedd86b3cc0d9a82ff4957ad",
+        "status": "success"
+      },
+      {
+        "label": "mint Babbage's agent",
+        "hash": "0xa8c20025701fa015d656c74dbacd918674cdffcac34c5ab1bea58d46bb3082af",
+        "status": "success"
+      },
+      {
+        "label": "deploy Babbage's agent wallet",
+        "hash": "0x88cba686ee28f3332b5efc1e3fd928c604f3c57655edebfb1d6668aab122235e",
+        "status": "success"
+      },
+      {
+        "label": "Babbage approves vault",
+        "hash": "0xf363071bdff71c029490ba79bb85c6847e5dbc8c5efeb0c9b9a23d50a5ae3bca",
+        "status": "success"
+      },
+      {
+        "label": "Babbage bonds its agent",
+        "hash": "0x6f007c7674effbd2098f198981e51faf487dc20f8cd40e68695e8d09a47fe435",
+        "status": "success"
+      },
+      {
+        "label": "mint Curie's agent",
+        "hash": "0xfa2ccf75029b17e4b14ae994b0491aa45cd42e1f8609961dab43e7dd2c2d1958",
+        "status": "success"
+      },
+      {
+        "label": "deploy Curie's agent wallet",
+        "hash": "0x780a8f715673790775f1b7d5d22c2227cc085a57e2b5ff935b5283803ddecfa6",
+        "status": "success"
+      },
+      {
+        "label": "Curie approves vault",
+        "hash": "0x4dae4e3737330fd7279760439a27b62a47441c64d87cd939494a67ad1559af16",
+        "status": "success"
+      },
+      {
+        "label": "Curie bonds its agent",
+        "hash": "0xa58cdeea1559eea452a3f4f19dbd0503195dce8939567e44d263d9f8a4ba7cf6",
+        "status": "success"
+      },
+      {
+        "label": "Ada opens a closed inbox",
+        "hash": "0x9bf8f9ce5c1a066e96e6f3df2416f8b2f22fe3abe0eb4399ea4abc3328700a3c",
+        "status": "success"
+      },
+      {
+        "label": "Ada allowlists Curie's agent",
+        "hash": "0x32223ae32309bc24e6d0f93e189b4a82b30cc19192800dde1070f2b0c8f99faf",
+        "status": "success"
+      },
+      {
+        "label": "Babbage opens a closed inbox",
+        "hash": "0x0071a5d018bcf8ef6ab1f0497cccd5b599259a726e7d7efed9f57d8bb6877fd8",
+        "status": "success"
+      },
+      {
+        "label": "Babbage allowlists Ada's agent",
+        "hash": "0x75c0f452a81c1d8b623db69276d0008306556cd1700e39ddefd08921b6f160a8",
+        "status": "success"
+      },
+      {
+        "label": "Curie opens a closed inbox",
+        "hash": "0xbd970d737a93406c6dfe67a7373e097f4441089688a4dbbc466bffdca9cbfc38",
+        "status": "success"
+      },
+      {
+        "label": "Curie allowlists Babbage's agent",
+        "hash": "0x3df6016af0c69acc1e0641464cbdcd362127a8aacd173dc24f46abd6ce055297",
+        "status": "success"
+      },
+      {
+        "label": "Ada approves postage",
+        "hash": "0x743d93fc82bbccf4497a77db66191926965b95385c17a4818a7cf52d2c4bfccb",
+        "status": "success"
+      },
+      {
+        "label": "Ada's agent messages Babbage's",
+        "hash": "0x51b34f70e9a0974e70aa9d6e196e99e57d7826016d6c42ea79053bbd4a7ecf63",
+        "status": "success"
+      },
+      {
+        "label": "Babbage's agent replies",
+        "hash": "0x1fcee36b5362dd1737ff1e47ad4a8b3fb666a25f6665f62b817bc2a55293d2b7",
+        "status": "success"
+      },
+      {
+        "label": "Babbage approves postage",
+        "hash": "0xba14b0938cedd8df907f52dacaf16532cb6405a6df0af1cfc87082f65495ccc4",
+        "status": "success"
+      },
+      {
+        "label": "Babbage's agent messages Curie's",
+        "hash": "0xc4417647fbdc5131cdc97703eddfc751f81af4235af35a0815cfab90da7bb20c",
+        "status": "success"
+      },
+      {
+        "label": "Curie's agent replies",
+        "hash": "0xdbb4bd371620a52ef7611d8fd2827228b31bb9b5358b544cf41babac9aef426f",
+        "status": "success"
+      },
+      {
+        "label": "Curie approves postage",
+        "hash": "0x8b07462b507ecd121c5635a668895ea0d1af4cadd7918ccd9467ef486484bb37",
+        "status": "success"
+      },
+      {
+        "label": "Curie's agent messages Ada's",
+        "hash": "0x5d21a14177e1dae94280e29716eada08adc4db8dfa466d130baa3369e56bbda6",
+        "status": "success"
+      },
+      {
+        "label": "Ada's agent replies",
+        "hash": "0xe8c992aeaf4e129c0b4a263785db9b86bf33d5beb3661f7298e832946093dbdf",
+        "status": "success"
+      },
+      {
+        "label": "Ada cannot steal Babbage's NFT",
+        "hash": "0x77baf39093f9fc0d74b842e5b1f6cd4a71a79526c99e0d45bc6e6c5be1b85df2",
+        "status": "reverted"
+      },
+      {
+        "label": "Ada cannot rewrite Babbage's manifest",
+        "hash": "0x4441a80372a38602efb4890b5150378936ceb83ac09e951b107e6cb05c55e663",
+        "status": "reverted"
+      },
+      {
+        "label": "Ada cannot operate Babbage's wallet",
+        "hash": "0xee8a3bd355e8bffb49e068b6f2e2ca5cdefede6ae3d9b32a6f2b09566490f144",
+        "status": "reverted"
+      },
+      {
+        "label": "Ada cannot unbond Babbage's vault",
+        "hash": "0x40ce656fde8e353c65b8a28d03d5c39a46b47764a59bb96db8db750fe298f6eb",
+        "status": "reverted"
+      },
+      {
+        "label": "Babbage cannot steal Curie's NFT",
+        "hash": "0xf40249160ef0bbad2bf13ce9de09367a191ce258ec1ef3ccb929f1801e8bb53c",
+        "status": "reverted"
+      },
+      {
+        "label": "Babbage cannot rewrite Curie's manifest",
+        "hash": "0x098b45f8ad44e6d4eeeef4bc02e8b22524564ba9999841e307dd9fad89e6b21d",
+        "status": "reverted"
+      },
+      {
+        "label": "Babbage cannot operate Curie's wallet",
+        "hash": "0x88a852c4b0a67bdea1706f19d50e5b06f7fa7c40ba84948526e657bfb58b6030",
+        "status": "reverted"
+      },
+      {
+        "label": "Babbage cannot unbond Curie's vault",
+        "hash": "0xd837d2f3831c18c5b54b763738f430181e92156630b6e2fb435cddcc3ab59f68",
+        "status": "reverted"
+      },
+      {
+        "label": "Curie cannot steal Ada's NFT",
+        "hash": "0x22d581319a53e9920a213735d0799f591ae3a2c3ab262009b3e2aeaf1890ca51",
+        "status": "reverted"
+      },
+      {
+        "label": "Curie cannot rewrite Ada's manifest",
+        "hash": "0x69e977cef3ba1a7a9b016a57627581da63a8fb327fa1ee2e1c8035a7a98ce8d8",
+        "status": "reverted"
+      },
+      {
+        "label": "Curie cannot operate Ada's wallet",
+        "hash": "0xdf7daea079e009ec2bf64b74a3f6b6f8b08c750b3ba09a03a0210b7652f583f6",
+        "status": "reverted"
+      },
+      {
+        "label": "Curie cannot unbond Ada's vault",
+        "hash": "0x6b70dff0bc7d628eedb0ddbd44628b16e26d555a86d4be56305ba139d7bc9cbd",
+        "status": "reverted"
+      }
+    ]
+  }
+}

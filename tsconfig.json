@@ -8,5 +8,5 @@
     "types": ["node"],
     "verbatimModuleSyntax": true
   },
-  "include": ["hardhat.config.ts", "scripts/**/*.ts", "test/**/*.ts"]
+  "include": ["hardhat.config.ts"]
 }

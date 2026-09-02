@@ -1,11 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { keccak256, toHex, parseAbi, parseEther } from "viem";
+import { keccak256, toHex, parseAbi, parseEther, zeroAddress } from "viem";
 import {
   brainRoot as sdkBrainRoot,
   workRoot as sdkWorkRoot,
   replayAuditLog,
   manifestHash,
+  agentWebUrl,
   serialiseManifest,
   lockedDownPolicy,
   handleKey as sdkHandleKey,
@@ -25,6 +26,16 @@ import { deployProtocol, mintAgent, shard, AgentStatus, ZERO32 } from "./helpers
  * agreement is asserted here rather than assumed.
  */
 describe("SDK — agreement with the contracts", () => {
+  it("constructs and validates a globally unambiguous agent URL", () => {
+    assert.equal(
+      agentWebUrl("https://agents.example/console/", 84532, "0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3", 2n),
+      "https://agents.example/console/84532/0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3/2",
+    );
+    assert.throws(() => agentWebUrl("http://agents.example", 1, zeroAddress, 1n), /https/);
+    assert.throws(() => agentWebUrl("https://agents.example?redirect=evil", 1, zeroAddress, 1n), /query/);
+    assert.throws(() => agentWebUrl("https://agents.example", 0, zeroAddress, 1n), /chainId/);
+    assert.throws(() => agentWebUrl("https://agents.example", 1, zeroAddress, "../admin"), /agentId/);
+  });
   it("derives the same brain root as BrainLib", async () => {
     const p = await deployProtocol();
     const shards = [

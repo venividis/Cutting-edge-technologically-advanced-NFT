@@ -5,7 +5,7 @@
 An identity, a wallet, private state, a declared model, a published leash, and a bond you
 can take from it when it fails.
 
-> Status: reference implementation. 26 contracts, 231 tests, 23 review findings fixed.
+> Status: reference implementation. 26 contracts, 244 tests, 23 review findings fixed.
 > Two interchangeable builds of the token — a monolith and an immutable EIP-2535 diamond —
 > proved equivalent by running the same suite against both.
 > **Live on Base Sepolia** ([token](https://sepolia.basescan.org/address/0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3)), with a full agent lifecycle run on chain.
@@ -251,7 +251,7 @@ opinion about who controls an agent.
 
 **The equivalence is tested, not asserted.** The facets partition the monolith's ABI — the cut
 is derived from it at deploy time and refuses to build if a function goes unrouted or a facet
-invents one — so every one of the 189 protocol tests runs unmodified against either build via
+invents one — so every one of the 197 protocol tests runs unmodified against either build via
 `ANIMA_IMPL=diamond`. On top of that, `Diamond.test.ts` drives an identical agent through both
 and asserts their ERC-5646 fingerprints — one hash over the whole of an agent's mutable
 state — are byte-identical.
@@ -288,7 +288,7 @@ escrow state machine).
 
 Stated here rather than buried, because a standard that hides them is worse than useless.
 
-- **Unaudited.** 231 tests and an adversarial review pass are not an audit.
+- **Unaudited.** 244 tests and an adversarial review pass are not an audit.
 - **Sealing protects future state, not past.** A prior owner who already exported plaintext
   keeps it. No cryptography fixes this; `SealPolicy` exists so you can price it.
 - **The attester quorum is a trust assumption.** Collusion of `threshold` attesters forges a
@@ -399,15 +399,55 @@ carries no value.
 ```bash
 npm install
 npx hardhat build      # solc 0.8.28, viaIR, cancun
-npx hardhat test       # 231 tests against the monolith
-npm run test:diamond   # the same 231 against the EIP-2535 build
+npx hardhat test       # 244 tests against the monolith
+npm run test:diamond   # the same 244 against the EIP-2535 build
 npm run test:both      # both, in sequence
 ```
+
+If Hardhat reports `HHE905` behind a corporate or container proxy while `curl` still has network
+access, prime its standard compiler cache and retry:
+
+```bash
+npm run compiler:cache
+npm run build
+npx hardhat test test/Sdk.test.ts
+```
+
+The cache command downloads both the native and WASM solc 0.8.28 builds from Solidity's official
+binary repository and verifies each published SHA-256 checksum. It does not modify `node_modules`
+or commit compiler binaries. In a truly offline environment, populate the same cache in the CI
+image or restore it from a trusted cache artifact before running Hardhat.
 
 Docs: [architecture](docs/ARCHITECTURE.md) · [the standard](docs/SPEC.md) ·
 [security model](docs/SECURITY.md) · [deploying](docs/DEPLOYMENT.md)
 
 Overview page: <https://claude.ai/code/artifact/38d30b21-bce9-4e98-9944-b2ad85eba5e4>
+
+## Give an agent a sovereign web name
+
+Run the guided terminal and type `/bind`:
+
+```bash
+export ANIMA_PRIVATE_KEY=0x...   # current agent controller and ENS owner; never committed
+export ANIMA_RPC_URL=https://... # the agent's home chain
+export ENS_RPC_URL=https://...   # Ethereum, where the .eth name lives
+npm run anima
+
+anima> /bind
+```
+
+The wizard verifies that the signer controls the agent, derives its ERC-6551 account, and then
+offers to set the ENS address, `com.anima.agent`, `com.anima.account`, HTTPS fallback, and IPFS
+`contenthash` records atomically through the ENS resolver's `multicall`. For a second-level `.eth`,
+the current NFT owner can optionally transfer the ENS NFT into the agent account: the name then
+stays in the same account while control of that account follows ANIMA ownership. An operator or
+tenant may update records only when separately authorised by ENS, but cannot choose permanent
+custody. This custody step is deliberately opt-in and requires typing the name again.
+
+ENS is naming, not storage. Pin the exact GUI CID with multiple independent providers (and ideally
+an archival network) before binding it. The HTTPS URL is a compatibility route; the ENS contenthash
+is the independently recoverable route. The terminal never prompts for, prints, or stores a private
+key—it only reads `ANIMA_PRIVATE_KEY` from the process environment.
 
 ## License
 

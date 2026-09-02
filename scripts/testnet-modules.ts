@@ -44,7 +44,9 @@ const receipts = (n: number) =>
   }));
 
 export async function main() {
-  const rec = JSON.parse(readFileSync("deployments/84532.json", "utf8"));
+  const deploymentPath = process.env.ANIMA_DEPLOYMENT ?? process.env.ANIMA_DEPLOYMENT_FILE
+    ?? "deployments/84532.json";
+  const rec = JSON.parse(readFileSync(deploymentPath, "utf8"));
   const c = rec.contracts;
   const keyDir = process.env.ANIMA_KEY_DIR;
   if (!keyDir) throw new Error("ANIMA_KEY_DIR must point at the directory holding the cast keys");
@@ -54,9 +56,15 @@ export async function main() {
   const [wallet] = await viem.getWalletClients();
   const owner = getAddress(wallet.account.address);
   const chainId = await publicClient.getChainId();
+  if (rec.chainId !== chainId) throw new Error(`deployment record chain ${rec.chainId} does not match RPC chain ${chainId}`);
+  if (getAddress(rec.deployer) !== owner) throw new Error(`deployment belongs to ${rec.deployer}, not connected signer ${owner}`);
 
+  const clientAccount = privateKeyToAccount(readFileSync(`${keyDir}/${rec.cast.client.keyFile}`, "utf8").trim() as Hex);
+  if (getAddress(clientAccount.address) !== getAddress(rec.cast.client.address)) {
+    throw new Error(`client key resolves to ${clientAccount.address}, expected ${rec.cast.client.address}`);
+  }
   const clientWallet = createWalletClient({
-    account: privateKeyToAccount(readFileSync(`${keyDir}/${rec.cast.client.keyFile}`, "utf8").trim() as Hex),
+    account: clientAccount,
     chain: baseSepolia,
     transport: http(process.env.BASE_SEPOLIA_RPC ?? "https://sepolia.base.org"),
   });
@@ -178,6 +186,7 @@ export async function main() {
     const workRoot = await meter.read.workRootOf([batch]);
     const deadline = BigInt((await publicClient.getBlock()).timestamp) + HOUR;
     const signature = await clientWallet.signTypedData({
+      account: clientWallet.account!,
       domain: { name: "AnimaInferenceMeter", version: "1", chainId, verifyingContract: c.meter as Address },
       types: { Voucher: [
         { name: "channelId", type: "uint256" }, { name: "cumulativeAmount", type: "uint256" },
@@ -201,7 +210,7 @@ export async function main() {
   await tx("…and again, at a new running total of 300", () =>
     meter.write.settle([channelId, aUSD(300), v2.deadline, v2.signature, batch2])
   );
-  console.log(`    → the agent's own wallet took ${(await usdc.read.balanceOf([account]) - before) / 1_000_000n} aUSD`);
+  console.log(`    → the agent's own wallet took ${((await usdc.read.balanceOf([account])) as bigint - (before as bigint)) / 1_000_000n} aUSD`);
 
   // Vouchers are cumulative, so an old one is worth nothing once a newer one is redeemed.
   let replay = "unexpectedly succeeded";

@@ -10,6 +10,7 @@
 
 import {
   encodeAbiParameters,
+  getAddress,
   keccak256,
   parseAbiParameters,
   toFunctionSelector,
@@ -95,6 +96,8 @@ export interface AgentManifest {
     pricing?: { unit: string; amount: string; token: Address; meter?: Address };
     /** Declared model, matching the on-chain ModelIdentity. */
     model?: { modelId: string; weightsRoot: Hex; attestationKind: number };
+    /** Human-facing, independently recoverable interface for this agent. */
+    gui?: AgentGui;
 
     /**
      * Peer-to-peer mesh presence. A Sovereign Agent Mesh control plane binds a libp2p peer id
@@ -114,6 +117,32 @@ export interface AgentManifest {
     /** Derivatives the agent is permitted to trade, mirroring its on-chain desk limits. */
     markets?: Array<{ market: string; venue: Address; maxLeverageX100: number }>;
   };
+}
+
+export interface AgentGui {
+  /** Ordinary HTTPS route that works in mainstream browsers. */
+  canonical: string;
+  /** Immutable GUI bundle, normally an `ipfs://` or `ar://` URI. */
+  contentUri: string;
+  /** File to load within the bundle. */
+  entrypoint: string;
+  /** GUI protocol/release version understood by the client. */
+  version: string;
+  /** Optional declarative console modules; never executable manifest code. */
+  modules?: string[];
+}
+
+/** Globally unambiguous browser route for an agent. */
+export function agentWebUrl(origin: string, chainId: number | bigint, contract: Address, agentId: string | bigint) {
+  const base = new URL(origin);
+  if (base.protocol !== "https:") throw new Error("agent GUI origin must use https");
+  if (base.username || base.password || base.search || base.hash) throw new Error("agent GUI origin must not contain credentials, a query or a fragment");
+  const chain = typeof chainId === "bigint" ? chainId : BigInt(chainId);
+  if (chain <= 0n) throw new Error("chainId must be a positive integer");
+  const id = agentId.toString();
+  if (!/^(0|[1-9][0-9]*)$/.test(id)) throw new Error("agentId must be a non-negative integer");
+  base.pathname = `${base.pathname.replace(/\/+$/, "")}/${chain}/${getAddress(contract).toLowerCase()}/${id}`;
+  return base.toString();
 }
 
 export type HandleKindName =
