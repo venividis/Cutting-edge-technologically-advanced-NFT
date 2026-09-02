@@ -15,5 +15,6 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - run: npm run audit:prod
       - run: npx hardhat build
       - run: npx hardhat test
