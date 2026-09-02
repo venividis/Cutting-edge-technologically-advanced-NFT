@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ExactERC20} from "../libraries/ExactERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -36,7 +36,7 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
  *      to make the client whole, not to perform severity.
  */
 contract BondVault is Ownable2Step, ReentrancyGuardTransient {
-    using SafeERC20 for IERC20;
+    using ExactERC20 for IERC20;
     using SafeCast for uint256;
 
     /*//////////////////////////////////////////////////////////////
@@ -169,7 +169,7 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
         AGENTS.ownerOf(agentId); // reverts for a non-existent agent
 
         uint256 balanceBefore = ASSET.balanceOf(address(this));
-        ASSET.safeTransferFrom(msg.sender, address(this), amount);
+        ASSET.transferFromExact(msg.sender, address(this), amount);
         uint256 received = ASSET.balanceOf(address(this)) - balanceBefore;
         if (received == 0) revert ZeroAmount();
         _bonds[agentId].total += received.toUint128();
@@ -234,7 +234,7 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
         b.total -= amount.toUint128();
         totalBonded -= amount;
 
-        ASSET.safeTransfer(to, amount);
+        ASSET.transferExact(to, amount);
         emit Withdrawn(agentId, to, amount);
     }
 
@@ -304,7 +304,7 @@ contract BondVault is Ownable2Step, ReentrancyGuardTransient {
         b.total -= amount.toUint128();
         totalBonded -= amount;
 
-        ASSET.safeTransfer(beneficiary, amount);
+        ASSET.transferExact(beneficiary, amount);
         emit Slashed(agentId, msg.sender, beneficiary, amount, reason);
     }
 

@@ -1,6 +1,6 @@
 # Security model
 
-Unaudited. 244 tests and an adversarial review pass are not an audit.
+Unaudited. 248 tests and an adversarial review pass are not an audit.
 
 ## Invariants
 
@@ -52,32 +52,35 @@ Each is enforced in code and covered by a test.
 25. **Redemption is neutral for remaining holders**: floor per token never decreases.
 26. **Swap output is verified by balance delta**, never by the venue's return value.
 27. **Approvals are zeroed in the same transaction** they are granted.
+28. **Every ERC-20 settlement is value-conserving.** The receiver balance delta must equal
+    the amount recorded by escrow, market, curve, vault, meter, or treasury accounting;
+    fee-on-transfer and rebasing transfers fail atomically instead of creating bad debt.
 
 ### Derivatives and identity
 
-28. **Leverage is derived from measured collateral and adapter-reported notional**, so an agent
+29. **Leverage is derived from measured collateral and adapter-reported notional**, so an agent
     cannot understate it by understating either half.
-29. **A position with notional and no measured collateral is refused**, not treated as infinite
+30. **A position with notional and no measured collateral is refused**, not treated as infinite
     leverage or divided by zero.
-30. **Unconsumed collateral returns to the agent in the same transaction**; the desk never holds
+31. **Unconsumed collateral returns to the agent in the same transaction**; the desk never holds
     a balance between trades.
-31. **A handle binds to exactly one agent at a time**, and verification goes stale the moment the
+32. **A handle binds to exactly one agent at a time**, and verification goes stale the moment the
     agent changes hands.
-32. **Handle verifiers are authorised per kind** — an inbox provider cannot certify DNS.
+33. **Handle verifiers are authorised per kind** — an inbox provider cannot certify DNS.
 
 ### Cross-chain
 
-33. **Inbound messages are rate-limited per source chain** where a limit is configured, so a
+34. **Inbound messages are rate-limited per source chain** where a limit is configured, so a
     forged verification costs a delay rather than every agent on the route.
-34. **Inbound messages require both** `msg.sender == endpoint` **and** a registered peer match.
+35. **Inbound messages require both** `msg.sender == endpoint` **and** a registered peer match.
     A zero peer is never trusted, so an unconfigured route fails closed.
-35. **Only an agent this contract sent out may return, and only from the chain it went to.**
-36. **A busy agent cannot bridge.**
-37. **A mirror collection has exactly one home route.** Numeric ERC-721 ids are only unique
+36. **Only an agent this contract sent out may return, and only from the chain it went to.**
+37. **A busy agent cannot bridge.**
+38. **A mirror collection has exactly one home route.** Numeric ERC-721 ids are only unique
     inside a collection, so a second home must deploy a separate mirror. The incompatible route
     is rejected during configuration, before any source NFT can be escrowed for an undeliverable
     packet.
-38. **An enabled inbound rate limit has a non-zero window.** A positive capacity paired with a
+39. **An enabled inbound rate limit has a non-zero window.** A positive capacity paired with a
     zero-second window is rejected rather than silently resetting on every message.
 
 ## Attack classes considered

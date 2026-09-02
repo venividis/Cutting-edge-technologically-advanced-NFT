@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ExactERC20} from "../libraries/ExactERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
@@ -59,7 +59,7 @@ interface IAnimaMarketHooks {
  *      the market — see the note on {AnimaAgent.setDefaultRoyalty}.
  */
 contract AgentMarket is EIP712, Ownable2Step, ReentrancyGuardTransient {
-    using SafeERC20 for IERC20;
+    using ExactERC20 for IERC20;
 
     /*//////////////////////////////////////////////////////////////
                                   TYPES
@@ -319,9 +319,9 @@ contract AgentMarket is EIP712, Ownable2Step, ReentrancyGuardTransient {
         } else {
             if (msg.value != 0) revert WrongPayment(0, msg.value);
             IERC20 token = IERC20(order.payToken);
-            if (fee != 0) token.safeTransferFrom(msg.sender, feeRecipient, fee);
-            if (royalty != 0) token.safeTransferFrom(msg.sender, royaltyReceiver, royalty);
-            if (toMaker != 0) token.safeTransferFrom(msg.sender, order.maker, toMaker);
+            if (fee != 0) token.transferFromExact(msg.sender, feeRecipient, fee);
+            if (royalty != 0) token.transferFromExact(msg.sender, royaltyReceiver, royalty);
+            if (toMaker != 0) token.transferFromExact(msg.sender, order.maker, toMaker);
         }
     }
 
