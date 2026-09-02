@@ -29,6 +29,7 @@ const animaAbi = parseAbi([
 ]);
 const erc721Abi = parseAbi([
   "function ownerOf(uint256 tokenId) view returns (address)",
+  "function reclaim(uint256 tokenId, address owner)",
   "function safeTransferFrom(address from, address to, uint256 tokenId)",
 ]);
 const wrapperAbi = parseAbi([
@@ -150,6 +151,7 @@ async function bind() {
       const tokenId = BigInt(labelhash(ensName.slice(0, -4)));
       const registrant = await ensClient.readContract({ address: BASE_REGISTRAR, abi: erc721Abi, functionName: "ownerOf", args: [tokenId] });
       if (registrant.toLowerCase() !== account.address.toLowerCase()) throw new Error("signer is not the .eth registrant");
+      await send(ensClient, ensWallet, { address: BASE_REGISTRAR, abi: erc721Abi, functionName: "reclaim", args: [tokenId, agentAccount] }, "ENS manager custody transfer");
       await send(ensClient, ensWallet, { address: BASE_REGISTRAR, abi: erc721Abi, functionName: "safeTransferFrom", args: [account.address, agentAccount, tokenId] }, "ENS custody transfer");
     }
   }
