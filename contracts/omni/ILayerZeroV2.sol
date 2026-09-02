@@ -6,9 +6,10 @@ pragma solidity ^0.8.28;
  * @layerzerolabs/lz-evm-protocol-v2 ILayerZeroEndpointV2.sol.
  *
  * Declared locally rather than imported because that package's `exports` map does not expose
- * its `contracts/` subpath, so a Node-resolution build cannot import it. Transcribing the
- * three structs and four functions actually used keeps the build hermetic and keeps the ABI
- * byte-identical to the deployed endpoints.
+ * its `contracts/` subpath, so a Node-resolution build cannot import it. The protocol uses no
+ * LayerZero package implementation: it talks to the deployed endpoint only through this ABI.
+ * Keeping the three structs and receiver/endpoint functions actually used here makes the build
+ * hermetic, keeps the ABI byte-identical, and avoids shipping LayerZero's unused tooling tree.
  */
 
 struct MessagingParams {
