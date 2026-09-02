@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ExactERC20} from "../libraries/ExactERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -46,6 +47,7 @@ interface IAnimaAccounts {
  */
 contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
+    using ExactERC20 for IERC20;
     using SafeCast for uint256;
 
     /*//////////////////////////////////////////////////////////////
@@ -265,7 +267,7 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         Launch storage l = _requireLive(launchId);
         if (quoteIn == 0) revert ZeroAmount();
 
-        QUOTE.safeTransferFrom(msg.sender, address(this), quoteIn);
+        QUOTE.transferFromExact(msg.sender, address(this), quoteIn);
 
         uint256 fee = _takeFee(l, quoteIn);
         uint256 netIn = quoteIn - fee;
@@ -292,7 +294,7 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         l.baseReserve = newBase.toUint128();
         l.baseSold = sold.toUint128();
 
-        IERC20(l.token).safeTransfer(msg.sender, baseOut);
+        IERC20(l.token).transferExact(msg.sender, baseOut);
         emit Bought(launchId, msg.sender, quoteIn, baseOut, fee);
     }
 
@@ -304,7 +306,7 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         Launch storage l = _requireLive(launchId);
         if (baseIn == 0) revert ZeroAmount();
 
-        IERC20(l.token).safeTransferFrom(msg.sender, address(this), baseIn);
+        IERC20(l.token).transferFromExact(msg.sender, address(this), baseIn);
 
         uint256 q = l.quoteReserve;
         uint256 b = l.baseReserve;
@@ -322,7 +324,7 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         l.baseReserve = newBase.toUint128();
         l.baseSold = (uint256(l.baseSold) - baseIn).toUint128();
 
-        QUOTE.safeTransfer(msg.sender, quoteOut);
+        QUOTE.transferExact(msg.sender, quoteOut);
         emit Sold(launchId, msg.sender, baseIn, quoteOut, fee);
     }
 
@@ -367,12 +369,12 @@ contract AgentLaunchpad is Ownable2Step, ReentrancyGuardTransient {
         fee = protocolCut + treasuryCut + agentCut;
         if (fee == 0) return 0;
 
-        if (protocolCut != 0) QUOTE.safeTransfer(protocolFeeRecipient, protocolCut);
+        if (protocolCut != 0) QUOTE.transferExact(protocolFeeRecipient, protocolCut);
         if (treasuryCut != 0) {
             QUOTE.forceApprove(l.token, treasuryCut);
             AgentToken(l.token).contribute(treasuryCut);
         }
-        if (agentCut != 0) QUOTE.safeTransfer(ANIMA.accountOf(l.agentId), agentCut);
+        if (agentCut != 0) QUOTE.transferExact(ANIMA.accountOf(l.agentId), agentCut);
     }
 
     /*//////////////////////////////////////////////////////////////

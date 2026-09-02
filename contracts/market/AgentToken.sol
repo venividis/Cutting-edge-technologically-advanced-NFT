@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ExactERC20} from "../libraries/ExactERC20.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -32,7 +32,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  *      increasing in revenue.
  */
 contract AgentToken is ERC20, ERC20Permit, ReentrancyGuardTransient {
-    using SafeERC20 for IERC20;
+    using ExactERC20 for IERC20;
 
     /*//////////////////////////////////////////////////////////////
                                  STORAGE
@@ -91,7 +91,7 @@ contract AgentToken is ERC20, ERC20Permit, ReentrancyGuardTransient {
     ///         account, an escrow module, a sponsor, or the launch curve's fee split.
     function contribute(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
-        QUOTE.safeTransferFrom(msg.sender, address(this), amount);
+        QUOTE.transferFromExact(msg.sender, address(this), amount);
         treasury += amount;
         emit RevenueReceived(msg.sender, amount, treasury);
     }
@@ -125,7 +125,7 @@ contract AgentToken is ERC20, ERC20Permit, ReentrancyGuardTransient {
         treasury = pool - payout;
         _burn(msg.sender, amount);
 
-        QUOTE.safeTransfer(msg.sender, payout);
+        QUOTE.transferExact(msg.sender, payout);
         emit Redeemed(msg.sender, amount, payout, treasury);
     }
 

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ExactERC20} from "../libraries/ExactERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
@@ -43,7 +43,7 @@ interface IAnimaCommsView {
  *      transport's job, and a contract that pretended to provide them would be lying.
  */
 contract AgentComms is ReentrancyGuardTransient {
-    using SafeERC20 for IERC20;
+    using ExactERC20 for IERC20;
     using SafeCast for uint256;
 
     /*//////////////////////////////////////////////////////////////
@@ -238,7 +238,7 @@ contract AgentComms is ReentrancyGuardTransient {
         });
 
         if (box.postage != 0) {
-            IERC20(box.feeToken).safeTransferFrom(msg.sender, address(this), box.postage);
+            IERC20(box.feeToken).transferFromExact(msg.sender, address(this), box.postage);
         }
 
         emit MessageSent(
@@ -265,7 +265,7 @@ contract AgentComms is ReentrancyGuardTransient {
         uint256 postage = m.postage;
 
         if (postage != 0) {
-            IERC20(m.feeToken).safeTransfer(ANIMA.accountOf(m.toAgentId), postage);
+            IERC20(m.feeToken).transferExact(ANIMA.accountOf(m.toAgentId), postage);
         }
 
         emit MessageAnswered(messageId, m.toAgentId, payloadHash, postage, transportURI);
@@ -283,7 +283,7 @@ contract AgentComms is ReentrancyGuardTransient {
         m.refunded = true;
         uint256 postage = m.postage;
         if (postage != 0) {
-            IERC20(m.feeToken).safeTransfer(m.sender, postage);
+            IERC20(m.feeToken).transferExact(m.sender, postage);
         }
         emit PostageRefunded(messageId, m.sender, postage);
     }

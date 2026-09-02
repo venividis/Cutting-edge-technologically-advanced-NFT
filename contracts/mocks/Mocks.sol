@@ -25,6 +25,26 @@ contract MockERC20 is ERC20 {
     }
 }
 
+/// @notice Burns 10% of every transfer, modelling fee-on-transfer assets that would make
+///         nominal accounting insolvent unless the receiver's actual balance delta is checked.
+contract MockTaxERC20 is ERC20 {
+    constructor() ERC20("Tax Token", "TAX") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function _update(address from, address to, uint256 amount) internal override {
+        if (from == address(0) || to == address(0)) {
+            super._update(from, to, amount);
+            return;
+        }
+        uint256 fee = amount / 10;
+        super._update(from, address(0), fee);
+        super._update(from, to, amount - fee);
+    }
+}
+
 /// @notice A venue that swaps at a fixed rate, for exercising {AgentSwapRouter}.
 contract MockVenue {
     using SafeERC20 for IERC20;

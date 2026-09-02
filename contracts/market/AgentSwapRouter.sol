@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ExactERC20} from "../libraries/ExactERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -45,6 +46,7 @@ interface IAnimaSwapView {
  */
 contract AgentSwapRouter is Ownable2Step, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
+    using ExactERC20 for IERC20;
     using SafeCast for uint256;
 
     /*//////////////////////////////////////////////////////////////
@@ -174,7 +176,7 @@ contract AgentSwapRouter is Ownable2Step, ReentrancyGuardTransient {
 
         _chargeLimit(r.agentId, r.tokenIn, r.amountIn);
 
-        IERC20(r.tokenIn).safeTransferFrom(account, address(this), r.amountIn);
+        IERC20(r.tokenIn).transferFromExact(account, address(this), r.amountIn);
 
         uint256 before = IERC20(r.tokenOut).balanceOf(address(this));
 
@@ -189,11 +191,11 @@ contract AgentSwapRouter is Ownable2Step, ReentrancyGuardTransient {
         amountOut = IERC20(r.tokenOut).balanceOf(address(this)) - before;
         if (amountOut < r.minOut) revert SlippageExceeded(amountOut, r.minOut);
 
-        IERC20(r.tokenOut).safeTransfer(account, amountOut);
+        IERC20(r.tokenOut).transferExact(account, amountOut);
 
         // Return anything the venue did not consume rather than letting it accumulate here.
         uint256 dust = IERC20(r.tokenIn).balanceOf(address(this));
-        if (dust != 0) IERC20(r.tokenIn).safeTransfer(account, dust);
+        if (dust != 0) IERC20(r.tokenIn).transferExact(account, dust);
 
         emit Swapped(r.agentId, r.tokenIn, r.tokenOut, r.amountIn, amountOut, r.venue);
     }

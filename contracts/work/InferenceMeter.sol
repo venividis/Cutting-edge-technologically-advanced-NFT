@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ExactERC20} from "../libraries/ExactERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
@@ -39,7 +39,7 @@ interface IAnimaMeterView {
  *      challenge window during which the agent can still redeem outstanding vouchers.
  */
 contract InferenceMeter is EIP712, ReentrancyGuardTransient {
-    using SafeERC20 for IERC20;
+    using ExactERC20 for IERC20;
     using SafeCast for uint256;
 
     /*//////////////////////////////////////////////////////////////
@@ -157,7 +157,7 @@ contract InferenceMeter is EIP712, ReentrancyGuardTransient {
         _channels[channelId] =
             Channel({client: msg.sender, token: token, agentId: agentId, deposited: amount.toUint128(), claimed: 0, closesAt: 0});
 
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(token).transferFromExact(msg.sender, address(this), amount);
         emit ChannelOpened(channelId, agentId, msg.sender, token, amount);
     }
 
@@ -168,7 +168,7 @@ contract InferenceMeter is EIP712, ReentrancyGuardTransient {
         if (amount == 0) revert ZeroAmount();
 
         c.deposited += amount.toUint128();
-        IERC20(c.token).safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(c.token).transferFromExact(msg.sender, address(this), amount);
         emit ChannelFunded(channelId, amount, c.deposited);
     }
 
@@ -210,7 +210,7 @@ contract InferenceMeter is EIP712, ReentrancyGuardTransient {
 
         // Earnings go to the agent's own account, not its owner's wallet: an agent that funds
         // itself can pay for its own inference, top up its own bond, and buy its own tools.
-        IERC20(c.token).safeTransfer(ANIMA.accountOf(c.agentId), paid);
+        IERC20(c.token).transferExact(ANIMA.accountOf(c.agentId), paid);
 
         emit Settled(channelId, c.agentId, cumulativeAmount, paid, workRoot, logRoot);
         for (uint256 i; i < receipts.length; ++i) {
@@ -265,7 +265,7 @@ contract InferenceMeter is EIP712, ReentrancyGuardTransient {
 
         c.deposited = c.claimed;
 
-        if (refunded != 0) IERC20(token).safeTransfer(client, refunded);
+        if (refunded != 0) IERC20(token).transferExact(client, refunded);
         emit ChannelClosed(channelId, client, refunded);
     }
 }

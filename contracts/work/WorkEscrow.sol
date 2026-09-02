@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ExactERC20} from "../libraries/ExactERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
@@ -48,7 +48,7 @@ interface IAnimaLocking {
  *      reputation registry mark it attested and weight it by the value actually settled.
  */
 contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
-    using SafeERC20 for IERC20;
+    using ExactERC20 for IERC20;
     using SafeCast for uint256;
 
     /*//////////////////////////////////////////////////////////////
@@ -223,7 +223,7 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
         j.specHash = specHash;
         j.state = JobState.Offered;
 
-        ASSET.safeTransferFrom(msg.sender, address(this), amount);
+        ASSET.transferFromExact(msg.sender, address(this), amount);
 
         emit JobOffered(jobId, agentId, msg.sender, amount, coverage, deadline, validator, specHash, specURI);
     }
@@ -237,7 +237,7 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
 
         j.state = JobState.Cancelled;
         uint256 amount = j.amount;
-        ASSET.safeTransfer(j.client, amount);
+        ASSET.transferExact(j.client, amount);
         emit JobCancelled(jobId);
     }
 
@@ -454,8 +454,8 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
 
         uint256 fee = (amount * feeBps) / 10_000;
         uint256 net = amount - fee;
-        if (fee != 0) ASSET.safeTransfer(feeRecipient, fee);
-        ASSET.safeTransfer(payee, net);
+        if (fee != 0) ASSET.transferExact(feeRecipient, fee);
+        ASSET.transferExact(payee, net);
 
         emit JobSettled(jobId, payee, net, fee, true);
     }
@@ -481,7 +481,7 @@ contract WorkEscrow is Ownable2Step, ReentrancyGuardTransient {
             }
         }
 
-        ASSET.safeTransfer(client, amount);
+        ASSET.transferExact(client, amount);
         emit JobSettled(jobId, client, amount, 0, false);
     }
 

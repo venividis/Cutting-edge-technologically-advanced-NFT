@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ExactERC20} from "../libraries/ExactERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -63,6 +64,7 @@ interface IPerpVenueAdapter {
  */
 contract AgentDerivativesDesk is Ownable2Step, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
+    using ExactERC20 for IERC20;
     using SafeCast for uint256;
 
     /*//////////////////////////////////////////////////////////////
@@ -229,7 +231,7 @@ contract AgentDerivativesDesk is Ownable2Step, ReentrancyGuardTransient {
         // ---- move collateral, measuring both directions ----
         uint256 heldBefore = QUOTE.balanceOf(address(this));
         if (r.marginIn != 0) {
-            QUOTE.safeTransferFrom(account, address(this), r.marginIn);
+            QUOTE.transferFromExact(account, address(this), r.marginIn);
             QUOTE.forceApprove(r.venue, r.marginIn);
         }
 
@@ -240,7 +242,7 @@ contract AgentDerivativesDesk is Ownable2Step, ReentrancyGuardTransient {
         // Whatever the venue did not consume, plus anything it returned, goes straight back.
         uint256 heldAfter = QUOTE.balanceOf(address(this));
         uint256 returned = heldAfter > heldBefore ? heldAfter - heldBefore : 0;
-        if (returned != 0) QUOTE.safeTransfer(account, returned);
+        if (returned != 0) QUOTE.transferExact(account, returned);
 
         uint256 consumed = r.marginIn > returned ? r.marginIn - returned : 0;
         uint256 refunded = returned > r.marginIn ? returned - r.marginIn : 0;
