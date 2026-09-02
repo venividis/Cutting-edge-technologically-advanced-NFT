@@ -5,7 +5,7 @@
 An identity, a wallet, private state, a declared model, a published leash, and a bond you
 can take from it when it fails.
 
-> Status: reference implementation. 26 contracts, 251 tests, 23 review findings fixed.
+> Status: reference implementation. 27 contracts, 258 tests, 23 review findings fixed.
 > Two interchangeable builds of the token — a monolith and an immutable EIP-2535 diamond —
 > proved equivalent by running the same suite against both.
 > **Live on Base Sepolia** ([token](https://sepolia.basescan.org/address/0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3)), with a full agent lifecycle run on chain.
@@ -209,7 +209,16 @@ mirrors elsewhere; the message carries the manifest commitment, brain root, mode
 policy, so a mirror is a **verifiable replica** rather than a receipt. A busy agent cannot leave
 at all.
 
-### 13. Two builds of the same token, one of which has no ceiling
+### 13. Revenue policy that cannot change after the deal
+
+`RevenueRouter` turns an agent's gross earnings into a bounded waterfall: at least 50% remains
+operating capital, while explicit shares may fund its redemption treasury, grow slashable bond,
+reward a referrer, or support a commons. Policies are owner-bound, wait two days to activate, and
+go stale on transfer. Orders commit to the policy *and referrer* before work begins, preventing a
+settlement caller from swapping either after the obligation exists. This is opt-in infrastructure,
+not a promise that revenue, referrals, or an agent token have economic or legal value.
+
+### 14. Two builds of the same token, one of which has no ceiling
 
 `AnimaAgent` is 23,971 bytes. EIP-170 allows 24,576. That 605-byte margin is not headroom, it
 is a countdown — the next Final standard worth adopting does not fit, and the levers left (drop
@@ -291,7 +300,7 @@ escrow state machine).
 
 Stated here rather than buried, because a standard that hides them is worse than useless.
 
-- **Unaudited.** 251 tests and an adversarial review pass are not an audit.
+- **Unaudited.** 258 tests and an adversarial review pass are not an audit.
 - **Sealing protects future state, not past.** A prior owner who already exported plaintext
   keeps it. No cryptography fixes this; `SealPolicy` exists so you can price it.
 - **The attester quorum is a trust assumption.** Collusion of `threshold` attesters forges a
@@ -402,8 +411,8 @@ carries no value.
 ```bash
 npm install
 npx hardhat build      # solc 0.8.28, viaIR, cancun
-npx hardhat test       # 251 tests against the monolith
-npm run test:diamond   # the same 251 against the EIP-2535 build
+npx hardhat test       # 258 tests against the monolith
+npm run test:diamond   # the same 258 against the EIP-2535 build
 npm run test:both      # both, in sequence
 ```
 

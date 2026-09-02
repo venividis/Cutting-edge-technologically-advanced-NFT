@@ -3,8 +3,8 @@
 ```bash
 npm install
 npx hardhat build
-npx hardhat test          # 251 tests — do not deploy on a red suite
-npm run test:diamond      # the same 248 against the EIP-2535 build
+npx hardhat test          # 258 tests — do not deploy on a red suite
+npm run test:diamond      # the same 258 against the EIP-2535 build
 ```
 
 ## Order and why it matters
@@ -21,7 +21,7 @@ npm run test:diamond      # the same 248 against the EIP-2535 build
 4. **The token** — either `AnimaAgent` (one contract) or `AnimaDiamond` (EIP-2535 facets). See
    below; everything downstream takes the token's address and does not care which you chose.
 5. **Accountability**: `BondVault`, `ReputationRegistry`, `ValidationRegistry`, `WorkEscrow`.
-6. **Markets and reach.**
+6. **Markets and reach**, including `RevenueRouter` after its settlement asset and bond vault exist.
 7. **Wiring.**
 
 ## Choosing a build
