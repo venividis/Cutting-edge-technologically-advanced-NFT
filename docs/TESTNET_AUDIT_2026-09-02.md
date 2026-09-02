@@ -44,8 +44,11 @@ real DEX/perpetual adapters are not present.
    EOA/ERC-1271, revocation, replay, and malformed-proof coverage.
 5. ERC-4337 needs real EntryPoint tests and differential fuzzing of its duplicated calldata/memory
    authorization paths.
-6. The dependency audit currently reports 29 findings (12 low, 1 moderate, 13 high, 3 critical),
-   primarily in transitive LayerZero tooling. Reachability and upgrade/override decisions are required.
+6. The 29 production-tree dependency findings were removed by deleting the unused LayerZero npm
+   packages. ANIMA already uses a minimal local endpoint ABI and imported no LayerZero implementation;
+   the packages contributed only an unused peer/tooling tree. CI now blocks high-severity production
+   dependency findings with `npm run audit:prod`. The full development-tree audit still reports
+   advisories in compiler and Hardhat verification tooling; see `docs/DEPENDENCY_SECURITY.md`.
 7. Add invariant/stateful fuzzing, static analysis, RPC quorum/reorg/nonce chaos, sustained load,
    bytecode/config drift checks, atomic evidence journals, and per-chain gas/balance budgets.
 
