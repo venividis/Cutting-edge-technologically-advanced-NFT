@@ -176,6 +176,9 @@ contract AgentSwapRouter is Ownable2Step, ReentrancyGuardTransient {
 
         _chargeLimit(r.agentId, r.tokenIn, r.amountIn);
 
+        // Keep balances that predate this call segregated. Accidental transfers and venue
+        // residue belong to neither this agent nor this swap and must not become a windfall.
+        uint256 inputBefore = IERC20(r.tokenIn).balanceOf(address(this));
         IERC20(r.tokenIn).transferFromExact(account, address(this), r.amountIn);
 
         uint256 before = IERC20(r.tokenOut).balanceOf(address(this));
@@ -193,8 +196,8 @@ contract AgentSwapRouter is Ownable2Step, ReentrancyGuardTransient {
 
         IERC20(r.tokenOut).transferExact(account, amountOut);
 
-        // Return anything the venue did not consume rather than letting it accumulate here.
-        uint256 dust = IERC20(r.tokenIn).balanceOf(address(this));
+        // Return only this swap's unconsumed input, never a balance that was already here.
+        uint256 dust = IERC20(r.tokenIn).balanceOf(address(this)) - inputBefore;
         if (dust != 0) IERC20(r.tokenIn).transferExact(account, dust);
 
         emit Swapped(r.agentId, r.tokenIn, r.tokenOut, r.amountIn, amountOut, r.venue);
