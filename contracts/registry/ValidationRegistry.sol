@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IValidationRegistry} from "../interfaces/IERC8004.sol";
+import {IERC8126} from "../interfaces/IERC8126.sol";
 
 /**
  * @title ValidationRegistry
@@ -22,7 +23,7 @@ import {IValidationRegistry} from "../interfaces/IERC8004.sol";
  *      `response` is a 0-100 score, as ERC-8004 intends. This contract treats >= 50 as
  *      "passed" when other modules ask it whether work cleared review.
  */
-contract ValidationRegistry is IValidationRegistry, Ownable2Step {
+contract ValidationRegistry is IValidationRegistry, IERC8126, Ownable2Step {
     /*//////////////////////////////////////////////////////////////
                                   TYPES
     //////////////////////////////////////////////////////////////*/
@@ -37,6 +38,13 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
         bool answered;
         bytes32 responseHash;
         string tag;
+    }
+
+    struct AgentVerification {
+        address provider;
+        uint64 verifiedAt;
+        uint8 riskScore;
+        bytes32 summaryProofId;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -57,6 +65,7 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
     mapping(bytes32 requestKey => Request) private _requests;
     mapping(uint256 agentId => bytes32[]) private _agentRequests;
     mapping(address validator => bytes32[]) private _validatorRequests;
+    mapping(uint256 agentId => AgentVerification) private _latestVerification;
 
     /*//////////////////////////////////////////////////////////////
                              EVENTS / ERRORS
@@ -74,6 +83,7 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
     error ScoreOutOfRange(uint8 response);
     error SelfValidation(uint256 agentId, address validator);
     error ZeroAddress();
+    error NoVerification(uint256 agentId);
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTION
@@ -96,6 +106,61 @@ contract ValidationRegistry is IValidationRegistry, Ownable2Step {
     function setRestrictValidators(bool restricted) external onlyOwner {
         restrictValidators = restricted;
         emit RestrictValidatorsSet(restricted);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                         ERC-8126 AGENT VERIFICATION
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Publish an ERC-8126 security assessment produced off-chain.
+    /// @dev Unlike ordinary ERC-8004 work validation, security badges always require an
+    ///      explicitly allowlisted provider. Otherwise anyone could overwrite a real result
+    ///      with a zero-risk self-assessment while the open validator market is enabled.
+    function recordAgentVerification(
+        uint256 agentId,
+        uint8 overallRiskScore,
+        bytes32 etvProofId,
+        bytes32 mcvProofId,
+        bytes32 scvProofId,
+        bytes32 wavProofId,
+        bytes32 wvProofId,
+        bytes32 summaryProofId
+    ) external {
+        if (!isValidator[msg.sender]) revert ValidatorNotAllowed(msg.sender);
+        if (overallRiskScore > 100) revert ScoreOutOfRange(overallRiskScore);
+        IERC721(IDENTITY_REGISTRY).ownerOf(agentId); // existence check
+
+        _latestVerification[agentId] = AgentVerification({
+            provider: msg.sender,
+            verifiedAt: uint64(block.timestamp),
+            riskScore: overallRiskScore,
+            summaryProofId: summaryProofId
+        });
+
+        emit AgentVerified(
+            agentId,
+            overallRiskScore,
+            etvProofId,
+            mcvProofId,
+            scvProofId,
+            wavProofId,
+            wvProofId,
+            summaryProofId
+        );
+        emit AttestationPosted(agentId, overallRiskScore, summaryProofId);
+    }
+
+    /// @inheritdoc IERC8126
+    function getLatestRiskScore(uint256 agentId) external view returns (uint8) {
+        AgentVerification storage verification = _latestVerification[agentId];
+        if (verification.provider == address(0)) revert NoVerification(agentId);
+        return verification.riskScore;
+    }
+
+    function latestVerificationOf(uint256 agentId) external view returns (AgentVerification memory) {
+        AgentVerification memory verification = _latestVerification[agentId];
+        if (verification.provider == address(0)) revert NoVerification(agentId);
+        return verification;
     }
 
     /*//////////////////////////////////////////////////////////////

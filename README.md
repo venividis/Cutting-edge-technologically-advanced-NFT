@@ -5,7 +5,7 @@
 An identity, a wallet, private state, a declared model, a published leash, and a bond you
 can take from it when it fails.
 
-> Status: reference implementation. 26 contracts, 249 tests, 23 review findings fixed.
+> Status: reference implementation. 26 contracts, 251 tests, 23 review findings fixed.
 > Two interchangeable builds of the token — a monolith and an immutable EIP-2535 diamond —
 > proved equivalent by running the same suite against both.
 > **Live on Base Sepolia** ([token](https://sepolia.basescan.org/address/0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3)), with a full agent lifecycle run on chain.
@@ -251,7 +251,7 @@ opinion about who controls an agent.
 
 **The equivalence is tested, not asserted.** The facets partition the monolith's ABI — the cut
 is derived from it at deploy time and refuses to build if a function goes unrouted or a facet
-invents one — so every one of the 197 protocol tests runs unmodified against either build via
+invents one — so every one of the 199 protocol tests runs unmodified against either build via
 `ANIMA_IMPL=diamond`. On top of that, `Diamond.test.ts` drives an identical agent through both
 and asserts their ERC-5646 fingerprints — one hash over the whole of an agent's mutable
 state — are byte-identical.
@@ -262,8 +262,11 @@ state — are byte-identical.
 
 **Implemented:** ERC-721, ERC-165, ERC-712, ERC-1271, ERC-2981, ERC-4337, ERC-4906, ERC-4907,
 ERC-5192, ERC-5646, ERC-6454, ERC-6492, ERC-6551, ERC-7201, ERC-7432, ERC-7572, ERC-8004
-(Identity + Reputation + Validation), ERC-8217, EIP-2535 — plus expiring, revocable approvals
+(Identity + Reputation + Validation), ERC-8126, ERC-8217, EIP-2535 — plus expiring, revocable approvals
 ported from ICRC-37 and CW-721, which EVM has no equivalent of.
+
+The full source-by-source review, including ONFT and the overloaded iNFT label, is in
+[`docs/NFT_STANDARDS_RESEARCH_2026-09-02.md`](docs/NFT_STANDARDS_RESEARCH_2026-09-02.md).
 
 **Adapted, not copied:** ERC-7857 (the proof-and-hash model, not the vendor ABI), ERC-7641
 (the redemption floor, not the snapshot machinery), ERC-8196 (the audit chain), ERC-8183 (the
@@ -288,7 +291,7 @@ escrow state machine).
 
 Stated here rather than buried, because a standard that hides them is worse than useless.
 
-- **Unaudited.** 249 tests and an adversarial review pass are not an audit.
+- **Unaudited.** 251 tests and an adversarial review pass are not an audit.
 - **Sealing protects future state, not past.** A prior owner who already exported plaintext
   keeps it. No cryptography fixes this; `SealPolicy` exists so you can price it.
 - **The attester quorum is a trust assumption.** Collusion of `threshold` attesters forges a
@@ -399,8 +402,8 @@ carries no value.
 ```bash
 npm install
 npx hardhat build      # solc 0.8.28, viaIR, cancun
-npx hardhat test       # 249 tests against the monolith
-npm run test:diamond   # the same 248 against the EIP-2535 build
+npx hardhat test       # 251 tests against the monolith
+npm run test:diamond   # the same 251 against the EIP-2535 build
 npm run test:both      # both, in sequence
 ```
 

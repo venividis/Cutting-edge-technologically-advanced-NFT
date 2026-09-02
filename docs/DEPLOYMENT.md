@@ -3,7 +3,7 @@
 ```bash
 npm install
 npx hardhat build
-npx hardhat test          # 249 tests — do not deploy on a red suite
+npx hardhat test          # 251 tests — do not deploy on a red suite
 npm run test:diamond      # the same 248 against the EIP-2535 build
 ```
 
