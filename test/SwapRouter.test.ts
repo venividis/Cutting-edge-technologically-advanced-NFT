@@ -162,6 +162,17 @@ describe("AgentSwapRouter — budgets denominated in the token", () => {
     assert.equal(await t.tokenIn.read.balanceOf([t.accountAddress]), UNIT(950));
   });
 
+  it("does not gift a pre-existing router balance to the next swapping agent", async () => {
+    const p = await deployProtocol();
+    const t = await tradingAgent(p);
+    await t.tokenIn.write.mint([p.swapRouter.address, UNIT(25)]);
+
+    await t.doSwap(UNIT(100), 0n);
+
+    assert.equal(await t.tokenIn.read.balanceOf([p.swapRouter.address]), UNIT(25));
+    assert.equal(await t.tokenIn.read.balanceOf([t.accountAddress]), UNIT(900));
+  });
+
   it("stops trading entirely while the agent is paused", async () => {
     const p = await deployProtocol();
     const t = await tradingAgent(p);
