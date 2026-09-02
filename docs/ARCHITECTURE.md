@@ -1,6 +1,6 @@
 # Architecture
 
-26 contracts in four layers, plus an alternate assembly of the token itself. Each layer is
+27 contracts in four layers, plus an alternate assembly of the token itself. Each layer is
 usable without the ones above it.
 
 ## Layer 1 — Core
@@ -214,6 +214,15 @@ leaves durable value in the token rather than only in a fee wallet. Graduation m
 the unsold supply into an `ILiquidityDeployer`; that seam is abstract because Uniswap v2/v3/v4,
 Balancer and every L2 fork want different call shapes, and hard-coding one would date the contract
 the moment the venue changed.
+
+`RevenueRouter` is the opt-in waterfall between gross revenue and those sinks. An agent owner may
+allocate at most half away from operations, with referral extraction capped at 5%; treasury shares
+enter `AgentToken` through `contribute`, bond shares enter `BondVault`, and every rounding remainder
+stays with the operating account. Policies wait two days before activation and become stale on NFT
+transfer. An order or voucher commits to `revenueCommitment(agentId, referrer)`, which also binds the
+chain and router address, so neither a policy change nor a substituted referrer can alter an accepted
+obligation. The router does not decide whether a referral matured: an integrating escrow must apply
+that evidence rule before it snapshots the commitment.
 
 `AgentDerivativesDesk` covers the axis spot budgets cannot: leverage. It caps notional, margin at
 risk and leverage per market plus collateral across the whole portfolio, and checks all of it

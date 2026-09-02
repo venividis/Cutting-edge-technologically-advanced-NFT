@@ -2,7 +2,7 @@
 
 ANIMA — an agent-native NFT protocol. One ERC-721 token is one complete, economically
 accountable AI agent: identity, wallet, private state, declared model, published autonomy
-policy, and a slashable bond. 26 deployable contracts, 251 tests, deployed and exercised on
+policy, and a slashable bond. 27 deployable contracts, 258 tests, deployed and exercised on
 Base Sepolia. Unaudited.
 
 ## Commands
@@ -17,7 +17,7 @@ npx hardhat test test/Market.test.ts  # one file
 ```
 
 Toolchain: Hardhat 3 (viem toolbox), solc 0.8.28, optimizer runs 200, **viaIR**, evmVersion
-**cancun** (transient storage is used in 14 contracts — target chains must have Cancun).
+**cancun** (transient storage is used in 15 contracts — target chains must have Cancun).
 Tests are `node:test` + viem, TypeScript ESM: local imports end in `.js`.
 
 ## The one thing to understand first
@@ -59,6 +59,7 @@ contracts/account/    AgentAccount — ERC-6551 wallet, session keys, budgets, E
 contracts/registry/   BondVault, ReputationRegistry, ValidationRegistry, AgentHandles, AnimaRoles, AnimaBindings
 contracts/work/       WorkEscrow (hire→deliver→settle/dispute), InferenceMeter (EIP-712 vouchers)
 contracts/market/     AgentMarket, AgentLaunchpad, AgentToken, AgentSwapRouter, AgentDerivativesDesk
+contracts/economy/    RevenueRouter — timelocked, commitment-safe revenue waterfalls
 contracts/comms/      AgentComms — priced attention
 contracts/omni/       LayerZero V2 home/mirror bridge (escrow, never burn)
 contracts/interfaces/ IAnima (incl. normative AgentCore/Lease), IERC8004, IERC7432, …

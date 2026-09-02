@@ -122,6 +122,14 @@ export async function deploy(config: Config) {
   ]);
   log("AgentLaunchpad", launchpad.address);
 
+  const revenueRouter = await viem.deployContract("RevenueRouter", [
+    config.settlementAsset,
+    anima.address,
+    anima.address,
+    bonds.address,
+  ]);
+  log("RevenueRouter", revenueRouter.address);
+
   const swapRouter = await viem.deployContract("AgentSwapRouter", [anima.address, anima.address, owner]);
   log("AgentSwapRouter", swapRouter.address);
 
@@ -170,7 +178,7 @@ Next steps, none of which are optional:
      an approved enclave measurement exist.
 `);
 
-  return { anima, accountImpl, keyRegistry, verifier, bonds, reputation, validation, escrow, market, launchpad, swapRouter, comms, meter, bindings, omniHome };
+  return { anima, accountImpl, keyRegistry, verifier, bonds, reputation, validation, escrow, market, launchpad, revenueRouter, swapRouter, comms, meter, bindings, omniHome };
 }
 
 // Example: Base mainnet-shaped configuration. Replace before using.
