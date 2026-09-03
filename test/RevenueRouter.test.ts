@@ -53,6 +53,27 @@ describe("RevenueRouter — commitment-safe revenue waterfalls", () => {
     await expectRevert(router.write.routeExpected([id, U(1), p.alice.account.address, sellerHash], { account: p.carol.account }), "StalePolicy");
   });
 
+  it("routes an accepted commitment after a replacement policy activates", async () => {
+    const { p, id, token, router } = await fixture();
+    await router.write.proposePolicy([id, token.address, p.treasury.account.address, 2000, 0, 0, 0], { account: p.alice.account });
+    await p.networkHelpers.time.increase(2 * 24 * 60 * 60);
+    await router.write.activatePolicy([id]);
+    const acceptedCommitment = await router.read.revenueCommitment([id, p.carol.account.address]);
+
+    await router.write.proposePolicy([id, token.address, p.treasury.account.address, 0, 0, 0, 2000], { account: p.alice.account });
+    await p.networkHelpers.time.increase(2 * 24 * 60 * 60);
+    await router.write.activatePolicy([id]);
+    assert.notEqual(await router.read.revenueCommitment([id, p.carol.account.address]), acceptedCommitment);
+
+    await p.usdc.write.mint([p.bob.account.address, U(100)]);
+    await p.usdc.write.approve([router.address, U(100)], { account: p.bob.account });
+    await router.write.routeExpected([id, U(100), p.carol.account.address, acceptedCommitment], { account: p.bob.account });
+
+    assert.equal(await token.read.treasury(), U(20));
+    assert.equal(await p.usdc.read.balanceOf([p.treasury.account.address]), 0n);
+    assert.equal(await p.usdc.read.balanceOf([await p.anima.read.accountOf([id])]), U(80));
+  });
+
   it("enforces an operating majority and caps referral extraction", async () => {
     const { p, id, token, router } = await fixture();
     await expectRevert(router.write.proposePolicy([id, token.address, p.treasury.account.address, 5000, 1, 0, 0], { account: p.alice.account }), "InvalidPolicy");

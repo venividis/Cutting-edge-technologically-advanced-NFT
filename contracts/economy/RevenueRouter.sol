@@ -57,6 +57,7 @@ contract RevenueRouter is ReentrancyGuardTransient {
 
     mapping(uint256 agentId => Policy) private _policies;
     mapping(uint256 agentId => PendingPolicy) private _pending;
+    mapping(uint256 agentId => mapping(bytes32 policyHash => Policy)) private _policyVersions;
 
     event PolicyProposed(uint256 indexed agentId, bytes32 indexed policyHash, uint64 activatesAt);
     event PolicyActivated(uint256 indexed agentId, bytes32 indexed policyHash);
@@ -109,7 +110,7 @@ contract RevenueRouter is ReentrancyGuardTransient {
     /// @notice Commitment an escrow/order should snapshot before accepting an obligation.
     ///         Binding the referrer prevents the settlement caller substituting itself later.
     function revenueCommitment(uint256 agentId, address referrer) public view returns (bytes32) {
-        return keccak256(abi.encode(block.chainid, address(this), agentId, policyHash(agentId), referrer));
+        return _commitment(policyHash(agentId), agentId, referrer);
     }
 
     function proposePolicy(
@@ -142,8 +143,10 @@ contract RevenueRouter is ReentrancyGuardTransient {
         }
         if (AGENTS.ownerOf(agentId) != pending.policy.configuredBy) revert InvalidPolicy();
         _policies[agentId] = pending.policy;
+        bytes32 activatedHash = keccak256(abi.encode(pending.policy));
+        _policyVersions[agentId][activatedHash] = pending.policy;
         delete _pending[agentId];
-        emit PolicyActivated(agentId, keccak256(abi.encode(pending.policy)));
+        emit PolicyActivated(agentId, activatedHash);
     }
 
     /// @notice Route revenue only if the policy is exactly the one the payer committed to.
@@ -153,10 +156,16 @@ contract RevenueRouter is ReentrancyGuardTransient {
         nonReentrant
     {
         if (amount == 0) revert ZeroAmount();
-        Policy memory policy = policyOf(agentId);
+        bytes32 expectedPolicyHash = expectedCommitment ^ _commitment(bytes32(0), agentId, referrer);
+        Policy memory policy = _policyVersions[agentId][expectedPolicyHash];
         bytes32 actual = keccak256(abi.encode(policy));
-        bytes32 commitment = keccak256(abi.encode(block.chainid, address(this), agentId, actual, referrer));
-        if (commitment != expectedCommitment) revert StalePolicy(expectedCommitment, commitment);
+        bytes32 currentCommitment = revenueCommitment(agentId, referrer);
+        // The all-zero policy is the implicit default and therefore has no stored version.
+        // Configured policies remain usable after replacement, but not after ownership transfer.
+        if (
+            actual != expectedPolicyHash
+                || (policy.configuredBy != address(0) && policy.configuredBy != AGENTS.ownerOf(agentId))
+        ) revert StalePolicy(expectedCommitment, currentCommitment);
         if (policy.referralBps != 0 && referrer == address(0)) revert MissingReferrer();
 
         ASSET.transferFromExact(msg.sender, address(this), amount);
@@ -184,5 +193,11 @@ contract RevenueRouter is ReentrancyGuardTransient {
             agentId, msg.sender, actual, amount, operating, treasuryAmount, bondAmount, referralAmount,
             commonsAmount, referrer
         );
+    }
+
+    /// @dev XOR keeps the policy hash recoverable at settlement while the domain, agent and
+    ///      referrer remain cryptographically bound to the commitment.
+    function _commitment(bytes32 policyHash_, uint256 agentId, address referrer) private view returns (bytes32) {
+        return policyHash_ ^ keccak256(abi.encode(block.chainid, address(this), agentId, referrer));
     }
 }
