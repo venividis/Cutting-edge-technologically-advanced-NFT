@@ -112,6 +112,18 @@ export async function deploy(config: Config) {
   ]);
   log("AgentMarket", market.address);
 
+  // Fiat rails remain off-chain; this gateway is the narrow on-chain fulfilment boundary.
+  // The treasury supplies aUSD and must approve the gateway before a processor can settle.
+  const fiatGateway = await viem.deployContract("FiatMintGateway", [
+    anima.address,
+    config.settlementAsset,
+    config.protocolTreasury,
+    config.protocolTreasury,
+    owner,
+  ]);
+  await fiatGateway.write.setProcessor([owner, true]);
+  log("FiatMintGateway", fiatGateway.address);
+
   const launchpad = await viem.deployContract("AgentLaunchpad", [
     config.settlementAsset,
     anima.address,
@@ -178,7 +190,7 @@ Next steps, none of which are optional:
      an approved enclave measurement exist.
 `);
 
-  return { anima, accountImpl, keyRegistry, verifier, bonds, reputation, validation, escrow, market, launchpad, revenueRouter, swapRouter, comms, meter, bindings, omniHome };
+  return { anima, accountImpl, keyRegistry, verifier, bonds, reputation, validation, escrow, market, fiatGateway, launchpad, revenueRouter, swapRouter, comms, meter, bindings, omniHome };
 }
 
 // Example: Base mainnet-shaped configuration. Replace before using.
