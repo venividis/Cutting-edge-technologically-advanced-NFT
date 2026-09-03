@@ -275,6 +275,31 @@ describe("AnimaRoles — ERC-7432 without touching the token", () => {
     );
   });
 
+  it("cannot overwrite an unexpired irrevocable role", async () => {
+    const p = await deployProtocol();
+    const { roles, id, now } = await withRoles(p);
+    const key = await roles.read.OPERATOR();
+
+    await roles.write.grantRole(
+      [role({ roleId: key, tokenAddress: p.anima.address, tokenId: id,
+        recipient: p.bob.account.address, expirationDate: now + 30n * DAY, revocable: false })],
+      { account: p.alice.account }
+    );
+
+    await expectRevert(
+      roles.write.grantRole(
+        [role({ roleId: key, tokenAddress: p.anima.address, tokenId: id,
+          recipient: p.carol.account.address, expirationDate: now + 7n * DAY })],
+        { account: p.alice.account }
+      ),
+      "IrrevocableRoleActive"
+    );
+    assert.equal(
+      getAddress(await roles.read.recipientOf([p.anima.address, id, key])),
+      getAddress(p.bob.account.address)
+    );
+  });
+
   it("holds an irrevocable role against the owner until it expires", async () => {
     const p = await deployProtocol();
     const { roles, id, now } = await withRoles(p);

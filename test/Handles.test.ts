@@ -106,6 +106,46 @@ describe("AgentHandles — an agent with a real account", () => {
 
     await p.networkHelpers.time.increase(3601);
     assert.equal(await handles.read.isFresh([id, 0n]), false);
+    assert.equal(await handles.read.agentFor([Kind.Email, "atlas.example"]), 0n);
+  });
+
+  it("lets another agent reclaim an expired handle", async () => {
+    const p = await deployProtocol();
+    const handles = await withHandles(p);
+    const first = await mintAgent(p, p.alice.account.address);
+    const second = await mintAgent(p, p.bob.account.address);
+    const expiry = BigInt(await p.networkHelpers.time.latest()) + 3600n;
+
+    await handles.write.attest([first, Kind.Email, "recycled.example", expiry, "", ZERO32], {
+      account: p.validator.account,
+    });
+    await p.networkHelpers.time.increase(3601);
+    await handles.write.attest([second, Kind.Email, "recycled.example", NEVER, "", ZERO32], {
+      account: p.validator.account,
+    });
+
+    assert.equal(await handles.read.controls([first, Kind.Email, "recycled.example"]), false);
+    assert.equal(await handles.read.controls([second, Kind.Email, "recycled.example"]), true);
+    assert.equal(await handles.read.agentFor([Kind.Email, "recycled.example"]), second);
+  });
+
+  it("lets another agent reclaim a handle made stale by transfer", async () => {
+    const p = await deployProtocol();
+    const handles = await withHandles(p);
+    const first = await mintAgent(p, p.alice.account.address);
+    const second = await mintAgent(p, p.carol.account.address);
+
+    await handles.write.attest([first, Kind.Email, "handover.example", NEVER, "", ZERO32], {
+      account: p.validator.account,
+    });
+    await p.anima.write.transferFrom([p.alice.account.address, p.bob.account.address, first], {
+      account: p.alice.account,
+    });
+    await handles.write.attest([second, Kind.Email, "handover.example", NEVER, "", ZERO32], {
+      account: p.validator.account,
+    });
+
+    assert.equal(await handles.read.agentFor([Kind.Email, "handover.example"]), second);
   });
 
   it("lets the agent's owner disown a claim they did not make", async () => {

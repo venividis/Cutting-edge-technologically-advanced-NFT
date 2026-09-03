@@ -96,6 +96,7 @@ contract AnimaRoles is IERC7432, IERC165 {
     error ExpirationInThePast(uint64 expirationDate);
     error IrrevocableTooLong(uint64 duration, uint64 maximum);
     error RoleNotRevocable(uint256 tokenId, bytes32 roleId);
+    error IrrevocableRoleActive(uint256 tokenId, bytes32 roleId, uint64 expirationDate);
     error StillLocked(uint256 tokenId, uint64 until);
     error ZeroRecipient();
 
@@ -132,6 +133,15 @@ contract AnimaRoles is IERC7432, IERC165 {
 
         address holder = _requireAuthorised(_role.tokenId);
 
+        RoleRecord storage existing = _roles[_role.tokenId][_role.roleId];
+        // An irrevocable grant is a promise to its recipient until expiry. Allowing the owner
+        // to overwrite the same role id would revoke that promise while leaving only the token
+        // lock behind. Expired records remain reusable and live revocable records may still be
+        // amended by their grantor.
+        if (existing.recipient != address(0) && !existing.revocable && existing.expirationDate > block.timestamp) {
+            revert IrrevocableRoleActive(_role.tokenId, _role.roleId, existing.expirationDate);
+        }
+
         if (!_role.revocable) {
             uint64 duration = _role.expirationDate - uint64(block.timestamp);
             if (duration > MAX_IRREVOCABLE_DURATION) {
@@ -142,7 +152,6 @@ contract AnimaRoles is IERC7432, IERC165 {
             }
         }
 
-        RoleRecord storage existing = _roles[_role.tokenId][_role.roleId];
         if (existing.recipient == address(0)) ++activeRoleCount[_role.tokenId];
         _roles[_role.tokenId][_role.roleId] = RoleRecord({
             recipient: _role.recipient,

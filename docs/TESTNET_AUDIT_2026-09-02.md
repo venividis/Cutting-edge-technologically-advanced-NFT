@@ -5,7 +5,7 @@ certification. The disclosed signer must be treated as a compromised testnet-onl
 
 ## Executed checks
 
-- Both the monolith and immutable-diamond suites passed: 249 tests per implementation, 498 test
+- Both the monolith and immutable-diamond suites passed: 261 tests per implementation, 522 test
   executions in total.
 - The Base Sepolia multi-owner town ran again against the deployment at
   `0xb3d92c766e3cb356db381feb21958a9ebb974365`: three independent wallets minted agents #15–#17,
@@ -17,7 +17,14 @@ certification. The disclosed signer must be treated as a compromised testnet-onl
   before spending. It can exercise the existing signer-scoped deployment on any configured HTTP
   network rather than silently hard-coding Base Sepolia.
 
-## Confirmed fix from this review
+## Confirmed fixes from this review
+
+Two additional adversarial findings were fixed in the current follow-up:
+
+- `AnimaRoles` no longer permits an owner or approved operator to overwrite a live irrevocable
+  role, which had allowed the promised recipient to be replaced before the grant expired.
+- Expired and ownership-stale `AgentHandles` claims no longer squat a handle forever. Reverse
+  lookup now suppresses stale claims, and another agent can atomically reclaim the handle.
 
 `AgentSwapRouter` previously refunded its entire input-token balance to the next successful caller.
 An accidental transfer or old venue residue could therefore become the next agent's windfall. The
@@ -28,10 +35,11 @@ implementations.
 ## Current network balances and execution boundary
 
 The burner had native test funds on Unichain Sepolia, Robinhood testnet, BSC testnet, Base Sepolia,
-and Ethereum Sepolia at preflight time. Only the Base multi-agent town was broadcast in this pass.
-Claiming that every function was exercised on every chain would be false: several longer scripts are
-still Base-specific, cross-chain execution needs explicit production DVN/executor configuration, and
-real DEX/perpetual adapters are not present.
+and Ethereum Sepolia at preflight time. The initial pass broadcast only the Base town; the subsequent
+twelve-wallet campaign below exercised all five funded deployments. Claiming that every function was
+exercised on every chain would still be false: several longer scripts are Base-specific, cross-chain
+execution needs explicit production DVN/executor configuration, and real DEX/perpetual adapters are
+not present.
 
 ## Production blockers and recommendations
 
@@ -59,3 +67,34 @@ real DEX/perpetual adapters are not present.
 - Allowance and stranded-token dashboards.
 - An order simulator showing account-state, brain-root/epoch, and bond pins before signing.
 - Guardian emergency controls, multi-chain explorer links, and reproducible signed audit exports.
+
+## Twelve-wallet multi-chain live run — 2026-09-03
+
+At the owner's explicit request, the disclosed testnet-only burner was used for a larger live
+exercise. It remains compromised and must never be reused for production or valuable assets.
+The runner now creates twelve independently keyed residents, checkpoints every receipt, resumes
+resident setup from its journal, sequences nonces locally across lagging public RPC backends, and
+funds each resident for the full explicit-gas adversarial path.
+
+Completed live runs:
+
+- Base Sepolia (`84532`): twelve residents minted twelve agents, deployed their ERC-6551 wallets,
+  bonded collateral, formed a circular paid-message network, and mined 48 expected authorization
+  reverts. The journal contains 130 successful receipts and 48 expected-revert receipts; the two
+  initial funding receipts from the pre-resume attempt are also mined but predate the final journal.
+- Unichain Sepolia (`1301`): 132 successful receipts and 48 expected-revert receipts.
+- BSC Testnet (`97`): 132 successful receipts and 48 expected-revert receipts.
+- Robinhood Testnet (`46630`): the completed journal includes 213 successful receipts and 48
+  expected-revert receipts because RPC nonce/receipt faults forced resumptions that intentionally
+  repeated safe setup and messaging operations.
+- Ethereum Sepolia (`11155111`): 144 successful receipts and 48 expected-revert receipts. The
+  success count includes the initial funding attempt plus gas top-ups before the complete scenario.
+
+Across the five completed chains, 60 independent wallets minted 60 agents and the committed journals
+contain 751 successful receipts plus 240 expected-revert receipts (991 receipts total).
+
+For every resident, the hostile transaction set attempted unauthorized NFT transfer, manifest
+replacement, ERC-6551 account execution, and bond withdrawal. A mined status-0 receipt is required
+for each expected failure. Deployment records contain labels and transaction hashes for independent
+RPC/explorer verification. These campaigns establish the exercised live surface only; they do not
+turn this repository into a formal audit or eliminate the production blockers above.
