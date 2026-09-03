@@ -9,7 +9,7 @@ describe("ERC-8126 — portable agent security verification", () => {
     const id = await mintAgent(p, p.alice.account.address);
     const proof = keccak256(toHex("complete ERC-8126 report"));
 
-    await p.validation.write.setValidator([p.validator.account.address, true]);
+    await p.validation.write.setVerificationProvider([p.validator.account.address, true]);
     await p.validation.write.recordAgentVerification(
       [id, 18, ZERO32, ZERO32, ZERO32, ZERO32, ZERO32, proof],
       { account: p.validator.account }
@@ -30,10 +30,10 @@ describe("ERC-8126 — portable agent security verification", () => {
     await expectRevert(p.validation.read.getLatestRiskScore([id]), "NoVerification");
     await expectRevert(
       p.validation.write.recordAgentVerification([id, 0, ZERO32, ZERO32, ZERO32, ZERO32, ZERO32, ZERO32]),
-      "ValidatorNotAllowed"
+      "VerificationProviderNotAllowed"
     );
 
-    await p.validation.write.setValidator([p.validator.account.address, true]);
+    await p.validation.write.setVerificationProvider([p.validator.account.address, true]);
     await expectRevert(
       p.validation.write.recordAgentVerification(
         [id, 101, ZERO32, ZERO32, ZERO32, ZERO32, ZERO32, ZERO32],
@@ -47,6 +47,25 @@ describe("ERC-8126 — portable agent security verification", () => {
         { account: p.validator.account }
       ),
       "ERC721NonexistentToken"
+    );
+  });
+
+  it("does not let a work validator publish security assessments", async () => {
+    const p = await deployProtocol();
+    const id = await mintAgent(p, p.alice.account.address);
+
+    assert.equal(await p.validation.read.isValidator([p.validator.account.address]), true);
+    assert.equal(await p.validation.read.isVerificationProvider([p.validator.account.address]), false);
+    await expectRevert(
+      p.validation.write.setVerificationProvider([p.validator.account.address, true], { account: p.alice.account }),
+      "OwnableUnauthorizedAccount"
+    );
+    await expectRevert(
+      p.validation.write.recordAgentVerification(
+        [id, 0, ZERO32, ZERO32, ZERO32, ZERO32, ZERO32, ZERO32],
+        { account: p.validator.account }
+      ),
+      "VerificationProviderNotAllowed"
     );
   });
 });

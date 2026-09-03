@@ -60,6 +60,10 @@ contract ValidationRegistry is IValidationRegistry, IERC8126, Ownable2Step {
     bool public restrictValidators;
     mapping(address validator => bool) public isValidator;
 
+    /// @notice Providers trusted to publish protocol-wide ERC-8126 security assessments.
+    /// @dev This role is deliberately separate from job-scoped work validators.
+    mapping(address provider => bool) public isVerificationProvider;
+
     /// @dev Keyed by `keccak256(requester, requestHash)`, never by `requestHash` alone. See
     ///      {requestKeyOf} for why.
     mapping(bytes32 requestKey => Request) private _requests;
@@ -72,6 +76,7 @@ contract ValidationRegistry is IValidationRegistry, IERC8126, Ownable2Step {
     //////////////////////////////////////////////////////////////*/
 
     event ValidatorSet(address indexed validator, bool allowed);
+    event VerificationProviderSet(address indexed provider, bool allowed);
     event RestrictValidatorsSet(bool restricted);
 
     error RequestExists(bytes32 requestHash);
@@ -80,6 +85,7 @@ contract ValidationRegistry is IValidationRegistry, IERC8126, Ownable2Step {
     error AlreadyAnswered(bytes32 requestHash);
     error RequestExpired(bytes32 requestHash, uint64 expiry);
     error ValidatorNotAllowed(address validator);
+    error VerificationProviderNotAllowed(address provider);
     error ScoreOutOfRange(uint8 response);
     error SelfValidation(uint256 agentId, address validator);
     error ZeroAddress();
@@ -101,6 +107,11 @@ contract ValidationRegistry is IValidationRegistry, IERC8126, Ownable2Step {
     function setValidator(address validator, bool allowed) external onlyOwner {
         isValidator[validator] = allowed;
         emit ValidatorSet(validator, allowed);
+    }
+
+    function setVerificationProvider(address provider, bool allowed) external onlyOwner {
+        isVerificationProvider[provider] = allowed;
+        emit VerificationProviderSet(provider, allowed);
     }
 
     function setRestrictValidators(bool restricted) external onlyOwner {
@@ -126,7 +137,7 @@ contract ValidationRegistry is IValidationRegistry, IERC8126, Ownable2Step {
         bytes32 wvProofId,
         bytes32 summaryProofId
     ) external {
-        if (!isValidator[msg.sender]) revert ValidatorNotAllowed(msg.sender);
+        if (!isVerificationProvider[msg.sender]) revert VerificationProviderNotAllowed(msg.sender);
         if (overallRiskScore > 100) revert ScoreOutOfRange(overallRiskScore);
         IERC721(IDENTITY_REGISTRY).ownerOf(agentId); // existence check
 
