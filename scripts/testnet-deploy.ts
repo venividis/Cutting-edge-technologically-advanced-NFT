@@ -50,28 +50,44 @@ export async function main() {
   const rec: Record_ = existsSync(path)
     ? JSON.parse(readFileSync(path, "utf8"))
     : { chainId, deployer, contracts: {}, cast: {}, wiring: [] };
+  if (rec.chainId !== chainId) {
+    throw new Error(`deployment record chain ${rec.chainId} does not match connected chain ${chainId}`);
+  }
+  if (getAddress(rec.deployer) !== deployer) {
+    throw new Error(`deployment record signer ${rec.deployer} does not match connected signer ${deployer}`);
+  }
   const save = () => writeFileSync(path, `${JSON.stringify(rec, null, 2)}\n`);
 
   const keyDir = process.env.ANIMA_KEY_DIR;
   if (!keyDir) throw new Error("ANIMA_KEY_DIR must point at a directory outside this repository");
 
+  const initialBalance = await publicClient.getBalance({ address: deployer });
   console.log(`\nchain ${chainId}   deployer ${deployer}`);
-  console.log(`balance ${Number(await publicClient.getBalance({ address: deployer })) / 1e18} ETH`);
+  console.log(`balance ${Number(initialBalance) / 1e18} ETH`);
   console.log(`record  ${path}\n`);
 
   /** Deploy once, then reuse. The unit of resumability. */
   const once = async (name: string, contract: string, args: unknown[] = []) => {
     if (rec.contracts[name]) {
+      const code = await publicClient.getCode({ address: rec.contracts[name] });
+      if (!code || code === "0x") {
+        throw new Error(`${name} record points to ${rec.contracts[name]}, which has no code on chain ${chainId}`);
+      }
       console.log(`  ${name.padEnd(24)} ${rec.contracts[name]}  (reused)`);
       return rec.contracts[name];
     }
     const c = await viem.deployContract(contract, args);
     // Public RPCs are load balancers; the next call can hit a node that has not caught up.
+    let observed = false;
     for (let i = 0; i < 40; i++) {
       const code = await publicClient.getCode({ address: c.address });
-      if (code && code !== "0x") break;
+      if (code && code !== "0x") {
+        observed = true;
+        break;
+      }
       await new Promise((r) => setTimeout(r, 1500));
     }
+    if (!observed) throw new Error(`${name} deployment ${c.address} has no observable code after 60 seconds`);
     rec.contracts[name] = getAddress(c.address);
     save();
     console.log(`  ${name.padEnd(24)} ${rec.contracts[name]}`);
@@ -136,6 +152,10 @@ export async function main() {
     rec.contracts.animaInit = built.init;
     save();
   } else {
+    const code = await publicClient.getCode({ address: rec.contracts.anima });
+    if (!code || code === "0x") {
+      throw new Error(`anima record points to ${rec.contracts.anima}, which has no code on chain ${chainId}`);
+    }
     console.log(`  anima (diamond)          ${rec.contracts.anima}  (reused)`);
   }
   const anima = rec.contracts.anima as Address;
@@ -237,9 +257,10 @@ export async function main() {
     console.log("  minted 100,000 aUSD to deployer, client, buyer");
   }
 
-  const spent = 0.05 - Number(await publicClient.getBalance({ address: deployer })) / 1e18;
-  console.log(`\ndeployed. ~${spent.toFixed(5)} ETH spent.`);
-  console.log(`token: https://sepolia.basescan.org/address/${anima}`);
+  const finalBalance = await publicClient.getBalance({ address: deployer });
+  const spent = initialBalance > finalBalance ? initialBalance - finalBalance : 0n;
+  console.log(`\ndeployed. ~${Number(spent) / 1e18} ETH net balance decrease.`);
+  console.log(`token: ${anima} (chain ${chainId})`);
   return rec;
 }
 

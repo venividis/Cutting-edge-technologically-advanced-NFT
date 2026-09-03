@@ -53,5 +53,975 @@
     "policy": true,
     "active": true,
     "executed": true
+  },
+  "townRun": {
+    "chainId": 1301,
+    "at": "2026-09-03T00:17:39.178Z",
+    "residents": [
+      {
+        "name": "Ada",
+        "address": "0xdB217ADaE750360c4E5A3A98333531A7798F133D",
+        "agentId": "2"
+      },
+      {
+        "name": "Babbage",
+        "address": "0xEe2f86a5116Daf91515c643C73688F077B200414",
+        "agentId": "3"
+      },
+      {
+        "name": "Curie",
+        "address": "0x87391d396fAcD1F214c9D7fD229c034e6872E7bE",
+        "agentId": "4"
+      },
+      {
+        "name": "Dijkstra",
+        "address": "0xeE6C29b7B1d43960bC170A1c039650CDED416f3d",
+        "agentId": "5"
+      },
+      {
+        "name": "Easley",
+        "address": "0x3924b628a4f9E1A5F8A2a0d00eF5d659f5b358D5",
+        "agentId": "6"
+      },
+      {
+        "name": "Feynman",
+        "address": "0x2a100321f20796E41AEc03ec54b5b4f8C14Dd62c",
+        "agentId": "7"
+      },
+      {
+        "name": "Goldwasser",
+        "address": "0x8FE9B2BC07B259c1C030623b3C1a506f7d92f3A2",
+        "agentId": "8"
+      },
+      {
+        "name": "Hopper",
+        "address": "0xe608283bB4d865813841A8c596cb796D904c76Ba",
+        "agentId": "9"
+      },
+      {
+        "name": "Iverson",
+        "address": "0x295B83A140aefEB9938CF4C0E9997e8abFc55210",
+        "agentId": "10"
+      },
+      {
+        "name": "Johnson",
+        "address": "0x01b0fc1b49A518F666EE5baa9A6fE1285Ec4b1f6",
+        "agentId": "11"
+      },
+      {
+        "name": "Knuth",
+        "address": "0x4e106f0ea999510c71Ea5D8Da974DB19F1A7fcD8",
+        "agentId": "12"
+      },
+      {
+        "name": "Lovelace",
+        "address": "0xfc96b70AcdF7204bA40d6A237639c35d4FF20432",
+        "agentId": "13"
+      }
+    ],
+    "successfulTransactions": 132,
+    "expectedReverts": 48,
+    "evidence": [
+      {
+        "label": "fund Ada gas",
+        "hash": "0xc5da38b4d7e925cac537220d99f9c3bc5ae9c76044093a584e04b4a63545e65c",
+        "status": "success"
+      },
+      {
+        "label": "mint Ada 1000 aUSD",
+        "hash": "0x86541ef516be8b79b755c142d0931e260299314d840e31a8292338bf109648a7",
+        "status": "success"
+      },
+      {
+        "label": "fund Babbage gas",
+        "hash": "0xf1afd24ab19f190bd5bbf40c6a3194a65aed21d4f413c90c19dfe25b2e6a8c1c",
+        "status": "success"
+      },
+      {
+        "label": "mint Babbage 1000 aUSD",
+        "hash": "0xc407d72db1e4ad7368f961f7d3a69d1d5d3ec6f6a7e8e9f43b8029e212472728",
+        "status": "success"
+      },
+      {
+        "label": "fund Curie gas",
+        "hash": "0x78776a86e3b28bd0975cdc0a6fae1bd420f4010c97945f020c391fa96b1ebaeb",
+        "status": "success"
+      },
+      {
+        "label": "mint Curie 1000 aUSD",
+        "hash": "0x9602c85fa1a99ebb6b3ddd16943733e1083f03383d442d0415a3fa9c7783f24f",
+        "status": "success"
+      },
+      {
+        "label": "fund Dijkstra gas",
+        "hash": "0x30c7d80f94fa279112c01c80a8e847e40216bbdda27f74054c1968331afeb896",
+        "status": "success"
+      },
+      {
+        "label": "mint Dijkstra 1000 aUSD",
+        "hash": "0x21f3b29c0f345766875d4a456edfc58ded7c9b573e7534441a1e50221f812172",
+        "status": "success"
+      },
+      {
+        "label": "fund Easley gas",
+        "hash": "0x2721b4da92d44d256a8383c5dd0406b42cfb43d850b46fea4f101f1ac754aba6",
+        "status": "success"
+      },
+      {
+        "label": "mint Easley 1000 aUSD",
+        "hash": "0xa53fb539c1a24da01f73eefce83daa081d939b7cb80976f177e29dc8a0844800",
+        "status": "success"
+      },
+      {
+        "label": "fund Feynman gas",
+        "hash": "0xa6c7e79798ee1441e8a71831798891b268053ea78780ee9e0a182b302a410c4d",
+        "status": "success"
+      },
+      {
+        "label": "mint Feynman 1000 aUSD",
+        "hash": "0x1da8653808b94e536d1dbb02f05f296cb5a59e557b143e26bf28ee946135874a",
+        "status": "success"
+      },
+      {
+        "label": "fund Goldwasser gas",
+        "hash": "0xbdc3ce3e06eb2b7ef958be7c997026adc124a503610910e2de1b69b802e47c11",
+        "status": "success"
+      },
+      {
+        "label": "mint Goldwasser 1000 aUSD",
+        "hash": "0xac7a489d0517490a1931c1797d54b65700c10b9c1631f6a3ee49d5f2e4a31949",
+        "status": "success"
+      },
+      {
+        "label": "fund Hopper gas",
+        "hash": "0xc26e87bd515ed27e04806221f1b9af57e6c56ad8fe3880b32bf81735af867beb",
+        "status": "success"
+      },
+      {
+        "label": "mint Hopper 1000 aUSD",
+        "hash": "0xa7456930a6896e46e9c200c16aa20f4c007225ecf102f84a6184614050b66fc7",
+        "status": "success"
+      },
+      {
+        "label": "fund Iverson gas",
+        "hash": "0x907ad7c3b5b0d2e962a93a48845094b1319de39cf11d6f66cf0be1d1af8358a3",
+        "status": "success"
+      },
+      {
+        "label": "mint Iverson 1000 aUSD",
+        "hash": "0x6d3839c8f2246b951db705b2da69c5f0085f89051c824aee70a5e9c2c8917e75",
+        "status": "success"
+      },
+      {
+        "label": "fund Johnson gas",
+        "hash": "0x814a6b1c8258f6fee03660a1169d8677e7259bafb766dc98a95d1c759c68c2d8",
+        "status": "success"
+      },
+      {
+        "label": "mint Johnson 1000 aUSD",
+        "hash": "0x8f96cc84d459e4780e15708e3d166eda63d682ed0057bc8d6ecf5ff863fc71a5",
+        "status": "success"
+      },
+      {
+        "label": "fund Knuth gas",
+        "hash": "0xa5361b063e89974b3fed74901db6270be5767ba5ad2d16cb30f1d98e5ae406f0",
+        "status": "success"
+      },
+      {
+        "label": "mint Knuth 1000 aUSD",
+        "hash": "0xccd82d1fa08c7bbee92898e0311c502a5bdcb89933b658ce3bd8b017ffb81f2b",
+        "status": "success"
+      },
+      {
+        "label": "fund Lovelace gas",
+        "hash": "0x55944bfde6bf1862d7d9442cee6c57a6c48c81f66b1275fa47bd9c94294adc51",
+        "status": "success"
+      },
+      {
+        "label": "mint Lovelace 1000 aUSD",
+        "hash": "0x843d42fa091396e2e378ecd508edef5b338a7a9cfcbf37c365f26ed61f124426",
+        "status": "success"
+      },
+      {
+        "label": "mint Ada's agent",
+        "hash": "0x61364a9245e6a3ed6e590ea97aacf810db4d57d22cb8d744181151f1f08edef8",
+        "status": "success"
+      },
+      {
+        "label": "deploy Ada's agent wallet",
+        "hash": "0xffba675cb4e7f257c1c151a14089d1ea1e3f41e65936d712eb81ea7b0975e7ba",
+        "status": "success"
+      },
+      {
+        "label": "Ada approves vault",
+        "hash": "0xf00781ea387f3dfd5b7c24471cc388500a0f4368ecdbc4337a316811de2c71fe",
+        "status": "success"
+      },
+      {
+        "label": "Ada bonds its agent",
+        "hash": "0xfaf243a561b6f40af06181f612161b269725435fd8bc91e56a50bc67e644c6fe",
+        "status": "success"
+      },
+      {
+        "label": "mint Babbage's agent",
+        "hash": "0x150f148d78acc6199ec33bfa7ddac113f34c0369db88eb1f24d609dbd5488372",
+        "status": "success"
+      },
+      {
+        "label": "deploy Babbage's agent wallet",
+        "hash": "0x82e4d4bd6935c2ac883715125f4fa7244e0addaf289c0f533066653dc6bde091",
+        "status": "success"
+      },
+      {
+        "label": "Babbage approves vault",
+        "hash": "0x6782ade2170a831fc7285d1a52c4e0a36a8919a04d05a210839bcab776deb290",
+        "status": "success"
+      },
+      {
+        "label": "Babbage bonds its agent",
+        "hash": "0x5403bd3ad8fa50ef180570fa584ad8ad4fa6a2406c978f160fe2498382a2c54e",
+        "status": "success"
+      },
+      {
+        "label": "mint Curie's agent",
+        "hash": "0xeea368c91cadd4e9f47496f12a120e5b16d40ca65783e444592bf311b20bb125",
+        "status": "success"
+      },
+      {
+        "label": "deploy Curie's agent wallet",
+        "hash": "0xf5457db1e9ba81d024fde13475285cec7f7004e5de7d49ebea8df14ac94cd311",
+        "status": "success"
+      },
+      {
+        "label": "Curie approves vault",
+        "hash": "0x2f7dde610c874d64506ad464a134ada0209b39c4347b69a0dbaf96da647bd98d",
+        "status": "success"
+      },
+      {
+        "label": "Curie bonds its agent",
+        "hash": "0xe32902a132bee0f51773242e08f363260b8aac4df313643fb07493747538b4f5",
+        "status": "success"
+      },
+      {
+        "label": "mint Dijkstra's agent",
+        "hash": "0x00284ed21726115538c975726c3a0afeb84a7c75054929e9a152a01e77be102d",
+        "status": "success"
+      },
+      {
+        "label": "deploy Dijkstra's agent wallet",
+        "hash": "0xdfa1499e73d0c83da808cb06069697eb584e1d617819af50c9e2b86ec2c10c40",
+        "status": "success"
+      },
+      {
+        "label": "Dijkstra approves vault",
+        "hash": "0x40d2c33f0206ea074839755cd8d9ba2493c40ac1141cfa4574c94ecd924ae305",
+        "status": "success"
+      },
+      {
+        "label": "Dijkstra bonds its agent",
+        "hash": "0x769de0d1c102e75902d387a9608c9b4066e86116ff3d867a6da61df5e4d050ad",
+        "status": "success"
+      },
+      {
+        "label": "mint Easley's agent",
+        "hash": "0xade4bfaeb19faa398864e05503f2785c5c86fe7c4a9ab4bd18da580eeb708f17",
+        "status": "success"
+      },
+      {
+        "label": "deploy Easley's agent wallet",
+        "hash": "0x0b4dc0a270b236f5702a21789723fd1cd35288afd3aa16f21afd22ab038c4b1a",
+        "status": "success"
+      },
+      {
+        "label": "Easley approves vault",
+        "hash": "0xc8cb1e6533a9aed2d95cad790914bae04d94d6c1b789346948721325a7da0796",
+        "status": "success"
+      },
+      {
+        "label": "Easley bonds its agent",
+        "hash": "0x011563fb3e1bbff62cdf78abf8dd333ab1192df2a8219068117bd5d97d8f4189",
+        "status": "success"
+      },
+      {
+        "label": "mint Feynman's agent",
+        "hash": "0x64446f5a771720ebc72ffac560f12933f3420f22f46841abd1f841aceb421ff4",
+        "status": "success"
+      },
+      {
+        "label": "deploy Feynman's agent wallet",
+        "hash": "0x1820694f7fecc1bbe54ea676d8b04544001db66fb34522f4a121ad13a4df0036",
+        "status": "success"
+      },
+      {
+        "label": "Feynman approves vault",
+        "hash": "0x697af50c88217ed49219ed335b0e74f7d59f5082a6e5a8a1e5c4661f94262c63",
+        "status": "success"
+      },
+      {
+        "label": "Feynman bonds its agent",
+        "hash": "0xa32484677a62a1cc0c2557f07f5be3aecd73cbdd613995573bbebea26ac425e2",
+        "status": "success"
+      },
+      {
+        "label": "mint Goldwasser's agent",
+        "hash": "0xd5ce5066b57ccfd2dc5ff277ef79e80382836e314d25be2551ee2ca081f0f34d",
+        "status": "success"
+      },
+      {
+        "label": "deploy Goldwasser's agent wallet",
+        "hash": "0xd7b7f9264df74566fc0219bfcf13c81feba4799bbdc08377e08dc10fa9c80c66",
+        "status": "success"
+      },
+      {
+        "label": "Goldwasser approves vault",
+        "hash": "0xd1d166e0b6525c5d2718d0dc7d8c1cffcc2abcc16c4832ef1ab7e447b71f72f5",
+        "status": "success"
+      },
+      {
+        "label": "Goldwasser bonds its agent",
+        "hash": "0x2f361a51a74385ffd354065be87522e1db9e6ee4a7e253def0e0476a0930a070",
+        "status": "success"
+      },
+      {
+        "label": "mint Hopper's agent",
+        "hash": "0x3e085a51d60fb80895003af35accea79c1f22012f5f22fb716210d82f16d4a98",
+        "status": "success"
+      },
+      {
+        "label": "deploy Hopper's agent wallet",
+        "hash": "0x32bb170b92a11f573050ba46e61fff71c0d2005b3a34d0f12f705bdb5c8df024",
+        "status": "success"
+      },
+      {
+        "label": "Hopper approves vault",
+        "hash": "0xb41df883a5f9f2ce368af9d92ce18854819e6914569c4423fa3046df4fa14485",
+        "status": "success"
+      },
+      {
+        "label": "Hopper bonds its agent",
+        "hash": "0xe92e3cf0f1f23358c8c82771c4f2af909d1c244b42af25c0a8b9c3f1568a78e4",
+        "status": "success"
+      },
+      {
+        "label": "mint Iverson's agent",
+        "hash": "0x3b0ab64389c1cb2c9fbb5624baf9049e49d6f3e36680886f24cbf1e44f955ccd",
+        "status": "success"
+      },
+      {
+        "label": "deploy Iverson's agent wallet",
+        "hash": "0x3177f0044131607746fe595ed41c74ceb59739c823093ce590a284727352803c",
+        "status": "success"
+      },
+      {
+        "label": "Iverson approves vault",
+        "hash": "0x23ccf8a3187a9589e2f8b872fddb4e80445430e7684e6975c08f304e6919bad7",
+        "status": "success"
+      },
+      {
+        "label": "Iverson bonds its agent",
+        "hash": "0x9fc3fa5db09f31d2a11cc29cddff10e530d111d87aa6b6e490daf9d45db0b003",
+        "status": "success"
+      },
+      {
+        "label": "mint Johnson's agent",
+        "hash": "0xa2733df1382c98d291f10422b80889c793f5b449bc619506915007b88c5dac96",
+        "status": "success"
+      },
+      {
+        "label": "deploy Johnson's agent wallet",
+        "hash": "0x15f3df91c4f32db9ec85e5025b3bec2153c3e25949b56fd77e905f13eee86968",
+        "status": "success"
+      },
+      {
+        "label": "Johnson approves vault",
+        "hash": "0xca624e9bef013d14f4104cc4c816ad97c622d819f714906636dd23e9fe5a238c",
+        "status": "success"
+      },
+      {
+        "label": "Johnson bonds its agent",
+        "hash": "0x1894b4158edf641a4f4a70903d81a810fbaed3829cdec85baa2f1f562e480566",
+        "status": "success"
+      },
+      {
+        "label": "mint Knuth's agent",
+        "hash": "0x71681713701841a4de23e79c4c1ac579c8b3c0d96cde283b28ef0cb55ba7e02c",
+        "status": "success"
+      },
+      {
+        "label": "deploy Knuth's agent wallet",
+        "hash": "0xd5dc730450c7a2b94ad0aabc70c2928d05202e0962bdd4845d6193039a6d17ef",
+        "status": "success"
+      },
+      {
+        "label": "Knuth approves vault",
+        "hash": "0x0cb72fddcecfb61745a959190752e94f39f4d065989c2c84621f91206621146b",
+        "status": "success"
+      },
+      {
+        "label": "Knuth bonds its agent",
+        "hash": "0xeca0debcb7882ba0b9f9a2bba0a92375920b69882839111b6132a670afb81a30",
+        "status": "success"
+      },
+      {
+        "label": "mint Lovelace's agent",
+        "hash": "0xb6859e7407b37ec403e97eeefd3aa82766e84e3e80a8d7a6a80034db134b06f0",
+        "status": "success"
+      },
+      {
+        "label": "deploy Lovelace's agent wallet",
+        "hash": "0x171ccb4f485822dc97c92d13582621be687fe02aa192667c63bc10728b63fd0b",
+        "status": "success"
+      },
+      {
+        "label": "Lovelace approves vault",
+        "hash": "0xa4fc9eef9160d6da1a414df6ddc444fef759d273c2ddb8b1131745befb1af2b9",
+        "status": "success"
+      },
+      {
+        "label": "Lovelace bonds its agent",
+        "hash": "0xf9b8f36082427835d0a56f497248b65d4590fb831fb7ac2a28ffb195b007a909",
+        "status": "success"
+      },
+      {
+        "label": "Ada opens a closed inbox",
+        "hash": "0x010f74b7dfe32bcf9505d0ee872c487e0ba520145826e9cd67fe9c0ece700bc4",
+        "status": "success"
+      },
+      {
+        "label": "Ada allowlists Lovelace's agent",
+        "hash": "0x0aa8aa93e5edd02ef2eb45d615f6afc17b06d3b2abb0bf616fcd1259c22ed61d",
+        "status": "success"
+      },
+      {
+        "label": "Babbage opens a closed inbox",
+        "hash": "0x9d2db6170bec7293b23daeb39afd1f98aef4cf877928031f1b2a1150ee0bd287",
+        "status": "success"
+      },
+      {
+        "label": "Babbage allowlists Ada's agent",
+        "hash": "0x89190cc0a550abbb89c411c433548bf0e853ccbf0ff7dbd6c7e4dbc2d1c7f9d9",
+        "status": "success"
+      },
+      {
+        "label": "Curie opens a closed inbox",
+        "hash": "0x17dee213b437957525486c50c1f9e5cee90415851a1234137ea6b19aba357789",
+        "status": "success"
+      },
+      {
+        "label": "Curie allowlists Babbage's agent",
+        "hash": "0x3083c6a740073f8e93ea80d3395f3faaf7e6efd9c070635c4195cdca07de30d5",
+        "status": "success"
+      },
+      {
+        "label": "Dijkstra opens a closed inbox",
+        "hash": "0x3ae62507657408408df278697ef0d4da8cecfc9f1140d1da7926f332022a852f",
+        "status": "success"
+      },
+      {
+        "label": "Dijkstra allowlists Curie's agent",
+        "hash": "0x6c4f9c70dd3a3c311776983fc8b4157c8efe993fffba54cfd36ebc763b0eef96",
+        "status": "success"
+      },
+      {
+        "label": "Easley opens a closed inbox",
+        "hash": "0x849cbb957d1cddd4ce5b1b864a2ce1d1c8d20a0bdcc9b4cc51de37b527035376",
+        "status": "success"
+      },
+      {
+        "label": "Easley allowlists Dijkstra's agent",
+        "hash": "0xbb7dd276132811ee16bb7b83a3ef083a5aebe78a9ce57437073f8f07bcd29205",
+        "status": "success"
+      },
+      {
+        "label": "Feynman opens a closed inbox",
+        "hash": "0x03bbfe63f3d8cd440fa8d596be3631a98199c9d28cb1dd41d41c8bf2abf63986",
+        "status": "success"
+      },
+      {
+        "label": "Feynman allowlists Easley's agent",
+        "hash": "0xc2cbc483141af730ee1a2183b22ac43183a271bf1a93e0e13b34dc416a0230cd",
+        "status": "success"
+      },
+      {
+        "label": "Goldwasser opens a closed inbox",
+        "hash": "0x3395fa3eeba3f2b562b23e91563ca9897c776563a747d7530fb216a9678267f6",
+        "status": "success"
+      },
+      {
+        "label": "Goldwasser allowlists Feynman's agent",
+        "hash": "0xeb2e9db365b496787cdf48f392dc4de06e22199141f247f41b342f56ba413b85",
+        "status": "success"
+      },
+      {
+        "label": "Hopper opens a closed inbox",
+        "hash": "0x7d1ae78568a9dbd5cf16a98c625a810ac027b26357790efd74e8e1115d0e4527",
+        "status": "success"
+      },
+      {
+        "label": "Hopper allowlists Goldwasser's agent",
+        "hash": "0x1575e5bb6ebc57c1d80c4984a376db7c55d6353d293ff75858d357928c483fda",
+        "status": "success"
+      },
+      {
+        "label": "Iverson opens a closed inbox",
+        "hash": "0x6c4998d567ecc0814c69cf7ef6070d893b981101ac5bc895a9209c66bd0e9be2",
+        "status": "success"
+      },
+      {
+        "label": "Iverson allowlists Hopper's agent",
+        "hash": "0xcffcb92c3825bc3b261fd7323073275ce52e2cd025c98d0ce2f5e3b1f7ab17e7",
+        "status": "success"
+      },
+      {
+        "label": "Johnson opens a closed inbox",
+        "hash": "0xaa91000c102b0d912bd36d086b4f1ce2facec93e2dbcef880249e9350f274305",
+        "status": "success"
+      },
+      {
+        "label": "Johnson allowlists Iverson's agent",
+        "hash": "0x48ea1584c29d83192349cf887aed5aaff4f59bfed2f53d7f1003317d0426c01e",
+        "status": "success"
+      },
+      {
+        "label": "Knuth opens a closed inbox",
+        "hash": "0x9a5aef97c0f736c97a46a90ec90efd3684959c011a81cea034e04664d9c28a41",
+        "status": "success"
+      },
+      {
+        "label": "Knuth allowlists Johnson's agent",
+        "hash": "0x12df21d07880f4d29181bf1513c3b06acfa5f84bccc28f8b6b1999f184165b3c",
+        "status": "success"
+      },
+      {
+        "label": "Lovelace opens a closed inbox",
+        "hash": "0x04fa85003d1b7ba781b0c7a23a154f100bde4ac33d17e3fb22c94a298fa34dc3",
+        "status": "success"
+      },
+      {
+        "label": "Lovelace allowlists Knuth's agent",
+        "hash": "0xbbb9dd40640d270c69419aa1da9ca864012fc3959489b7cb77221ffba480eb82",
+        "status": "success"
+      },
+      {
+        "label": "Ada approves postage",
+        "hash": "0xb43d9d24efd1966f6f442026928375c63e1c46c20fa2f014a0a5db4afee5a6c3",
+        "status": "success"
+      },
+      {
+        "label": "Ada's agent messages Babbage's",
+        "hash": "0x87445cfad92576699a3cf15b743ddeb50056fae2dbbb091a57c9c88c78891763",
+        "status": "success"
+      },
+      {
+        "label": "Babbage's agent replies",
+        "hash": "0x488084c56ca894ab9b33b98d6aa6c65c380dd414ee0e1ced7f35526b1c4234fb",
+        "status": "success"
+      },
+      {
+        "label": "Babbage approves postage",
+        "hash": "0x73eb75c9a5b78bb1da00e330c20336049677f30fe6a4c76530bccfda9a99ae0e",
+        "status": "success"
+      },
+      {
+        "label": "Babbage's agent messages Curie's",
+        "hash": "0xb599dee647f936c92fcca09bcee6b75be80bdc4866c1d0f6309ba75f040b6f7c",
+        "status": "success"
+      },
+      {
+        "label": "Curie's agent replies",
+        "hash": "0x120d641f5e55a125e171b3582bab384ffa6cf5eb89f7bbd393b28b5d9f728681",
+        "status": "success"
+      },
+      {
+        "label": "Curie approves postage",
+        "hash": "0xf1214ed830dc1aa8464afa36e375d4dcb53154d3d7b0ce37079d04a3e261c90c",
+        "status": "success"
+      },
+      {
+        "label": "Curie's agent messages Dijkstra's",
+        "hash": "0x0fad9353ef09af79169854cfcc55f734e4dcd64d6c36b0b2a61bfba35c9137f3",
+        "status": "success"
+      },
+      {
+        "label": "Dijkstra's agent replies",
+        "hash": "0x5b399d3321d816e1f457a804b8b0b5029b517849046783f0a7e3055da8989a99",
+        "status": "success"
+      },
+      {
+        "label": "Dijkstra approves postage",
+        "hash": "0x5bbb299ae86b66a65a526474099ff3b3e1ac130adfdc224b88ac7c1f5d2d4084",
+        "status": "success"
+      },
+      {
+        "label": "Dijkstra's agent messages Easley's",
+        "hash": "0xe5fa1dd5d7ba856348c2e6a1833a3faf3e99ced5d7c192ee58d7397745fcb768",
+        "status": "success"
+      },
+      {
+        "label": "Easley's agent replies",
+        "hash": "0x58898a02a36b315b3665105e4552740bf920ef5d4767fbdcecfd741a7bc8d2e1",
+        "status": "success"
+      },
+      {
+        "label": "Easley approves postage",
+        "hash": "0xd121507bb6ca793de739adec0b88eed135e2a62f299a61c88e6ea480d5b3cbb7",
+        "status": "success"
+      },
+      {
+        "label": "Easley's agent messages Feynman's",
+        "hash": "0xfddd39be23c40c459f977989834f7b6da8c869f0232896d6d2d42ef805ffdc86",
+        "status": "success"
+      },
+      {
+        "label": "Feynman's agent replies",
+        "hash": "0x19b37877ec1e9570d19e03c5d8062cf76853ab64b6ccf94b131766ed04c2b1f8",
+        "status": "success"
+      },
+      {
+        "label": "Feynman approves postage",
+        "hash": "0x4d831ca424c878a34d13f0f953926895db493f3f8fb101b56ac305231e7a1781",
+        "status": "success"
+      },
+      {
+        "label": "Feynman's agent messages Goldwasser's",
+        "hash": "0x217ccc839ab5d6a16c157377fdb304e059f3ab4f26a8f1613f7b265e86af7552",
+        "status": "success"
+      },
+      {
+        "label": "Goldwasser's agent replies",
+        "hash": "0x90c73b01dfa997a997dc6c2f28e6eede43cbf06c05c6244afc90f8f5e4adde1c",
+        "status": "success"
+      },
+      {
+        "label": "Goldwasser approves postage",
+        "hash": "0x324342272abc63ee90ca3c641ec8171c5fe17553cae0be82295812fa4a8ab70d",
+        "status": "success"
+      },
+      {
+        "label": "Goldwasser's agent messages Hopper's",
+        "hash": "0x80be68bbd75d2423780c336b776df93d0dc66748df4567e57c256dc79610cbc6",
+        "status": "success"
+      },
+      {
+        "label": "Hopper's agent replies",
+        "hash": "0xad09e96a319ff1ed50af06bf7200174c80d875086dec0346954d797b6a350583",
+        "status": "success"
+      },
+      {
+        "label": "Hopper approves postage",
+        "hash": "0x57907fdd182fca26dff8d7beda9337d51cc3ba636ece07cb45ea792f04acaf20",
+        "status": "success"
+      },
+      {
+        "label": "Hopper's agent messages Iverson's",
+        "hash": "0xcc7a01e2dfbfb2912fac56a9b48ed8e58aaabeb779e7f446d6d1f8526ef93039",
+        "status": "success"
+      },
+      {
+        "label": "Iverson's agent replies",
+        "hash": "0x671d6a5393c74af39ec1d1d24e2402ba444805390c3825561003f211a4c30998",
+        "status": "success"
+      },
+      {
+        "label": "Iverson approves postage",
+        "hash": "0x291d8836521921bd9e7af9557bf83b016121d1b1f19afada3eb0722cf48360f5",
+        "status": "success"
+      },
+      {
+        "label": "Iverson's agent messages Johnson's",
+        "hash": "0x5a94f1e65ceedf0ab6c9424982284ae0dfe2a78a808c925a6b2b4dad19184ff2",
+        "status": "success"
+      },
+      {
+        "label": "Johnson's agent replies",
+        "hash": "0x13deda295ed9ada897f0fa5482bf8bd91325a42830af7d571f1802093026af9a",
+        "status": "success"
+      },
+      {
+        "label": "Johnson approves postage",
+        "hash": "0x501799b4479515bc5c9b6f8d0062fe41697001e7ff915d4f32107bdcdb1e2cbb",
+        "status": "success"
+      },
+      {
+        "label": "Johnson's agent messages Knuth's",
+        "hash": "0xe574c7cb43e57b8e484e09d316499531a8f2d3bd14b9768a6d524232ff706b7d",
+        "status": "success"
+      },
+      {
+        "label": "Knuth's agent replies",
+        "hash": "0xc9a87050f95d60c509025d3317af4e163d00ddc819bc108dbceb3f62afcaf430",
+        "status": "success"
+      },
+      {
+        "label": "Knuth approves postage",
+        "hash": "0xae16876ddd7399507d5a7709d7a70470cfc4ae6d8d91ea2410866bd8b9b412d4",
+        "status": "success"
+      },
+      {
+        "label": "Knuth's agent messages Lovelace's",
+        "hash": "0x9fe6f75cfe1137e8dcbd26e090b2aea74d870a7f47f5d9490b74efbce2b2bf2b",
+        "status": "success"
+      },
+      {
+        "label": "Lovelace's agent replies",
+        "hash": "0x26590619219a1029ffbcdf0f86fa68247333008c4bf7573309209234ce6c7d03",
+        "status": "success"
+      },
+      {
+        "label": "Lovelace approves postage",
+        "hash": "0x312d90cd3ac6df2d7e11618f59506aaf59bcca3ea473fccc1d74ee58a75080b1",
+        "status": "success"
+      },
+      {
+        "label": "Lovelace's agent messages Ada's",
+        "hash": "0xe3f26093d04d0ae695411e1a53bbb9901d9911a7f1dfe6140afa55e4934bf24a",
+        "status": "success"
+      },
+      {
+        "label": "Ada's agent replies",
+        "hash": "0x4cba938ce7b7b417dda80ba30221214cbddca8d6cea959e7f0b3e14c1dc26271",
+        "status": "success"
+      },
+      {
+        "label": "Ada cannot steal Babbage's NFT",
+        "hash": "0x3c2902f80ad839e60af1c4b88a866727431b84590e4f1f347c03b15712a4f0bf",
+        "status": "reverted"
+      },
+      {
+        "label": "Ada cannot rewrite Babbage's manifest",
+        "hash": "0xadd21fd500a9ee9171a5a51534fd24ef56ce5b4b9d18848850276d874d774e9e",
+        "status": "reverted"
+      },
+      {
+        "label": "Ada cannot operate Babbage's wallet",
+        "hash": "0x33727f46afee1e865640047916bd15f78f39ecbf142585ea8d09f28cbe4ac2d6",
+        "status": "reverted"
+      },
+      {
+        "label": "Ada cannot unbond Babbage's vault",
+        "hash": "0x10f7f8a2fe7176d35b774fec7c60b457e6b009a2d3cc9a77391753eb9b50403b",
+        "status": "reverted"
+      },
+      {
+        "label": "Babbage cannot steal Curie's NFT",
+        "hash": "0x9b1d261ccf041e65c36ebb9ada0c327a2fce36a71bd7d5680fe97894e9ae910c",
+        "status": "reverted"
+      },
+      {
+        "label": "Babbage cannot rewrite Curie's manifest",
+        "hash": "0x9cd7e591f467bc2b3eecc0330f5cab6977f888a3a9b1143ffe855ea0862e58b7",
+        "status": "reverted"
+      },
+      {
+        "label": "Babbage cannot operate Curie's wallet",
+        "hash": "0x38a0449d7b833ad0be5b609cc881c6a81e2b5cdd28d27825ce1783eeb0b53b17",
+        "status": "reverted"
+      },
+      {
+        "label": "Babbage cannot unbond Curie's vault",
+        "hash": "0xd3bd6ca487e70f10130a832c5a3ee3932b0a906b231679f1fbd82f721198c401",
+        "status": "reverted"
+      },
+      {
+        "label": "Curie cannot steal Dijkstra's NFT",
+        "hash": "0x5e8f14ab400dbce2b9898061a766bf5de2d99fa8494f82f23caafde145e3e58e",
+        "status": "reverted"
+      },
+      {
+        "label": "Curie cannot rewrite Dijkstra's manifest",
+        "hash": "0x70081452900821c9f3624720204eef99902427f38e665e225e8ab797405f562a",
+        "status": "reverted"
+      },
+      {
+        "label": "Curie cannot operate Dijkstra's wallet",
+        "hash": "0xd0dc506fcb1d28195976f42441b1ace0ceafb2f8c6c8e78851a07c7dbc9bbbe7",
+        "status": "reverted"
+      },
+      {
+        "label": "Curie cannot unbond Dijkstra's vault",
+        "hash": "0x28b0c1825ad94ced2eac71ed5c30be8d93fbd92bf1ed2c89dd009f21574c0482",
+        "status": "reverted"
+      },
+      {
+        "label": "Dijkstra cannot steal Easley's NFT",
+        "hash": "0xa9c1293376eae99d96729ff4ef93a7cf10181ccc057fdfc68c98521a5cadc90f",
+        "status": "reverted"
+      },
+      {
+        "label": "Dijkstra cannot rewrite Easley's manifest",
+        "hash": "0x8d8897c601217d92b580e577c44a13fe52e730b8e74bec0219bdeb077a09a285",
+        "status": "reverted"
+      },
+      {
+        "label": "Dijkstra cannot operate Easley's wallet",
+        "hash": "0xf5b24af8c4c76975c68d904366f46cac9e0fed138481738896f4ceaf385df480",
+        "status": "reverted"
+      },
+      {
+        "label": "Dijkstra cannot unbond Easley's vault",
+        "hash": "0xa2de9141ae2de3c5d1afaf083c892cc72190dd33f82efacde1ffeefb12cffc58",
+        "status": "reverted"
+      },
+      {
+        "label": "Easley cannot steal Feynman's NFT",
+        "hash": "0x9dc8bc5f2cf9a3be6ec715071b37f46ab10a80c8097fb03fab7c13ba98d9ba03",
+        "status": "reverted"
+      },
+      {
+        "label": "Easley cannot rewrite Feynman's manifest",
+        "hash": "0x7357968dedaa1eb8299c4bc1cb640c35ea29cbc2431105f75160f930bf2cda3e",
+        "status": "reverted"
+      },
+      {
+        "label": "Easley cannot operate Feynman's wallet",
+        "hash": "0xb1700ec71bbb48d9619ef2bc23e00ed75c62c74c8ceeef01b297433e24eda9e4",
+        "status": "reverted"
+      },
+      {
+        "label": "Easley cannot unbond Feynman's vault",
+        "hash": "0x480e308296d40ecc973ee1891d5cc6841de33677413786f760f27243b236d35e",
+        "status": "reverted"
+      },
+      {
+        "label": "Feynman cannot steal Goldwasser's NFT",
+        "hash": "0xdbab61d3ad2b8322f421cb5de132fe554f8158c5628ec02399115057cf046f0a",
+        "status": "reverted"
+      },
+      {
+        "label": "Feynman cannot rewrite Goldwasser's manifest",
+        "hash": "0x811c7803eaeae9750ba71b9a097540e457b8cb19c0e13ccf391af24320d14dae",
+        "status": "reverted"
+      },
+      {
+        "label": "Feynman cannot operate Goldwasser's wallet",
+        "hash": "0x59e3df4dd34696cdd08db03c54262eabbf2a6d7dc3e1fea4945f1e425059b229",
+        "status": "reverted"
+      },
+      {
+        "label": "Feynman cannot unbond Goldwasser's vault",
+        "hash": "0xbe7c9773046e7a8829bca68ae3d1df546cf4885b3b04c744b4863307c04a23df",
+        "status": "reverted"
+      },
+      {
+        "label": "Goldwasser cannot steal Hopper's NFT",
+        "hash": "0x8200424e9a15e896f99e08d35120e8ed069f4e0bc130ed7069d517a9770013f2",
+        "status": "reverted"
+      },
+      {
+        "label": "Goldwasser cannot rewrite Hopper's manifest",
+        "hash": "0x91b06d6cc94f646429d0c1ffc2f0d4e0a037502ce32522f04d1323743bf5aef0",
+        "status": "reverted"
+      },
+      {
+        "label": "Goldwasser cannot operate Hopper's wallet",
+        "hash": "0xaa71cab84f2892d309506c4e0529021deaf9dc17edf4c742f5e97775a2755937",
+        "status": "reverted"
+      },
+      {
+        "label": "Goldwasser cannot unbond Hopper's vault",
+        "hash": "0xced4c3ee1d40b86cedebf01c420b8cef86323604671d9ce859299359e4806c9a",
+        "status": "reverted"
+      },
+      {
+        "label": "Hopper cannot steal Iverson's NFT",
+        "hash": "0xbae5598fa7abce2969083b7bf2d141a882ec2624c0ffa976c522ec7856a913cd",
+        "status": "reverted"
+      },
+      {
+        "label": "Hopper cannot rewrite Iverson's manifest",
+        "hash": "0xc38a5a5d93f3e843a94fc403ce5dc2c8e0c3971a94193467179c2e1f80cae969",
+        "status": "reverted"
+      },
+      {
+        "label": "Hopper cannot operate Iverson's wallet",
+        "hash": "0xfe892c5843e6c309538aa09a350050abcc24437c4514a71efd656fc7fa0e2a3a",
+        "status": "reverted"
+      },
+      {
+        "label": "Hopper cannot unbond Iverson's vault",
+        "hash": "0x00278d9070649f4f0890f44493b5531e37b2fc014c68f94fe642f9d443ae7c89",
+        "status": "reverted"
+      },
+      {
+        "label": "Iverson cannot steal Johnson's NFT",
+        "hash": "0x1565deffe184de2b1e67484d95592aeee3bd6312c6f904ea03b1978f1938d1f9",
+        "status": "reverted"
+      },
+      {
+        "label": "Iverson cannot rewrite Johnson's manifest",
+        "hash": "0xa20ad9d2c31fcbaa36eaf7e8d3bb7cb2e0f255e5b881c07f516e6a81f8b94aac",
+        "status": "reverted"
+      },
+      {
+        "label": "Iverson cannot operate Johnson's wallet",
+        "hash": "0xacce1f040b91f249949465415ce0e1b3250c4337e8ba879c9dad8af14040c3a2",
+        "status": "reverted"
+      },
+      {
+        "label": "Iverson cannot unbond Johnson's vault",
+        "hash": "0xd2523f9f8d1f47bd3b638a9dd97bb0a6f26a541e6757bcc9705efb1aca899c88",
+        "status": "reverted"
+      },
+      {
+        "label": "Johnson cannot steal Knuth's NFT",
+        "hash": "0x239f8bf7306fd6d7d106db98d48828986ce66e37d247823f0b1fe75918987a16",
+        "status": "reverted"
+      },
+      {
+        "label": "Johnson cannot rewrite Knuth's manifest",
+        "hash": "0x50fb243270354a49ce94424842a60c5a04fdee26cdc91c9571bd6109dc131494",
+        "status": "reverted"
+      },
+      {
+        "label": "Johnson cannot operate Knuth's wallet",
+        "hash": "0xf8a96aa4f895742020ea1e3fa6bbc84a9e2880f744c0b3ba5ef8155119c27766",
+        "status": "reverted"
+      },
+      {
+        "label": "Johnson cannot unbond Knuth's vault",
+        "hash": "0xc2ca8aa717f80d1e00121a241444a1c9924a68ec0225559d48e872bb6b24588f",
+        "status": "reverted"
+      },
+      {
+        "label": "Knuth cannot steal Lovelace's NFT",
+        "hash": "0x92f6254c29a41ea0dd2965a5091fb673f70e257c4159d0d380ba675c26d681d4",
+        "status": "reverted"
+      },
+      {
+        "label": "Knuth cannot rewrite Lovelace's manifest",
+        "hash": "0xe395a47e7ef34bb709f4bc92b8b0fa2d3f8477afdfc0bd049f2ad504977d92e2",
+        "status": "reverted"
+      },
+      {
+        "label": "Knuth cannot operate Lovelace's wallet",
+        "hash": "0xe1b7e08ffdc133066fcf071b77451f63e95c73b20777e9832764a9c81d912c86",
+        "status": "reverted"
+      },
+      {
+        "label": "Knuth cannot unbond Lovelace's vault",
+        "hash": "0x41c9812a220e54cb52d6a7678fa862ad50f4089e8ad90ffb98decdf767b3fd7c",
+        "status": "reverted"
+      },
+      {
+        "label": "Lovelace cannot steal Ada's NFT",
+        "hash": "0xa850d7fab9eb1a1a0f9ce901797d9d3f090e65b312eaffec3b686428202fec85",
+        "status": "reverted"
+      },
+      {
+        "label": "Lovelace cannot rewrite Ada's manifest",
+        "hash": "0xea8a037aa1f91ae26b59208509347f499b9715c0878008cf34834669947675f5",
+        "status": "reverted"
+      },
+      {
+        "label": "Lovelace cannot operate Ada's wallet",
+        "hash": "0x104db1f58007ec1c3a81e340422a5fde87d55a95f9dc834f86aad556dbf8555d",
+        "status": "reverted"
+      },
+      {
+        "label": "Lovelace cannot unbond Ada's vault",
+        "hash": "0x65ee8342332951a59a3d071037f6f101bc4b77130f593bb0f00a7a96aa9b7a07",
+        "status": "reverted"
+      }
+    ]
   }
 }

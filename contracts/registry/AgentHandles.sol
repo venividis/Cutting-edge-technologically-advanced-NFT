@@ -147,7 +147,7 @@ contract AgentHandles is Ownable2Step {
         // One handle, one agent. Without this, two agents could both advertise the same inbox
         // and a counterparty checking "who controls this address" would get an ambiguous answer
         // — which is exactly the impersonation this registry exists to prevent.
-        if (heldBy != 0 && heldBy != agentId) revert HandleTaken(key, heldBy);
+        if (heldBy != 0 && heldBy != agentId && _hasFreshClaim(heldBy, key)) revert HandleTaken(key, heldBy);
         claimedBy[key] = agentId;
 
         index = _handles[agentId].length;
@@ -205,15 +205,20 @@ contract AgentHandles is Ownable2Step {
         Handle storage h = list[index];
         if (h.revoked) return false;
         if (h.expiresAt != 0 && block.timestamp > h.expiresAt) return false;
-        // A verification made about the previous owner says nothing about the new one.
-        return h.ownerAtAttestation == AGENTS.ownerOf(agentId);
+        // A verification made about the previous owner says nothing about the new one. A burned
+        // token has no current owner and must become reclaimable rather than making ownerOf's
+        // revert permanently squat the handle.
+        (bool ok, bytes memory result) = address(AGENTS).staticcall(abi.encodeCall(IERC721.ownerOf, (agentId)));
+        if (!ok || result.length < 32) return false;
+        address currentOwner;
+        assembly ("memory-safe") {
+            currentOwner := mload(add(result, 0x20))
+        }
+        return h.ownerAtAttestation == currentOwner;
     }
 
-    /// @notice The question a counterparty actually asks: does this agent control this identity?
-    function controls(uint256 agentId, HandleKind kind, string calldata value) external view returns (bool) {
-        if (claimedBy[handleKey(kind, value)] != agentId) return false;
+    function _hasFreshClaim(uint256 agentId, bytes32 key) private view returns (bool) {
         Handle[] storage list = _handles[agentId];
-        bytes32 key = handleKey(kind, value);
         for (uint256 i = list.length; i > 0; --i) {
             Handle storage h = list[i - 1];
             if (handleKey(h.kind, h.value) == key) return isFresh(agentId, i - 1);
@@ -221,8 +226,17 @@ contract AgentHandles is Ownable2Step {
         return false;
     }
 
+    /// @notice The question a counterparty actually asks: does this agent control this identity?
+    function controls(uint256 agentId, HandleKind kind, string calldata value) external view returns (bool) {
+        if (claimedBy[handleKey(kind, value)] != agentId) return false;
+        bytes32 key = handleKey(kind, value);
+        return _hasFreshClaim(agentId, key);
+    }
+
     /// @notice Reverse lookup: which agent, if any, holds this identity.
     function agentFor(HandleKind kind, string calldata value) external view returns (uint256) {
-        return claimedBy[handleKey(kind, value)];
+        bytes32 key = handleKey(kind, value);
+        uint256 agentId = claimedBy[key];
+        return agentId != 0 && _hasFreshClaim(agentId, key) ? agentId : 0;
     }
 }
