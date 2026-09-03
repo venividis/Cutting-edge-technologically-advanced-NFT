@@ -200,6 +200,11 @@ contract AnimaAgent is
     }
 
     /// @inheritdoc IAnima
+    function ownershipEpoch(uint256 agentId) external view returns (uint64) {
+        return _core[agentId].operatorEpoch;
+    }
+
+    /// @inheritdoc IAnima
     function setOperator(uint256 agentId, address operator, bool allowed) external {
         _requireOwnerOf(agentId);
         if (operator == address(0)) revert ZeroAddress();
