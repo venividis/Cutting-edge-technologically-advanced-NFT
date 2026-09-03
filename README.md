@@ -408,6 +408,20 @@ carries no value.
 
 ## Getting started
 
+### Enter the human sanctuary
+
+The browser interface is a live Base Sepolia owner console. It discovers every ANIMA held by the
+connected browser wallet and reveals the agent's lifecycle, memory seal and epoch, ERC-6551 account,
+autonomy horizon, and ERC-5646 state fingerprint. Owner actions are simulated before signing.
+
+```bash
+npm run ui
+# open http://localhost:5173
+```
+
+No wallet is required to inspect a token by ID. The page never asks for or handles a private key.
+The console targets the historical, testnet-only deployment recorded in `deployments/84532.json`.
+
 ```bash
 npm install
 npx hardhat build      # solc 0.8.28, viaIR, cancun
