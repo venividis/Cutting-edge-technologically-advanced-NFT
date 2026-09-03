@@ -22,12 +22,13 @@ describe("RevenueRouter — commitment-safe revenue waterfalls", () => {
     await expectRevert(router.write.activatePolicy([id]), "PolicyNotReady");
     await p.networkHelpers.time.increase(2 * 24 * 60 * 60);
     await router.write.activatePolicy([id]);
+    const policyHash = await router.read.policyHash([id]);
     const hash = await router.read.revenueCommitment([id, p.carol.account.address]);
     const account = await p.anima.read.accountOf([id]);
 
     await p.usdc.write.mint([p.bob.account.address, U(100)]);
     await p.usdc.write.approve([router.address, U(100)], { account: p.bob.account });
-    await router.write.routeExpected([id, U(100), p.carol.account.address, hash], { account: p.bob.account });
+    await router.write.routeExpected([id, U(100), p.carol.account.address, policyHash, hash], { account: p.bob.account });
 
     assert.equal(await p.usdc.read.balanceOf([account]), U(60));
     assert.equal(await token.read.treasury(), U(20));
@@ -41,16 +42,41 @@ describe("RevenueRouter — commitment-safe revenue waterfalls", () => {
     await router.write.proposePolicy([id, token.address, p.treasury.account.address, 1000, 0, 0, 0], { account: p.alice.account });
     await p.networkHelpers.time.increase(2 * 24 * 60 * 60);
     await router.write.activatePolicy([id]);
+    const policyHash = await router.read.policyHash([id]);
     const sellerHash = await router.read.revenueCommitment([id, p.alice.account.address]);
     await p.usdc.write.mint([p.carol.account.address, U(2)]);
     await p.usdc.write.approve([router.address, U(2)], { account: p.carol.account });
     await expectRevert(
-      router.write.routeExpected([id, U(1), p.bob.account.address, sellerHash], { account: p.carol.account }),
+      router.write.routeExpected([id, U(1), p.bob.account.address, policyHash, sellerHash], { account: p.carol.account }),
       "StalePolicy"
     );
     await p.anima.write.transferFrom([p.alice.account.address, p.bob.account.address, id], { account: p.alice.account });
     assert.notEqual(await router.read.revenueCommitment([id, p.alice.account.address]), sellerHash);
-    await expectRevert(router.write.routeExpected([id, U(1), p.alice.account.address, sellerHash], { account: p.carol.account }), "StalePolicy");
+    await expectRevert(router.write.routeExpected([id, U(1), p.alice.account.address, policyHash, sellerHash], { account: p.carol.account }), "StalePolicy");
+  });
+
+  it("settles a committed policy after a newer policy is activated", async () => {
+    const { p, id, token, router } = await fixture();
+    await router.write.proposePolicy([id, token.address, p.treasury.account.address, 1000, 0, 0, 0], { account: p.alice.account });
+    await p.networkHelpers.time.increase(2 * 24 * 60 * 60);
+    await router.write.activatePolicy([id]);
+    const committedPolicyHash = await router.read.policyHash([id]);
+    const commitment = await router.read.revenueCommitment([id, p.carol.account.address]);
+
+    await router.write.proposePolicy([id, token.address, p.treasury.account.address, 2000, 0, 0, 0], { account: p.alice.account });
+    await p.networkHelpers.time.increase(2 * 24 * 60 * 60);
+    await router.write.activatePolicy([id]);
+    assert.notEqual(await router.read.policyHash([id]), committedPolicyHash);
+
+    await p.usdc.write.mint([p.bob.account.address, U(10)]);
+    await p.usdc.write.approve([router.address, U(10)], { account: p.bob.account });
+    await router.write.routeExpected(
+      [id, U(10), p.carol.account.address, committedPolicyHash, commitment],
+      { account: p.bob.account }
+    );
+
+    assert.equal(await token.read.treasury(), U(1));
+    assert.equal(await p.usdc.read.balanceOf([await p.anima.read.accountOf([id])]), U(9));
   });
 
   it("enforces an operating majority and caps referral extraction", async () => {

@@ -219,9 +219,11 @@ the moment the venue changed.
 allocate at most half away from operations, with referral extraction capped at 5%; treasury shares
 enter `AgentToken` through `contribute`, bond shares enter `BondVault`, and every rounding remainder
 stays with the operating account. Policies wait two days before activation and become stale on NFT
-transfer. An order or voucher commits to `revenueCommitment(agentId, referrer)`, which also binds the
+transfer. An order or voucher snapshots both `policyHash(agentId)` and
+`revenueCommitment(agentId, referrer)`, which also binds the
 chain and router address, so neither a policy change nor a substituted referrer can alter an accepted
-obligation. The router does not decide whether a referral matured: an integrating escrow must apply
+obligation. Settlement supplies both snapshots, allowing the router to resolve an older activated
+policy without an unbounded history scan. The router does not decide whether a referral matured: an integrating escrow must apply
 that evidence rule before it snapshots the commitment.
 
 `AgentDerivativesDesk` covers the axis spot budgets cannot: leverage. It caps notional, margin at

@@ -57,6 +57,7 @@ contract RevenueRouter is ReentrancyGuardTransient {
 
     mapping(uint256 agentId => Policy) private _policies;
     mapping(uint256 agentId => PendingPolicy) private _pending;
+    mapping(uint256 agentId => mapping(bytes32 policyHash => Policy)) private _activatedPolicies;
 
     event PolicyProposed(uint256 indexed agentId, bytes32 indexed policyHash, uint64 activatesAt);
     event PolicyActivated(uint256 indexed agentId, bytes32 indexed policyHash);
@@ -142,19 +143,38 @@ contract RevenueRouter is ReentrancyGuardTransient {
         }
         if (AGENTS.ownerOf(agentId) != pending.policy.configuredBy) revert InvalidPolicy();
         _policies[agentId] = pending.policy;
+        _activatedPolicies[agentId][keccak256(abi.encode(pending.policy))] = pending.policy;
         delete _pending[agentId];
         emit PolicyActivated(agentId, keccak256(abi.encode(pending.policy)));
     }
 
-    /// @notice Route revenue only if the policy is exactly the one the payer committed to.
-    /// @dev The default/transfer-staled policy sends 100% to the agent account.
-    function routeExpected(uint256 agentId, uint256 amount, address referrer, bytes32 expectedCommitment)
+    /// @notice Route revenue using the activated policy hash and commitment the payer accepted.
+    /// @dev Older activated policies remain available while the agent has the same owner. The
+    ///      default/transfer-staled policy sends 100% to the agent account while it is current.
+    function routeExpected(
+        uint256 agentId,
+        uint256 amount,
+        address referrer,
+        bytes32 committedPolicyHash,
+        bytes32 expectedCommitment
+    )
         external
         nonReentrant
     {
         if (amount == 0) revert ZeroAmount();
-        Policy memory policy = policyOf(agentId);
-        bytes32 actual = keccak256(abi.encode(policy));
+        Policy memory policy = _activatedPolicies[agentId][committedPolicyHash];
+        bytes32 resolvedPolicyHash = keccak256(abi.encode(policy));
+        bool isCurrentDefault = policy.configuredBy == address(0) && policyHash(agentId) == committedPolicyHash;
+        // An activated policy remains usable across later policy activations, but not across
+        // an agent transfer: the new owner must never inherit the previous owner's routing.
+        if (
+            resolvedPolicyHash != committedPolicyHash
+                || (!isCurrentDefault && policy.configuredBy != AGENTS.ownerOf(agentId))
+        ) {
+            bytes32 currentCommitment = revenueCommitment(agentId, referrer);
+            revert StalePolicy(expectedCommitment, currentCommitment);
+        }
+        bytes32 actual = resolvedPolicyHash;
         bytes32 commitment = keccak256(abi.encode(block.chainid, address(this), agentId, actual, referrer));
         if (commitment != expectedCommitment) revert StalePolicy(expectedCommitment, commitment);
         if (policy.referralBps != 0 && referrer == address(0)) revert MissingReferrer();
