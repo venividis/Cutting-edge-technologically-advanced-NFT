@@ -1,0 +1,41 @@
+name: Publish the ANIMA Sanctuary
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the repository
+        uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build the Sanctuary
+        run: npm ci && npm run ui:build
+      - name: Prepare GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload the Sanctuary
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - name: Put the Sanctuary online
+        id: deployment
+        uses: actions/deploy-pages@v4

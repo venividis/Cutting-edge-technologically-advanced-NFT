@@ -1,5 +1,10 @@
 # ANIMA — Sovereign Agent Tokens
 
+> **Want to use the graphical app?** This GitHub page is the project's source code, not the app.
+> Open the **[ANIMA Sanctuary](https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/)**
+> in a new tab. If that link has not been switched on yet, the repository owner can follow the
+> plain-English “Put the Sanctuary online” steps below—no command line is required.
+
 **One ERC-721 token = one complete, economically accountable AI agent.**
 
 An identity, a wallet, private state, a declared model, a published leash, and a bond you
@@ -407,6 +412,69 @@ The aUSD here is a faucet token with a permissionless `mint`; the whole deployme
 carries no value.
 
 ## Getting started
+
+### Mint and enter the human sanctuary (Base Sepolia)
+
+This is testnet-only: the NFT and test ETH have no monetary value. Use a separate test wallet, not a
+wallet that holds valuable assets.
+
+1. Install MetaMask or Rabby, create/select a test wallet, and add **Base Sepolia** (chain ID
+   `84532`, currency `ETH`, RPC `https://sepolia.base.org`, explorer
+   `https://sepolia.basescan.org`). Most wallets add it automatically when the Sanctuary requests it.
+2. Get a small amount of Base Sepolia ETH from the
+   [Coinbase Developer Platform faucet](https://portal.cdp.coinbase.com/products/faucet). It is only
+   needed for gas; do not send real ETH to the testnet address.
+3. Start the interface:
+
+   ```bash
+   npm install
+   npm run ui
+   # open http://localhost:5173
+   ```
+
+4. Select **Enter sanctuary**, then **I need to mint one first**. Approve the wallet connection and
+   network switch, give the agent a name, inspect the simulated request, and confirm the mint in the
+   wallet. Wait for “Agent # is alive”; the new on-chain card then appears automatically.
+5. Open the card's **Command Chamber**. **Materialize wallet** deploys its deterministic ERC-6551
+   account. **Awaken agent** changes it from Dormant to Awake; **Pause safely** stops autonomous use.
+   Each write is simulated first and still requires an explicit wallet confirmation.
+
+On later visits, choose **Enter sanctuary → Connect wallet** and the page rediscovers every ANIMA
+held by that address. No connection is needed to inspect a known token ID. The console shows the
+agent's lifecycle, memory seal and epoch, ERC-6551 account, autonomy horizon, and ERC-5646 state
+fingerprint, with a direct BaseScan provenance link. The page uses the wallet provider already in
+the browser and never asks for or handles a private key.
+
+The current console targets the historical Base Sepolia deployment in `deployments/84532.json`.
+The repository's `scripts/testnet-mint.ts` is for deployment operators: it intentionally refuses a
+key that does not own the matching deployment record, so ordinary holders should use the Sanctuary.
+
+#### Put the Sanctuary online from GitHub (repository owner, no terminal)
+
+The screen showing folders such as `contracts`, `docs`, and `src` is GitHub's **code page**. It cannot
+run the graphical app by itself. This repository includes a publishing workflow that turns the app
+into a normal website after these one-time clicks:
+
+1. Make sure the Sanctuary changes have been merged into the `main` branch.
+2. At the top of the GitHub repository, select **Settings**. If the window is narrow, first select
+   the **…** menu and then **Settings**.
+3. In the left-hand menu, select **Pages**.
+4. Under **Build and deployment**, set **Source** to **GitHub Actions**. Do not select “Deploy from a
+   branch.”
+5. Return to the repository and select **Actions** at the top.
+6. In the left-hand list, select **Publish the ANIMA Sanctuary**.
+7. Select **Run workflow**, leave the branch as `main`, and select the green **Run workflow** button.
+8. Wait for the workflow to show a green check mark. Open it and select the website address shown
+   under **deployments**, or visit
+   `https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/`.
+
+After that first setup, every change merged into `main` republishes the site automatically. Visitors
+only need the website link; they do not need GitHub, Node.js, a terminal, or a copy of the repository.
+
+If GitHub says Pages is unavailable, check the repository's plan/privacy settings. A private
+repository may require a paid GitHub plan or an administrator to permit Pages. Making the source
+repository public also permits a public Pages site, but do that only if the source is intended to be
+public.
 
 ```bash
 npm install
