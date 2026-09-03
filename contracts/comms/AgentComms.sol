@@ -15,6 +15,10 @@ interface IAnimaCommsView {
     function keyRegistry() external view returns (address);
 }
 
+interface IEncryptionKeyView {
+    function keyIdOf(address account) external view returns (bytes32);
+}
+
 /**
  * @title AgentComms — a market for agent attention
  * @notice Agent-to-agent messaging where the sender is provably a specific agent, the
@@ -88,6 +92,10 @@ contract AgentComms is ReentrancyGuardTransient {
 
     uint256 private _nextMessageId = 1;
     mapping(uint256 messageId => Message) private _messages;
+    /// @notice Key commitments pinned by privacy-enforcing sends and replies. A zero value
+    ///         means the legacy commitment-only path was used and encryption was not enforced.
+    mapping(uint256 messageId => bytes32) public recipientKeyOf;
+    mapping(uint256 messageId => bytes32) public replyKeyOf;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -114,6 +122,8 @@ contract AgentComms is ReentrancyGuardTransient {
     event MessageAnswered(
         uint256 indexed messageId, uint256 indexed toAgentId, bytes32 payloadHash, uint256 postage, string transportURI
     );
+    event PrivateEnvelopePinned(uint256 indexed messageId, address indexed recipient, bytes32 indexed keyId);
+    event PrivateReplyPinned(uint256 indexed messageId, address indexed recipient, bytes32 indexed keyId);
     event PostageRefunded(uint256 indexed messageId, address indexed to, uint256 amount);
     event Broadcast(uint256 indexed fromAgentId, bytes32 indexed topic, bytes32 payloadHash, string transportURI);
 
@@ -134,6 +144,8 @@ contract AgentComms is ReentrancyGuardTransient {
     error EmptyPayload();
     error PostageAboveLimit(uint128 postage, uint128 maxPostage);
     error UnexpectedFeeToken(address expected, address actual);
+    error NoEncryptionKey(address recipient);
+    error EncryptionKeyChanged(bytes32 expected, bytes32 actual);
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTION
@@ -201,6 +213,43 @@ contract AgentComms is ReentrancyGuardTransient {
         address expectedFeeToken,
         uint128 maxPostage
     ) external nonReentrant returns (uint256 messageId) {
+        return _send(toAgentId, fromAgentId, threadId, payloadHash, transportURI, expectedFeeToken, maxPostage);
+    }
+
+    /// @notice Send an envelope whose recipient key is required and pinned atomically.
+    /// @dev This does not put ciphertext on-chain. `payloadHash` SHOULD be a domain-separated,
+    ///      nonce-bound commitment to ciphertext (see the SDK's `privateEnvelopeHash`). The
+    ///      caller supplies the key id it encrypted to, so a key rotation in the mempool makes
+    ///      the transaction fail instead of recording an undecryptable message.
+    function sendPrivate(
+        uint256 toAgentId,
+        uint256 fromAgentId,
+        bytes32 threadId,
+        bytes32 payloadHash,
+        string calldata transportURI,
+        address expectedFeeToken,
+        uint128 maxPostage,
+        bytes32 expectedRecipientKeyId
+    ) external nonReentrant returns (uint256 messageId) {
+        address recipient = AGENTS.ownerOf(toAgentId);
+        bytes32 actual = IEncryptionKeyView(ANIMA.keyRegistry()).keyIdOf(recipient);
+        if (actual == bytes32(0)) revert NoEncryptionKey(recipient);
+        if (actual != expectedRecipientKeyId) revert EncryptionKeyChanged(expectedRecipientKeyId, actual);
+
+        messageId = _send(toAgentId, fromAgentId, threadId, payloadHash, transportURI, expectedFeeToken, maxPostage);
+        recipientKeyOf[messageId] = actual;
+        emit PrivateEnvelopePinned(messageId, recipient, actual);
+    }
+
+    function _send(
+        uint256 toAgentId,
+        uint256 fromAgentId,
+        bytes32 threadId,
+        bytes32 payloadHash,
+        string calldata transportURI,
+        address expectedFeeToken,
+        uint128 maxPostage
+    ) private returns (uint256 messageId) {
         if (payloadHash == bytes32(0)) revert EmptyPayload();
         AGENTS.ownerOf(toAgentId); // reverts for an agent that does not exist
 
@@ -253,6 +302,28 @@ contract AgentComms is ReentrancyGuardTransient {
     /// @notice Answer a message and collect its postage. Paid to the agent's own account, so
     ///         an agent's correspondence funds the agent rather than its owner's wallet.
     function reply(uint256 messageId, bytes32 payloadHash, string calldata transportURI) external nonReentrant {
+        _reply(messageId, payloadHash, transportURI);
+    }
+
+    /// @notice Reply with an envelope pinned to the original sender's current encryption key.
+    function replyPrivate(
+        uint256 messageId,
+        bytes32 payloadHash,
+        string calldata transportURI,
+        bytes32 expectedRecipientKeyId
+    ) external nonReentrant {
+        Message storage m = _messages[messageId];
+        if (m.sender == address(0)) revert NoSuchMessage(messageId);
+        bytes32 actual = IEncryptionKeyView(ANIMA.keyRegistry()).keyIdOf(m.sender);
+        if (actual == bytes32(0)) revert NoEncryptionKey(m.sender);
+        if (actual != expectedRecipientKeyId) revert EncryptionKeyChanged(expectedRecipientKeyId, actual);
+
+        _reply(messageId, payloadHash, transportURI);
+        replyKeyOf[messageId] = actual;
+        emit PrivateReplyPinned(messageId, m.sender, actual);
+    }
+
+    function _reply(uint256 messageId, bytes32 payloadHash, string calldata transportURI) private {
         Message storage m = _messages[messageId];
         if (m.sender == address(0)) revert NoSuchMessage(messageId);
         if (m.answered) revert AlreadyAnswered(messageId);

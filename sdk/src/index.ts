@@ -68,6 +68,16 @@ export interface InferenceReceipt {
   attestation: Hex;
 }
 
+export interface PrivateEnvelopeContext {
+  chainId: bigint;
+  comms: Address;
+  sender: Address;
+  recipientAgentId: bigint;
+  recipientKeyId: Hex;
+  /** A fresh, cryptographically random 32-byte value for every encryption. */
+  nonce: Hex;
+}
+
 /* -------------------------------------------------------------------------- */
 /*                              agent manifest                                */
 /* -------------------------------------------------------------------------- */
@@ -317,6 +327,48 @@ const RECEIPT_TUPLE =
 /** Mirrors `InferenceMeter.workRootOf`. This is what the payer's voucher commits to. */
 export function workRoot(receipts: InferenceReceipt[]): Hex {
   return keccak256(encodeAbiParameters(parseAbiParameters(RECEIPT_TUPLE), [receipts]));
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         private message envelopes                          */
+/* -------------------------------------------------------------------------- */
+
+const PRIVATE_ENVELOPE_TAG = keccak256(toHex("anima.PrivateEnvelope.v1"));
+const BYTES32 = /^0x[0-9a-fA-F]{64}$/;
+
+/**
+ * Commitment used by `AgentComms.sendPrivate` and `replyPrivate`.
+ *
+ * Encrypt first (HPKE or an audited ECIES construction), keep the ciphertext off-chain, and
+ * pass this commitment as `payloadHash`. Domain separation prevents the same ciphertext being
+ * replayed as a message on another chain, contract, or recipient. The random nonce prevents
+ * dictionary attacks against deterministic encryption and MUST never be reused with the same
+ * content-encryption key.
+ *
+ * This helper commits to bytes; it does not encrypt them. Cryptography is intentionally left to
+ * audited, scheme-specific libraries matching the key type in `EncryptionKeyRegistry`.
+ */
+export function privateEnvelopeHash(context: PrivateEnvelopeContext, ciphertext: Hex): Hex {
+  if (context.chainId <= 0n) throw new Error("chainId must be positive");
+  if (!BYTES32.test(context.recipientKeyId)) throw new Error("recipientKeyId must be 32 bytes");
+  if (!BYTES32.test(context.nonce)) throw new Error("nonce must be 32 bytes");
+  if (!/^0x(?:[0-9a-fA-F]{2})+$/.test(ciphertext)) throw new Error("ciphertext must be non-empty bytes");
+
+  return keccak256(
+    encodeAbiParameters(
+      parseAbiParameters("bytes32, uint256, address, address, uint256, bytes32, bytes32, bytes32"),
+      [
+        PRIVATE_ENVELOPE_TAG,
+        context.chainId,
+        getAddress(context.comms),
+        getAddress(context.sender),
+        context.recipientAgentId,
+        context.recipientKeyId,
+        context.nonce,
+        keccak256(ciphertext),
+      ]
+    )
+  );
 }
 
 export const VOUCHER_TYPES = {
