@@ -226,7 +226,22 @@ go stale on transfer. Orders commit to the policy *and referrer* before work beg
 settlement caller from swapping either after the obligation exists. This is opt-in infrastructure,
 not a promise that revenue, referrals, or an agent token have economic or legal value.
 
-### 14. Two builds of the same token, one of which has no ceiling
+### 14. Cash in, funded agent out
+
+`FiatMintGateway` lets an approved payment processor fulfil a card or bank payment as one
+on-chain operation: mint the NFT to the customer, materialize its ERC-6551 wallet, and transfer
+the quoted aUSD (less the disclosed fee) into that wallet. A $1,000 purchase can therefore
+deliver 1,000 aUSD before fees, or the explicitly quoted equivalent. Settlement IDs cannot be
+replayed, fees have a permanent 10% ceiling, and the customer's `minimumNetAmount` makes the
+transaction revert rather than accepting a worse quote.
+
+The contract does **not** pretend a blockchain can verify a bank payment. The allowlisted
+processor is the explicit trust boundary and should call `settleAndMint` only after the fiat
+provider reports final payment. The configured reserve wallet must hold the aUSD and approve the
+gateway; cash proceeds, chargebacks, KYC/AML, sanctions screening, refunds, tax, custody and money
+transmission obligations remain with the operator and its regulated payment providers.
+
+### 15. Two builds of the same token, one of which has no ceiling
 
 `AnimaAgent` is 23,971 bytes. EIP-170 allows 24,576. That 605-byte margin is not headroom, it
 is a countdown — the next Final standard worth adopting does not fit, and the levers left (drop
