@@ -225,6 +225,9 @@ interface IAnima is IAnimaEvents {
     /// @notice Convenience check for clients that just fetched the manifest bytes.
     function verifyManifest(uint256 agentId, bytes calldata manifest) external view returns (bool);
 
+    /// @notice Monotonic epoch incremented on every ownership transfer.
+    function ownershipEpoch(uint256 agentId) external view returns (uint64);
+
     /*//////////////////////////////////////////////////////////////
                                    MODEL
     //////////////////////////////////////////////////////////////*/

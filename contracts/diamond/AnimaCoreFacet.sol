@@ -69,6 +69,11 @@ contract AnimaCoreFacet is AnimaBase, IERC5192, IERC6454, IERC7572 {
         return _s().approvalEpoch[owner_];
     }
 
+    /// @notice Monotonic epoch identifying the agent's current ownership period.
+    function ownershipEpoch(uint256 agentId) external view returns (uint64) {
+        return _s().core[agentId].operatorEpoch;
+    }
+
     /*//////////////////////////////////////////////////////////////
                        ERC-5192  CONDITIONAL LOCKING
     //////////////////////////////////////////////////////////////*/

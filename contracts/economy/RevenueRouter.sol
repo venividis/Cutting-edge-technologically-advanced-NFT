@@ -10,6 +10,7 @@ import {BondVault} from "../registry/BondVault.sol";
 
 interface IRevenueAgentView {
     function accountOf(uint256 agentId) external view returns (address);
+    function ownershipEpoch(uint256 agentId) external view returns (uint64);
 }
 
 interface IRevenueTreasury {
@@ -37,6 +38,7 @@ contract RevenueRouter is ReentrancyGuardTransient {
 
     struct Policy {
         address configuredBy;
+        uint64 ownershipEpoch;
         address treasury;
         address commons;
         uint16 treasuryBps;
@@ -95,8 +97,15 @@ contract RevenueRouter is ReentrancyGuardTransient {
     }
 
     function policyOf(uint256 agentId) public view returns (Policy memory policy) {
+        uint64 currentEpoch = ANIMA.ownershipEpoch(agentId);
         policy = _policies[agentId];
-        if (policy.configuredBy != AGENTS.ownerOf(agentId)) delete policy;
+        if (
+            policy.configuredBy != AGENTS.ownerOf(agentId)
+                || policy.ownershipEpoch != currentEpoch
+        ) {
+            delete policy;
+            policy.ownershipEpoch = currentEpoch;
+        }
     }
 
     function pendingPolicyOf(uint256 agentId) external view returns (PendingPolicy memory) {
@@ -130,7 +139,9 @@ contract RevenueRouter is ReentrancyGuardTransient {
                 || (treasuryBps != 0 && treasury == address(0)) || (commonsBps != 0 && commons == address(0))
         ) revert InvalidPolicy();
 
-        Policy memory policy = Policy(owner, treasury, commons, treasuryBps, bondBps, referralBps, commonsBps);
+        Policy memory policy = Policy(
+            owner, ANIMA.ownershipEpoch(agentId), treasury, commons, treasuryBps, bondBps, referralBps, commonsBps
+        );
         uint64 activatesAt = uint64(block.timestamp) + POLICY_DELAY;
         _pending[agentId] = PendingPolicy(policy, activatesAt);
         emit PolicyProposed(agentId, keccak256(abi.encode(policy)), activatesAt);
@@ -141,7 +152,10 @@ contract RevenueRouter is ReentrancyGuardTransient {
         if (pending.activatesAt == 0 || block.timestamp < pending.activatesAt) {
             revert PolicyNotReady(pending.activatesAt);
         }
-        if (AGENTS.ownerOf(agentId) != pending.policy.configuredBy) revert InvalidPolicy();
+        if (
+            AGENTS.ownerOf(agentId) != pending.policy.configuredBy
+                || ANIMA.ownershipEpoch(agentId) != pending.policy.ownershipEpoch
+        ) revert InvalidPolicy();
         _policies[agentId] = pending.policy;
         _activatedPolicies[agentId][keccak256(abi.encode(pending.policy))] = pending.policy;
         delete _pending[agentId];
@@ -149,8 +163,8 @@ contract RevenueRouter is ReentrancyGuardTransient {
     }
 
     /// @notice Route revenue using the activated policy hash and commitment the payer accepted.
-    /// @dev Older activated policies remain available while the agent has the same owner. The
-    ///      default/transfer-staled policy sends 100% to the agent account while it is current.
+    /// @dev Older activated policies remain available only within their ownership epoch. The
+    ///      zero-valued default policy is epoch zero and sends 100% to the agent account.
     function routeExpected(
         uint256 agentId,
         uint256 amount,
@@ -163,13 +177,18 @@ contract RevenueRouter is ReentrancyGuardTransient {
     {
         if (amount == 0) revert ZeroAmount();
         Policy memory policy = _activatedPolicies[agentId][committedPolicyHash];
+        uint64 currentEpoch = ANIMA.ownershipEpoch(agentId);
+        // Defaults are not activated or stored, so reconstruct the current epoch's default.
+        // Its hash remains resolvable after a first activation, but differs after any transfer.
+        if (policy.configuredBy == address(0)) policy.ownershipEpoch = currentEpoch;
         bytes32 resolvedPolicyHash = keccak256(abi.encode(policy));
-        bool isCurrentDefault = policy.configuredBy == address(0) && policyHash(agentId) == committedPolicyHash;
-        // An activated policy remains usable across later policy activations, but not across
-        // an agent transfer: the new owner must never inherit the previous owner's routing.
+        bool isDefault = policy.configuredBy == address(0);
+        // The epoch check catches an away-and-back transfer as well as a transfer to a new owner.
+        // Epoch zero also gives commitments made before the first activation a stable identity.
         if (
             resolvedPolicyHash != committedPolicyHash
-                || (!isCurrentDefault && policy.configuredBy != AGENTS.ownerOf(agentId))
+                || policy.ownershipEpoch != currentEpoch
+                || (!isDefault && policy.configuredBy != AGENTS.ownerOf(agentId))
         ) {
             bytes32 currentCommitment = revenueCommitment(agentId, referrer);
             revert StalePolicy(expectedCommitment, currentCommitment);
