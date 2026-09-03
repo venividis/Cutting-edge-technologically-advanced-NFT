@@ -408,19 +408,41 @@ carries no value.
 
 ## Getting started
 
-### Enter the human sanctuary
+### Mint and enter the human sanctuary (Base Sepolia)
 
-The browser interface is a live Base Sepolia owner console. It discovers every ANIMA held by the
-connected browser wallet and reveals the agent's lifecycle, memory seal and epoch, ERC-6551 account,
-autonomy horizon, and ERC-5646 state fingerprint. Owner actions are simulated before signing.
+This is testnet-only: the NFT and test ETH have no monetary value. Use a separate test wallet, not a
+wallet that holds valuable assets.
 
-```bash
-npm run ui
-# open http://localhost:5173
-```
+1. Install MetaMask or Rabby, create/select a test wallet, and add **Base Sepolia** (chain ID
+   `84532`, currency `ETH`, RPC `https://sepolia.base.org`, explorer
+   `https://sepolia.basescan.org`). Most wallets add it automatically when the Sanctuary requests it.
+2. Get a small amount of Base Sepolia ETH from the
+   [Coinbase Developer Platform faucet](https://portal.cdp.coinbase.com/products/faucet). It is only
+   needed for gas; do not send real ETH to the testnet address.
+3. Start the interface:
 
-No wallet is required to inspect a token by ID. The page never asks for or handles a private key.
-The console targets the historical, testnet-only deployment recorded in `deployments/84532.json`.
+   ```bash
+   npm install
+   npm run ui
+   # open http://localhost:5173
+   ```
+
+4. Select **Enter sanctuary**, then **I need to mint one first**. Approve the wallet connection and
+   network switch, give the agent a name, inspect the simulated request, and confirm the mint in the
+   wallet. Wait for “Agent # is alive”; the new on-chain card then appears automatically.
+5. Open the card's **Command Chamber**. **Materialize wallet** deploys its deterministic ERC-6551
+   account. **Awaken agent** changes it from Dormant to Awake; **Pause safely** stops autonomous use.
+   Each write is simulated first and still requires an explicit wallet confirmation.
+
+On later visits, choose **Enter sanctuary → Connect wallet** and the page rediscovers every ANIMA
+held by that address. No connection is needed to inspect a known token ID. The console shows the
+agent's lifecycle, memory seal and epoch, ERC-6551 account, autonomy horizon, and ERC-5646 state
+fingerprint, with a direct BaseScan provenance link. The page uses the wallet provider already in
+the browser and never asks for or handles a private key.
+
+The current console targets the historical Base Sepolia deployment in `deployments/84532.json`.
+The repository's `scripts/testnet-mint.ts` is for deployment operators: it intentionally refuses a
+key that does not own the matching deployment record, so ordinary holders should use the Sanctuary.
 
 ```bash
 npm install
