@@ -299,7 +299,7 @@ See [SECURITY.md](SECURITY.md) for the full invariant list. The load-bearing one
 ## Reference implementation
 
 <https://github.com/venividis/Cutting-edge-technologically-advanced-NFT> — 27 contracts,
-261 tests. Two conformant builds of the token: `contracts/core/AnimaAgent.sol` (one contract)
+268 tests. Two conformant builds of the token: `contracts/core/AnimaAgent.sol` (one contract)
 and `contracts/diamond/` (an immutable EIP-2535 assembly). The same suite runs against both.
 
 ## Copyright

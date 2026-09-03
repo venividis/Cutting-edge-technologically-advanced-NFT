@@ -15,6 +15,7 @@ import {
   cutIsImmutable,
   DIAMOND_CUT_SELECTOR,
   lzReceiveOptions,
+  privateEnvelopeHash,
   ShardKind,
   type AgentManifest,
 } from "../sdk/src/index.js";
@@ -323,5 +324,39 @@ describe("SDK — LayerZero executor options", () => {
     // that it fails loudly if anyone ever "simplifies" the builder back to a passthrough.
     assert.notEqual(lzReceiveOptions(300_000n), "0x");
     assert.ok(lzReceiveOptions(300_000n).startsWith("0x0003"), "must be a Type-3 options container");
+  });
+});
+
+describe("SDK — private envelope commitments", () => {
+  it("domain-separates ciphertext by deployment, sender, recipient, key, and nonce", () => {
+    const context = {
+      chainId: 84532n,
+      comms: "0x0000000000000000000000000000000000000001" as const,
+      sender: "0x0000000000000000000000000000000000000002" as const,
+      recipientAgentId: 7n,
+      recipientKeyId: keccak256(toHex("recipient key")),
+      nonce: keccak256(toHex("random nonce for test")),
+    };
+    const ciphertext = toHex("opaque ciphertext");
+    const commitment = privateEnvelopeHash(context, ciphertext);
+
+    assert.equal(commitment, privateEnvelopeHash(context, ciphertext));
+    assert.notEqual(commitment, privateEnvelopeHash({ ...context, chainId: 1n }, ciphertext));
+    assert.notEqual(commitment, privateEnvelopeHash({ ...context, recipientAgentId: 8n }, ciphertext));
+    assert.notEqual(commitment, privateEnvelopeHash({ ...context, nonce: keccak256(toHex("another nonce")) }, ciphertext));
+    assert.notEqual(commitment, privateEnvelopeHash(context, toHex("different ciphertext")));
+  });
+
+  it("refuses malformed or empty privacy inputs", () => {
+    const context = {
+      chainId: 1n,
+      comms: zeroAddress,
+      sender: zeroAddress,
+      recipientAgentId: 1n,
+      recipientKeyId: ZERO32,
+      nonce: ZERO32,
+    };
+    assert.throws(() => privateEnvelopeHash(context, "0x"), /non-empty/);
+    assert.throws(() => privateEnvelopeHash({ ...context, nonce: "0x12" }, "0x12"), /32 bytes/);
   });
 });

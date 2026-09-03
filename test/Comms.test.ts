@@ -157,3 +157,62 @@ describe("AgentComms — authenticated identity", () => {
     );
   });
 });
+
+describe("AgentComms — enforced private envelopes", () => {
+  it("pins the exact recipient key and rejects missing, stale, or rotated keys", async () => {
+    const p = await deployProtocol();
+    const id = await inbox(p);
+
+    await expectRevert(
+      p.comms.write.sendPrivate(
+        [id, 0n, ZERO32, HASH, "xmtp://ciphertext", p.usdc.address, USDC(1000), HASH],
+        { account: p.bob.account }
+      ),
+      "NoEncryptionKey"
+    );
+
+    const firstKey = toHex("alice-x25519-public-key");
+    await p.keyRegistry.write.setEncryptionKey([1, firstKey], { account: p.alice.account });
+    const firstKeyId = keccak256(firstKey);
+
+    await expectRevert(
+      p.comms.write.sendPrivate(
+        [id, 0n, ZERO32, HASH, "xmtp://ciphertext", p.usdc.address, USDC(1000), ZERO32],
+        { account: p.bob.account }
+      ),
+      "EncryptionKeyChanged"
+    );
+    await p.comms.write.sendPrivate(
+      [id, 0n, ZERO32, HASH, "xmtp://ciphertext", p.usdc.address, USDC(1000), firstKeyId],
+      { account: p.bob.account }
+    );
+    assert.equal(await p.comms.read.recipientKeyOf([1n]), firstKeyId);
+
+    await p.keyRegistry.write.setEncryptionKey([1, toHex("rotated-key")], { account: p.alice.account });
+    await expectRevert(
+      p.comms.write.sendPrivate(
+        [id, 0n, ZERO32, HASH, "xmtp://ciphertext-2", p.usdc.address, USDC(1000), firstKeyId],
+        { account: p.bob.account }
+      ),
+      "EncryptionKeyChanged"
+    );
+  });
+
+  it("pins an encrypted reply to the original sender's key", async () => {
+    const p = await deployProtocol();
+    const id = await inbox(p);
+    const aliceKey = toHex("alice-key");
+    const bobKey = toHex("bob-key");
+    await p.keyRegistry.write.setEncryptionKey([1, aliceKey], { account: p.alice.account });
+    await p.keyRegistry.write.setEncryptionKey([1, bobKey], { account: p.bob.account });
+
+    await p.comms.write.sendPrivate(
+      [id, 0n, ZERO32, HASH, "waku://request", p.usdc.address, USDC(1000), keccak256(aliceKey)],
+      { account: p.bob.account }
+    );
+    await p.comms.write.replyPrivate([1n, keccak256(toHex("encrypted answer")), "waku://reply", keccak256(bobKey)], {
+      account: p.alice.account,
+    });
+    assert.equal(await p.comms.read.replyKeyOf([1n]), keccak256(bobKey));
+  });
+});
