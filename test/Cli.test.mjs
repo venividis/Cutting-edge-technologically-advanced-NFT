@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { encodeContenthash } from "../cli/anima.mjs";
+import { assertMainnetEnsCustody, encodeContenthash } from "../cli/anima.mjs";
 
 describe("ANIMA terminal", () => {
   it("encodes a CIDv1 IPFS URI as an ENS contenthash", () => {
@@ -16,5 +16,13 @@ describe("ANIMA terminal", () => {
     assert.throws(() => encodeContenthash("https://example.com"), /ipfs/);
     assert.throws(() => encodeContenthash("ipfs://b"), /invalid CIDv1/);
     assert.throws(() => encodeContenthash("ipfs://QmYwAPJzv5CZsnAzt8auVZRnGiRA5hWkV7DbU"), /CIDv1/);
+  });
+
+  it("only permits ENS custody for agents homed on Ethereum mainnet", () => {
+    assert.doesNotThrow(() => assertMainnetEnsCustody(1));
+    assert.throws(
+      () => assertMainnetEnsCustody(8453),
+      /home chain is Ethereum mainnet \(chain 1\)/,
+    );
   });
 });
