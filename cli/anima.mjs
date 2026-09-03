@@ -79,6 +79,12 @@ export function encodeContenthash(uri) {
   return `0xe301${Buffer.from(bytes).toString("hex")}`;
 }
 
+export function assertMainnetEnsCustody(chainId) {
+  if (chainId !== 1) {
+    throw new Error("ENS custody requires an agent whose home chain is Ethereum mainnet (chain 1)");
+  }
+}
+
 async function send(publicClient, wallet, request, label) {
   const { request: simulated } = await publicClient.simulateContract({ ...request, account: wallet.account });
   const hash = await wallet.writeContract(simulated);
@@ -136,6 +142,7 @@ async function bind() {
   await send(ensClient, ensWallet, { address: resolver, abi: resolverAbi, functionName: "multicall", args: [records] }, "ENS records (atomic)");
 
   if (ensName.split(".").length === 2 && await yes("Transfer custody of this .eth name to the agent account (it will follow NFT ownership)", false)) {
+    assertMainnetEnsCustody(chainId);
     if (owner.toLowerCase() !== account.address.toLowerCase()) {
       throw new Error("only the current NFT owner may transfer an ENS name into permanent agent custody");
     }

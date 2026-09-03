@@ -440,9 +440,11 @@ The wizard verifies that the signer controls the agent, derives its ERC-6551 acc
 offers to set the ENS address, `com.anima.agent`, `com.anima.account`, HTTPS fallback, and IPFS
 `contenthash` records atomically through the ENS resolver's `multicall`. For a second-level `.eth`,
 the current NFT owner can optionally transfer the ENS NFT into the agent account: the name then
-stays in the same account while control of that account follows ANIMA ownership. An operator or
-tenant may update records only when separately authorised by ENS, but cannot choose permanent
-custody. This custody step is deliberately opt-in and requires typing the name again.
+stays in the same account while control of that account follows ANIMA ownership. Custody is only
+available when the agent's home chain is Ethereum mainnet; cross-chain agent accounts cannot
+control mainnet assets. An operator or tenant may update records only when separately authorised
+by ENS, but cannot choose permanent custody. This custody step is deliberately opt-in and requires
+typing the name again.
 
 ENS is naming, not storage. Pin the exact GUI CID with multiple independent providers (and ideally
 an archival network) before binding it. The HTTPS URL is a compatibility route; the ENS contenthash
