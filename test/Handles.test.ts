@@ -129,6 +129,39 @@ describe("AgentHandles — an agent with a real account", () => {
     assert.equal(await handles.read.agentFor([Kind.Email, "recycled.example"]), second);
   });
 
+  it("preserves a handle while any of its attestations remains fresh", async () => {
+    const p = await deployProtocol();
+    const handles = await withHandles(p);
+    const first = await mintAgent(p, p.alice.account.address);
+    const second = await mintAgent(p, p.bob.account.address);
+    const expiry = BigInt(await p.networkHelpers.time.latest()) + 3600n;
+
+    // A verifier may renew or supplement a claim without revoking the earlier record. The
+    // expiring record is newest, but the non-expiring record must continue to reserve the handle.
+    await handles.write.attest([first, Kind.Email, "multiply-attested.example", NEVER, "", ZERO32], {
+      account: p.validator.account,
+    });
+    await handles.write.attest([first, Kind.Email, "multiply-attested.example", expiry, "", ZERO32], {
+      account: p.validator.account,
+    });
+    await p.networkHelpers.time.increase(3601);
+
+    assert.equal(await handles.read.isFresh([first, 0n]), true);
+    assert.equal(await handles.read.isFresh([first, 1n]), false);
+    assert.equal(await handles.read.controls([first, Kind.Email, "multiply-attested.example"]), true);
+    await expectRevert(
+      handles.write.attest([second, Kind.Email, "multiply-attested.example", NEVER, "", ZERO32], {
+        account: p.validator.account,
+      }),
+      "HandleTaken"
+    );
+
+    // Revoking the newer record likewise cannot clear the still-fresh older claim's reverse
+    // lookup or allow another agent to take it.
+    await handles.write.revoke([first, 1n], { account: p.validator.account });
+    assert.equal(await handles.read.agentFor([Kind.Email, "multiply-attested.example"]), first);
+  });
+
   it("lets another agent reclaim a handle made stale by transfer", async () => {
     const p = await deployProtocol();
     const handles = await withHandles(p);

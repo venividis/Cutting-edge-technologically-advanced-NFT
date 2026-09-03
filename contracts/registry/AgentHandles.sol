@@ -180,7 +180,9 @@ contract AgentHandles is Ownable2Step {
 
         h.revoked = true;
         bytes32 key = handleKey(h.kind, h.value);
-        if (claimedBy[key] == agentId) claimedBy[key] = 0;
+        // Revoking one attestation must not release the handle when another attestation for
+        // the same agent is still fresh.
+        if (claimedBy[key] == agentId && !_hasFreshClaim(agentId, key)) claimedBy[key] = 0;
 
         emit HandleRevoked(agentId, index, msg.sender);
     }
@@ -221,7 +223,7 @@ contract AgentHandles is Ownable2Step {
         Handle[] storage list = _handles[agentId];
         for (uint256 i = list.length; i > 0; --i) {
             Handle storage h = list[i - 1];
-            if (handleKey(h.kind, h.value) == key) return isFresh(agentId, i - 1);
+            if (handleKey(h.kind, h.value) == key && isFresh(agentId, i - 1)) return true;
         }
         return false;
     }
