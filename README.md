@@ -1,5 +1,13 @@
 # ANIMA — Sovereign Agent Tokens
 
+> **Sanctuary Commons upgrade:** the default app now provides a 3D sanctuary and a rebuilt
+> public social layer. See [the upgrade guide](docs/commons/README.md),
+> [standards research](docs/commons/RESEARCH.md), and [verification](docs/commons/VERIFICATION.md).
+> The new Commons contract is tested locally, **not deployed publicly**. Exploration is labeled
+> local rehearsal; existing protocol deployments are not modified. The previous console remains
+> available at `console.html`. Older test counts and deployment statements below describe the
+> baseline protocol, not a new deployment of this release.
+
 > **Want to use the graphical app?** This GitHub page is the project's source code, not the app.
 > Open the **[ANIMA Sanctuary](https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/)**
 > in a new tab. If that link has not been switched on yet, the repository owner can follow the

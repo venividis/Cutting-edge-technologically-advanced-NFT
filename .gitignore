@@ -10,3 +10,7 @@ coverage/
 .DS_Store
 dist/
 .scratch-env.sh
+
+# Disposable Commons test fixture and local browser results
+anima-local-config.json
+commons-test-output/
