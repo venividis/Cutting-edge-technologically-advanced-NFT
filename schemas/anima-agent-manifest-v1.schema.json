@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/venividis/Cutting-edge-technologically-advanced-NFT/main/schemas/anima-agent-manifest-v1.schema.json",
+  "title": "ANIMA agent manifest v1",
+  "description": "The off-chain capability and identity document committed by an ANIMA token.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "description", "version", "anima"],
+  "properties": {
+    "$schema": { "type": "string", "format": "uri" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "version": { "type": "string", "minLength": 1 },
+    "url": { "type": "string", "format": "uri", "pattern": "^https://" },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "streaming": { "type": "boolean" },
+        "pushNotifications": { "type": "boolean" }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "description"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+        }
+      }
+    },
+    "anima": { "$ref": "#/$defs/anima" }
+  },
+  "$defs": {
+    "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "bytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+    "anima": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registry", "agentId"],
+      "properties": {
+        "registry": { "type": "string", "pattern": "^eip155:[1-9][0-9]*:0x[0-9a-fA-F]{40}$" },
+        "agentId": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+        "mcp": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "url", "transport"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "url": { "type": "string", "minLength": 1 },
+              "transport": { "enum": ["streamable-http", "stdio", "sse"] }
+            }
+          }
+        },
+        "pricing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["unit", "amount", "token"],
+          "properties": {
+            "unit": { "type": "string", "minLength": 1 },
+            "amount": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+            "token": { "$ref": "#/$defs/address" },
+            "meter": { "$ref": "#/$defs/address" }
+          }
+        },
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["modelId", "weightsRoot", "attestationKind"],
+          "properties": {
+            "modelId": { "type": "string", "minLength": 1 },
+            "weightsRoot": { "$ref": "#/$defs/bytes32" },
+            "attestationKind": { "type": "integer", "minimum": 0, "maximum": 255 }
+          }
+        },
+        "gui": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["canonical", "contentUri", "entrypoint", "version"],
+          "properties": {
+            "canonical": { "type": "string", "format": "uri", "pattern": "^https://" },
+            "contentUri": { "type": "string", "minLength": 1 },
+            "entrypoint": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "modules": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+          }
+        },
+        "mesh": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["network", "peerId"],
+          "properties": {
+            "network": { "type": "string", "minLength": 1 },
+            "peerId": { "type": "string", "minLength": 1 },
+            "bootstrap": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+          }
+        },
+        "handles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "value"],
+            "properties": {
+              "kind": { "enum": ["email", "domain", "did", "ens", "social", "meshPeer", "phone", "apiKeyId"] },
+              "value": { "type": "string", "minLength": 1 },
+              "registry": { "$ref": "#/$defs/address" }
+            }
+          }
+        },
+        "markets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["market", "venue", "maxLeverageX100"],
+            "properties": {
+              "market": { "type": "string", "minLength": 1 },
+              "venue": { "$ref": "#/$defs/address" },
+              "maxLeverageX100": { "type": "integer", "minimum": 0, "maximum": 65535 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://raw.githubusercontent.com/venividis/Cutting-edge-technologically-advanced-NFT/main/schemas/anima-agent-manifest-v1.schema.json",
+  "name": "Atlas Example",
+  "description": "Illustrative ANIMA manifest; the example endpoints are not live services.",
+  "version": "1.0.0",
+  "url": "https://agent.example/a2a",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false
+  },
+  "skills": [
+    {
+      "id": "summarize",
+      "name": "Summarize text",
+      "description": "Produces a concise summary of supplied text.",
+      "tags": ["example", "summarization"]
+    }
+  ],
+  "anima": {
+    "registry": "eip155:84532:0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3",
+    "agentId": "2",
+    "mcp": [
+      {
+        "name": "atlas-example",
+        "url": "https://agent.example/mcp",
+        "transport": "streamable-http"
+      }
+    ],
+    "gui": {
+      "canonical": "https://agent.example/console",
+      "contentUri": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3pte5r6h4l5o4x6jv7q/example",
+      "entrypoint": "index.html",
+      "version": "1.0.0"
+    }
+  }
+}
