@@ -1,0 +1,28 @@
+name: IDFBI isolated toolchain
+on:
+  push:
+    branches: [build/idfbi-isolated-toolchain-20260904]
+    paths: [.github/workflows/idfbi-isolated-toolchain.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install pinned compiler and local EVM without repository scripts
+        run: |
+          mkdir -p /tmp/idfbi-toolchain
+          cd /tmp/idfbi-toolchain
+          npm init -y
+          npm install --save-exact --ignore-scripts --no-audit --no-fund solc@0.8.30 ethers@6.15.0 ganache@7.9.2
+          node -e "console.log(require('solc').version()); console.log(require('ethers').version); const g=require('ganache'); const p=g.provider({logging:{quiet:true}}); p.request({method:'eth_chainId',params:[]}).then(console.log).finally(()=>p.disconnect())"
+          tar -czf /tmp/idfbi-toolchain.tgz node_modules package.json package-lock.json
+          sha256sum /tmp/idfbi-toolchain.tgz > /tmp/idfbi-toolchain.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: idfbi-pinned-toolchain
+          path: |
+            /tmp/idfbi-toolchain.tgz
+            /tmp/idfbi-toolchain.sha256
+          retention-days: 3
