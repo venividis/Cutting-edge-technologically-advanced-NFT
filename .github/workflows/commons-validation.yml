@@ -1,0 +1,36 @@
+name: Sanctuary Commons validation
+on:
+  push:
+    branches: [upgrade/sanctuary-commons-3d-20260904]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Package exact source and dependencies
+        run: |
+          git archive --format=tar.gz HEAD > /tmp/anima-source.tgz
+          tar -czf /tmp/anima-dependencies.tgz node_modules package.json package-lock.json
+      - name: Compile and test Commons when present
+        run: |
+          if [ -f scripts/commons-check.mjs ]; then node scripts/commons-check.mjs; fi
+          if [ -f test/CommonsModel.test.mjs ]; then node --test test/CommonsModel.test.mjs; fi
+          npm run ui:build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sanctuary-source-and-dependencies
+          path: |
+            /tmp/anima-source.tgz
+            /tmp/anima-dependencies.tgz
+          retention-days: 3
