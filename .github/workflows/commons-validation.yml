@@ -1,13 +1,14 @@
 name: Sanctuary Commons validation
 on:
   push:
-    branches: [upgrade/sanctuary-commons-3d-20260904]
+    branches: [upgrade/sanctuary-commons-3d-20260904, main]
+  pull_request:
 permissions:
   contents: read
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -15,22 +16,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.16.0'
-      - name: Install locked dependencies
+          cache: npm
+      - name: Install locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Package exact source and dependencies
+      - name: Compile and exercise both ANIMA builds
         run: |
-          git archive --format=tar.gz HEAD > /tmp/anima-source.tgz
-          tar -czf /tmp/anima-dependencies.tgz node_modules package.json package-lock.json
-      - name: Compile and test Commons when present
+          set -o pipefail
+          npm run test:both | tee commons-contract-tests.log
+      - name: Verify ABI generation and runtime limits
         run: |
-          if [ -f scripts/commons-check.mjs ]; then node scripts/commons-check.mjs; fi
-          if [ -f test/CommonsModel.test.mjs ]; then node --test test/CommonsModel.test.mjs; fi
+          node scripts/commons-check.mjs
+          git diff --exit-code -- src/commons/abi.js
+      - name: Build website and standalone preview
+        run: |
           npm run ui:build
+          node scripts/commons-preview.mjs dist/ANIMA_Sanctuary_3D.html
+      - name: Package exact reviewed source
+        if: always()
+        run: git archive --format=tar.gz HEAD > /tmp/anima-source.tgz
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: sanctuary-source-and-dependencies
+          name: sanctuary-commons-release-check
           path: |
             /tmp/anima-source.tgz
-            /tmp/anima-dependencies.tgz
-          retention-days: 3
+            commons-contract-tests.log
+            dist/
+          retention-days: 7
