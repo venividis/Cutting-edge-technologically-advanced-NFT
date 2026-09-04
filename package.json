@@ -4,6 +4,23 @@
   "private": true,
   "type": "module",
   "description": "ANIMA — an agent-native NFT standard and protocol for autonomous AI agents",
+  "license": "MIT",
+  "homepage": "https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/venividis/Cutting-edge-technologically-advanced-NFT.git"
+  },
+  "bugs": {
+    "url": "https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/issues"
+  },
+  "keywords": [
+    "ai-agent",
+    "erc-8004",
+    "erc-6551",
+    "mcp",
+    "a2a",
+    "solidity"
+  ],
   "scripts": {
     "anima": "node cli/anima.mjs",
     "compiler:cache": "bash scripts/cache-solc.sh",
@@ -15,6 +32,8 @@
     "test": "hardhat test",
     "test:cli": "node --test test/Cli.test.mjs",
     "test:economy": "node --test test/EconomySim.test.mjs",
+    "test:manifest-schema": "node --test test/ManifestSchema.test.mjs",
+    "sdk:build": "npm --prefix sdk run build",
     "simulate:economy": "node scripts/economy-sim.mjs docs/ECONOMY_SIMULATION.json",
     "clean": "hardhat clean",
     "test:diamond": "ANIMA_IMPL=diamond hardhat test",
@@ -23,6 +42,8 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",
     "@types/node": "^22.19.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "hardhat": "^3.14.0",
     "solc": "0.8.28",
     "typescript": "^5.9.3",

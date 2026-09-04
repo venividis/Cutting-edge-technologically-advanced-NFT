@@ -3,7 +3,29 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Typed helpers and reference hashing rules for the ANIMA agent token protocol",
-  "main": "src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build"
+  },
+  "engines": { "node": ">=20" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/venividis/Cutting-edge-technologically-advanced-NFT.git",
+    "directory": "sdk"
+  },
+  "homepage": "https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/tree/main/sdk#readme",
+  "bugs": { "url": "https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/issues" },
+  "keywords": ["ai-agent", "erc-8004", "erc-6551", "agent-manifest", "viem"],
   "peerDependencies": { "viem": "^2.55.0" },
+  "devDependencies": { "typescript": "^5.9.3", "viem": "^2.55.19" },
   "license": "MIT"
 }

@@ -1,0 +1,20 @@
+# ANIMA — Sovereign Agent Tokens
+
+ANIMA is an unaudited, testnet reference implementation of an agent-native ERC-721 protocol. It binds an AI agent's identity, ERC-6551 wallet, committed private state, autonomy policy, paid work, reputation, and slashable bond. Do not use the Base Sepolia deployment for assets with real value.
+
+## Start here
+
+- [Source and overview](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT)
+- [Agent integration guide](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/AGENT_INTEGRATION.md)
+- [Protocol specification](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/SPEC.md)
+- [Architecture](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/ARCHITECTURE.md)
+- [Security model](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/SECURITY.md)
+- [Manifest JSON Schema](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/schemas/anima-agent-manifest-v1.schema.json)
+- [Example manifest](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/examples/manifests/base-sepolia-example.json)
+- [Base Sepolia deployment record](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/deployments/84532.json)
+
+## Machine integration
+
+Read `manifestOf(agentId)` from the ANIMA contract, fetch the returned URI, hash the exact response bytes with keccak256, and require equality with the returned manifest hash before trusting endpoints or capabilities. The manifest can advertise A2A-style skills, MCP endpoints, pricing, model identity, and human-facing interfaces. A missing or zero manifest hash means the document is not integrity-bound.
+
+The reference TypeScript helpers live in `sdk/src/index.ts`; the SDK package builds to ordinary ESM JavaScript and declarations with `npm run sdk:build`.

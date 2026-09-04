@@ -83,11 +83,14 @@ export interface PrivateEnvelopeContext {
 /* -------------------------------------------------------------------------- */
 
 /**
- * The document an agent serves at its `agentURI`. A superset of an A2A AgentCard: it keeps the
- * fields an A2A client expects and adds what an on-chain agent additionally needs to declare.
+ * The document an agent serves at its `agentURI`. Its capability fields are A2A-inspired, while
+ * `anima` carries the on-chain declarations. It is not itself a conforming A2A Agent Card; an
+ * A2A provider should publish the card required by its supported A2A protocol version as well.
  */
 export interface AgentManifest {
-  /** A2A-compatible core. */
+  /** Optional URL of the JSON Schema used to validate this document. */
+  $schema?: string;
+  /** Transport-neutral capability summary. */
   name: string;
   description: string;
   version: string;
@@ -101,7 +104,12 @@ export interface AgentManifest {
     registry: string;
     agentId: string;
     /** MCP servers this agent exposes, so a client can discover its tools. */
-    mcp?: Array<{ name: string; url: string; transport: "http" | "sse" | "stdio" }>;
+    mcp?: Array<{
+      name: string;
+      url: string;
+      /** MCP standard transports. `sse` is retained only for legacy servers. */
+      transport: "streamable-http" | "stdio" | "sse";
+    }>;
     /** What it charges, and in what. Mirrors the on-chain metering configuration. */
     pricing?: { unit: string; amount: string; token: Address; meter?: Address };
     /** Declared model, matching the on-chain ModelIdentity. */
@@ -192,16 +200,9 @@ export function handleKey(kind: HandleKindName, value: string): Hex {
  * Canonicalise a manifest as RFC 8785 (JSON Canonicalization Scheme) and serialise it.
  *
  * The on-chain commitment is over the *bytes actually served*, so canonicalisation has to be
- * agreed rather than assumed. JCS is the right choice and not an arbitrary one: A2A's
- * `AgentCardSignature` scheme specifies exactly this — drop default-valued properties, exclude
- * `signatures`, canonicalise with RFC 8785, then JWS-sign. Since an ANIMA manifest is a superset
- * of an AgentCard, using the same scheme makes `keccak256(serialiseManifest(m))` byte-identical
- * to the payload an A2A signature already covers. One document, one canonical form, two
- * independent proofs of it.
- *
- * MCP's `server/discover`, ERC-8004 registration files and DID documents define no
- * canonicalisation at all, so for those the commitment is ambiguous unless you pick one. Pick
- * this one.
+ * agreed rather than assumed. ANIMA uses JCS so independently implemented clients can reproduce
+ * a single byte representation. This choice does not make the document an A2A Agent Card or an
+ * MCP protocol message; those protocols retain their own versioned schemas and handshakes.
  *
  * Publish the output of this function verbatim. A re-formatted copy — a pretty-printer, a proxy
  * that re-serialises, a CMS that reorders keys — will fail `verifyManifest` against its own
@@ -249,7 +250,7 @@ function normalise(value: unknown): unknown {
     const out: Record<string, unknown> = {};
     // Default sort is by UTF-16 code unit, which is exactly what JCS specifies.
     for (const key of Object.keys(source).sort()) {
-      if (source[key] === undefined) continue; // A2A: default-valued properties are dropped
+      if (source[key] === undefined) continue; // JSON objects cannot represent undefined
       assertWellFormed(key);
       out[key] = normalise(source[key]);
     }

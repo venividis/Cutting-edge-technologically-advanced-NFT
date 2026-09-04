@@ -7,6 +7,11 @@
 
 **One ERC-721 token = one complete, economically accountable AI agent.**
 
+> **AI agents and integrators:** start with the [machine integration guide](docs/AGENT_INTEGRATION.md),
+> [manifest schema](schemas/anima-agent-manifest-v1.schema.json), and
+> [example manifest](examples/manifests/base-sepolia-example.json). The public site also serves
+> [`llms.txt`](https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/llms.txt).
+
 An identity, a wallet, private state, a declared model, a published leash, and a bond you
 can take from it when it fails.
 
@@ -14,7 +19,7 @@ can take from it when it fails.
 > Two interchangeable builds of the token — a monolith and an immutable EIP-2535 diamond —
 > proved equivalent by running the same suite against both.
 > **Live on Base Sepolia** ([token](https://sepolia.basescan.org/address/0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3)), with a full agent lifecycle run on chain.
-> Unaudited, no deployments.
+> Unaudited; no production deployments.
 > Read [Honest limitations](#honest-limitations) before you do anything with real money.
 
 For the threat model, implemented encrypted-message path, and confidential/omnichain execution
@@ -516,8 +521,8 @@ binary repository and verifies each published SHA-256 checksum. It does not modi
 or commit compiler binaries. In a truly offline environment, populate the same cache in the CI
 image or restore it from a trusted cache artifact before running Hardhat.
 
-Docs: [architecture](docs/ARCHITECTURE.md) · [the standard](docs/SPEC.md) ·
-[security model](docs/SECURITY.md) · [deploying](docs/DEPLOYMENT.md)
+Docs: [agent integration](docs/AGENT_INTEGRATION.md) · [architecture](docs/ARCHITECTURE.md) ·
+[the standard](docs/SPEC.md) · [security model](docs/SECURITY.md) · [deploying](docs/DEPLOYMENT.md)
 
 Overview page: <https://claude.ai/code/artifact/38d30b21-bce9-4e98-9944-b2ad85eba5e4>
 

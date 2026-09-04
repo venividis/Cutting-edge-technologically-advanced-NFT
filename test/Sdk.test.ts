@@ -205,7 +205,7 @@ describe("SDK — canonicalisation", () => {
     assert.throws(() => canonicalise({ a: "\ud800" }), /surrogate/);
   });
 
-  it("drops undefined rather than emitting it, matching A2A's default-value rule", async () => {
+  it("drops undefined object properties, which JSON cannot represent", async () => {
     assert.equal(canonicalise({ a: 1, b: undefined }), '{"a":1}');
   });
 });

@@ -77,7 +77,7 @@ document.querySelector('#app').innerHTML = `
 
     <section class="invitation reveal"><span>THE NEXT CHAPTER IS YOURS</span><h2>Somewhere in the constellation,<br/><em>a being is waiting.</em></h2><a href="#beings" class="circle-link">ENTER<br/>ANIMA <b>↗</b></a></section>
   </main>
-  <footer><a class="brand" href="#top"><span>✦</span> ANIMA</a><p>For the beautifully accountable future.</p><div><a href="#principles">Manifesto</a><a href="https://github.com" target="_blank" rel="noreferrer">Source</a><button class="sound-toggle" aria-label="Toggle ambient sound">Sound · Off</button></div></footer>
+  <footer><a class="brand" href="#top"><span>✦</span> ANIMA</a><p>For the beautifully accountable future.</p><div><a href="#principles">Manifesto</a><a href="https://github.com/venividis/Cutting-edge-technologically-advanced-NFT" target="_blank" rel="noreferrer">Source</a><a href="https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/AGENT_INTEGRATION.md" target="_blank" rel="noreferrer">Agent docs</a><button class="sound-toggle" aria-label="Toggle ambient sound">Sound · Off</button></div></footer>
 
   <dialog class="being-dialog"><button class="close" aria-label="Close">×</button><div class="dialog-art"></div><div class="dialog-copy"><span class="section-no">SOVEREIGN BEING</span><h2></h2><p class="role"></p><blockquote></blockquote><div class="stats"></div><button class="button primary begin">Begin a conversation <span>↗</span></button></div></dialog>
   <div class="toast" role="status"></div>
