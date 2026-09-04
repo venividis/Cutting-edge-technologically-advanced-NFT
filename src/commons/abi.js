@@ -1,0 +1,91 @@
+// Generated from the pinned Solidity build. Do not edit by hand.
+import {parseAbi} from 'viem';
+export const COMMONS_ABI = parseAbi([
+  "error BadInput()",
+  "error CircleUnavailable()",
+  "error InvalidJob()",
+  "error InvalidThread()",
+  "error InvitationRequired()",
+  "error NotMember()",
+  "error SlowMode(uint256 availableAt)",
+  "error StateChanged()",
+  "error Unauthorized()",
+  "error UnknownCircle()",
+  "error UnknownPost()",
+  "event BanChanged(uint256 indexed circleId, address indexed account, bool banned)",
+  "event CircleConfigured(uint256 indexed circleId, bool inviteOnly, uint32 slowMode, bool archived, bytes32 rulesHash)",
+  "event CircleCreated(uint256 indexed circleId, address indexed steward, string name, string purpose, bytes32 rulesHash, string rules)",
+  "event HistoryAdvanced(uint256 indexed circleId, bytes32 root)",
+  "event InvitationChanged(uint256 indexed circleId, address indexed account, bool invited)",
+  "event JobLinked(uint256 indexed postId, uint256 indexed jobId)",
+  "event MemberChanged(uint256 indexed circleId, address indexed account, bool joined)",
+  "event ModeratorChanged(uint256 indexed circleId, address indexed account, bool moderator)",
+  "event PostPublished(uint256 indexed postId, uint256 indexed circleId, address indexed author, uint256 parentId, uint256 agentId, bytes32 agentState, uint8 kind, string body)",
+  "event PostRevised(uint256 indexed postId, uint32 revision, string body)",
+  "event PostVisibility(uint256 indexed postId, address indexed actor, bool hidden, bool withdrawn, bytes32 reason)",
+  "event ReactionChanged(uint256 indexed postId, address indexed actor, uint8 reaction)",
+  "event ReplyAccepted(uint256 indexed questionId, uint256 indexed replyId)",
+  "event StewardChanged(uint256 indexed circleId, address indexed steward)",
+  "event StewardProposed(uint256 indexed circleId, address indexed nominee)",
+  "function ANIMA() view returns (address)",
+  "function MAX_BODY_BYTES() view returns (uint256)",
+  "function MAX_PAGE() view returns (uint256)",
+  "function WORK() view returns (address)",
+  "function acceptReply(uint256 questionId, uint256 replyId)",
+  "function acceptSteward(uint256 id)",
+  "function acceptedReply(uint256) view returns (uint256)",
+  "function attachJob(uint256 postId, uint256 jobId)",
+  "function ban(uint256 id, address account, bool banned)",
+  "function circleOf(uint256 id) view returns ((address steward, address pendingSteward, string name, string purpose, string rules, bytes32 rulesHash, uint32 slowMode, uint32 members, bool inviteOnly, bool archived))",
+  "function configureCircle(uint256 id, bool inviteOnly, uint32 slowMode, bool archived, string rules)",
+  "function createCircle(string name, string purpose, string rules, bool inviteOnly, uint32 slowMode) returns (uint256 id)",
+  "function historyRoot(uint256) view returns (bytes32)",
+  "function invite(uint256 id, address account, bool allowed)",
+  "function isBanned(uint256, address) view returns (bool)",
+  "function isInvited(uint256, address) view returns (bool)",
+  "function isMember(uint256, address) view returns (bool)",
+  "function isModerator(uint256, address) view returns (bool)",
+  "function join(uint256 id)",
+  "function lastPublication(uint256, address) view returns (uint64)",
+  "function leave(uint256 id)",
+  "function linkedJob(uint256) view returns (uint256)",
+  "function moderate(uint256 id, bool hidden, bytes32 reason)",
+  "function nextCircleId() view returns (uint256)",
+  "function nextPostId() view returns (uint256)",
+  "function postCount(uint256 circleId) view returns (uint256)",
+  "function postOf(uint256 id) view returns ((uint256 circleId, uint256 parentId, uint256 agentId, address author, address agentOwnerAtPublication, bytes32 agentState, uint64 createdAt, uint32 revision, uint8 kind, bool hidden, bool withdrawn, string body))",
+  "function postsPage(uint256 circleId, uint256 cursor, uint256 limit) view returns (uint256[] ids, uint256 nextCursor)",
+  "function proposeSteward(uint256 id, address nominee)",
+  "function publish(uint256 circleId, uint256 parentId, uint256 agentId, bytes32 expectedAgentState, uint8 kind, string body) returns (uint256 id)",
+  "function react(uint256 id, uint8 reaction)",
+  "function reactionCount(uint256, uint8) view returns (uint256)",
+  "function reactionOf(uint256, address) view returns (uint8)",
+  "function revise(uint256 id, string body)",
+  "function setModerator(uint256 id, address account, bool allowed)",
+  "function withdraw(uint256 id)"
+]);
+export const AGENT_ABI = parseAbi([
+  "function accountOf(uint256 agentId) view returns (address)",
+  "function brainRoot(uint256 agentId) view returns (bytes32)",
+  "function getStateFingerprint(uint256 tokenId) view returns (bytes32)",
+  "function locked(uint256 tokenId) view returns (bool)",
+  "function manifestOf(uint256 agentId) view returns (string agentURI_, bytes32 manifestHash, uint32 version)",
+  "function modelOf(uint256 agentId) view returns ((bytes32 weightsRoot, bytes32 runtimeMeasurement, uint8 attestationKind, string modelId))",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function policyOf(uint256 agentId) view returns ((uint128 perTxWei, uint128 dailyWei, uint64 expiry, bool allowDelegateCall, bool allowUnlistedTargets, bytes32 targetsRoot))",
+  "function statusOf(uint256 agentId) view returns (uint8)"
+]);
+export const WORK_ABI = parseAbi([
+  "function ANIMA() view returns (address)",
+  "function ASSET() view returns (address)",
+  "function BONDS() view returns (address)",
+  "function REPUTATION() view returns (address)",
+  "function jobOf(uint256 jobId) view returns ((uint256 agentId, address client, address payee, uint128 amount, uint128 coverage, uint64 deadline, uint64 reviewWindow, uint64 deliveredAt, uint8 state, address validator, bytes32 specHash, bytes32 deliveryHash, bytes32 validationRequest))",
+  "function offerJob(uint256 agentId, uint256 amount, uint256 coverage, uint64 deadline, uint64 reviewWindow, address validator, bytes32 specHash, string specURI) returns (uint256 jobId)"
+]);
+export const BOND_ABI = parseAbi([
+  "function availableCoverage(uint256 agentId) view returns (uint256)"
+]);
+export const REPUTATION_ABI = parseAbi([
+  "function attestedSummaryOf(uint256 agentId) view returns (uint64 count, int128 summaryValue, uint256 totalWeight)"
+]);

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { keccak256, toHex } from "viem";
+import { keccak256, toHex, getAddress } from "viem";
 import { blankModel, deployProtocol, expectRevert, ZERO32 } from "./helpers.js";
 
 describe("FiatMintGateway", () => {
@@ -39,7 +39,7 @@ describe("FiatMintGateway", () => {
     const { p, gateway, purchase } = await fixture();
     await gateway.write.settleAndMint([purchase], { account: p.carol.account });
 
-    assert.equal(await p.anima.read.ownerOf([1n]), p.alice.account.address);
+    assert.equal(getAddress(await p.anima.read.ownerOf([1n])), getAddress(p.alice.account.address));
     const account = await p.anima.read.accountOf([1n]);
     assert.equal(await p.usdc.read.balanceOf([account]), 975_000_000n);
     assert.equal(

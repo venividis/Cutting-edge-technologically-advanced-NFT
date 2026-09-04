@@ -1,0 +1,45 @@
+name: Sanctuary Commons validation
+on:
+  push:
+    branches: [upgrade/sanctuary-commons-3d-20260904, main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile and exercise both ANIMA builds
+        run: |
+          set -o pipefail
+          npm run test:both | tee commons-contract-tests.log
+      - name: Verify ABI generation and runtime limits
+        run: |
+          node scripts/commons-check.mjs
+          git diff --exit-code -- src/commons/abi.js
+      - name: Build website and standalone preview
+        run: |
+          npm run ui:build
+          node scripts/commons-preview.mjs dist/ANIMA_Sanctuary_3D.html
+      - name: Package exact reviewed source
+        if: always()
+        run: git archive --format=tar.gz HEAD > /tmp/anima-source.tgz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sanctuary-commons-release-check
+          path: |
+            /tmp/anima-source.tgz
+            commons-contract-tests.log
+            dist/
+          retention-days: 7

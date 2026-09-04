@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite';
-
-// Relative asset URLs make the same build work on localhost, an IPFS directory,
-// and GitHub Pages (which serves projects below /repository-name/).
+import { resolve } from 'node:path';
 export default defineConfig({
-  base: './',
+  base:'./',
+  build:{rollupOptions:{input:{sanctuary:resolve('index.html'),console:resolve('console.html')}}}
 });
