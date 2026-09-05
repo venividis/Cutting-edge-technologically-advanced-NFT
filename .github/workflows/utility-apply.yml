@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.16.0'
-      - name: Verify and apply exact source patch
+      - name: Verify and apply exact source and clean-build evidence
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = 'refs/heads/fix/utility-workflows-20260904'
@@ -34,12 +34,17 @@ jobs:
           echo '94d37714f593b1394d0e347ece56f7004cdbf6a9b09cd0b880cabc0bee1d2ef4  /tmp/utility-source.patch' | sha256sum -c -
           git apply --check /tmp/utility-source.patch
           git apply --index /tmp/utility-source.patch
+          echo '450dc48c76e2563306ab996bb2e7b0dcb1a09ef22b5b1a12bf1b9046a21bdbf1  .github/utility-payload/06-clean.part' | sha256sum -c -
+          xz -dc .github/utility-payload/06-clean.part > /tmp/utility-clean.patch
+          echo '87f1466ca969e816dc7463c2ba176db87938e625f79e0bc79521617efc5af942  /tmp/utility-clean.patch' | sha256sum -c -
+          git apply --check /tmp/utility-clean.patch
+          git apply --index /tmp/utility-clean.patch
       - name: Install locked dependencies and regenerate exact ABI
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npx hardhat build
           node scripts/utility-abi.mjs
-          echo '4aebf852e103af396022e03dcedcd21ce148202037c43bc3676ab039a5a3d260  src/utility/abi.js' | sha256sum -c -
+          echo 'fac59b265d367d2fd27469a05b13c57cca6cf413342c4753d8a8582a2b77fab7  src/utility/abi.js' | sha256sum -c -
           git add src/utility/abi.js
       - name: Verify both protocol implementations
         run: |
@@ -52,7 +57,7 @@ jobs:
           npm run ui:build
           node scripts/commons-preview.mjs dist/ANIMA_Sanctuary_3D.html
           node scripts/utility-preview.mjs dist/ANIMA_Utility.html
-          echo 'ad3f693ccf7178d1957df517fa0709fa4aa8a9d8a46039989cc7f63557e6c24d  dist/ANIMA_Utility.html' | sha256sum -c -
+          echo '6793ec26456bc38cc5dd0a3fe2506df57d900ab7c06c22c2185320a6448c582b  dist/ANIMA_Utility.html' | sha256sum -c -
       - name: Publish readable source only to correction branch
         env:
           GH_TOKEN: ${{ github.token }}
@@ -66,6 +71,12 @@ jobs:
           git -c "http.extraheader=AUTHORIZATION: basic $AUTH" push origin HEAD:refs/heads/fix/utility-workflows-20260904
           git rev-parse HEAD > /tmp/utility-reviewed-commit.txt
           git archive --format=tar.gz HEAD > /tmp/utility-reviewed-source.tgz
+      - name: Preserve fingerprint diagnostics even on failure
+        if: always()
+        run: |
+          mkdir -p /tmp/utility-diagnostics
+          cp src/utility/abi.js /tmp/utility-diagnostics/abi.js 2>/dev/null || true
+          cp artifacts/contracts/market/AgentLaunchpad.sol/AgentLaunchpad.json /tmp/utility-diagnostics/AgentLaunchpad.json 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -74,5 +85,6 @@ jobs:
             /tmp/utility-contract-tests.log
             /tmp/utility-reviewed-commit.txt
             /tmp/utility-reviewed-source.tgz
+            /tmp/utility-diagnostics/
             dist/
           retention-days: 7
