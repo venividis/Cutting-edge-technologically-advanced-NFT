@@ -1,0 +1,78 @@
+name: Apply verified utility source
+on:
+  push:
+    branches: [fix/utility-workflows-20260904]
+    paths: ['.github/utility-payload/**', '.github/workflows/utility-apply.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'venividis/Cutting-edge-technologically-advanced-NFT' && github.ref == 'refs/heads/fix/utility-workflows-20260904'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Verify and apply exact source patch
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/fix/utility-workflows-20260904'
+          git diff --name-only 80312cdb27d2a87fe12afee3b953463d48f37328 HEAD > /tmp/preparation-paths.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          for p in Path('/tmp/preparation-paths.txt').read_text().splitlines():
+              assert p == '.github/workflows/utility-apply.yml' or p.startswith('.github/utility-payload/'), p
+          PY
+          cat .github/utility-payload/{00,01,02,03,04,05}.part > /tmp/utility-source.patch.xz
+          echo 'bbe8f97b5ce2df24e37d285f1c76297ac0160f5d466dc6a6c0cda93aaaae4a41  /tmp/utility-source.patch.xz' | sha256sum -c -
+          xz -dc /tmp/utility-source.patch.xz > /tmp/utility-source.patch
+          echo '94d37714f593b1394d0e347ece56f7004cdbf6a9b09cd0b880cabc0bee1d2ef4  /tmp/utility-source.patch' | sha256sum -c -
+          git apply --check /tmp/utility-source.patch
+          git apply --index /tmp/utility-source.patch
+      - name: Install locked dependencies and regenerate exact ABI
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx hardhat build
+          node scripts/utility-abi.mjs
+          echo '4aebf852e103af396022e03dcedcd21ce148202037c43bc3676ab039a5a3d260  src/utility/abi.js' | sha256sum -c -
+          git add src/utility/abi.js
+      - name: Verify both protocol implementations
+        run: |
+          set -o pipefail
+          npm run test:both | tee /tmp/utility-contract-tests.log
+          node scripts/commons-check.mjs
+          git diff --exit-code -- src/commons/abi.js src/utility/abi.js docs/utility/runtime-sizes.json
+      - name: Reproduce the exact browser-tested application
+        run: |
+          npm run ui:build
+          node scripts/commons-preview.mjs dist/ANIMA_Sanctuary_3D.html
+          node scripts/utility-preview.mjs dist/ANIMA_Utility.html
+          echo 'ad3f693ccf7178d1957df517fa0709fa4aa8a9d8a46039989cc7f63557e6c24d  dist/ANIMA_Utility.html' | sha256sum -c -
+      - name: Publish readable source only to correction branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git rm -r .github/utility-payload .github/workflows/utility-apply.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: complete Swap Launch Vault and funded-work GUI workflows'
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.extraheader=AUTHORIZATION: basic $AUTH" push origin HEAD:refs/heads/fix/utility-workflows-20260904
+          git rev-parse HEAD > /tmp/utility-reviewed-commit.txt
+          git archive --format=tar.gz HEAD > /tmp/utility-reviewed-source.tgz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: utility-reviewed-source
+          path: |
+            /tmp/utility-contract-tests.log
+            /tmp/utility-reviewed-commit.txt
+            /tmp/utility-reviewed-source.tgz
+            dist/
+          retention-days: 7
