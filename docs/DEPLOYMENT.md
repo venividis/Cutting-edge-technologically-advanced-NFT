@@ -113,6 +113,15 @@ unless you want an agent's coverage to move with the market.
 
 ## After deployment
 
+Mint a checkpointed test batch (ten tokens by default) into an existing deployment with:
+
+```bash
+DEPLOYER_PRIVATE_KEY=... npm run testnet:batch-mint -- --network sepolia
+```
+
+Set `ANIMA_MINT_COUNT` to request a different batch size. The deployment record is updated after
+every confirmed mint, so rerunning the same command resumes rather than duplicating tokens.
+
 - **Set an explicit LayerZero DVN and executor configuration.** LayerZero's security lives in
   that configuration, not in this repository. Defaults are a choice, and not one you made.
 - **Deploy `OmniAgentMirror` per destination chain and `setPeer` in both directions.** A

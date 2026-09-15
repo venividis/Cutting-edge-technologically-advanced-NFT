@@ -35,6 +35,7 @@
     "test:manifest-schema": "node --test test/ManifestSchema.test.mjs",
     "sdk:build": "npm --prefix sdk run build",
     "simulate:economy": "node scripts/economy-sim.mjs docs/ECONOMY_SIMULATION.json",
+    "testnet:batch-mint": "hardhat run scripts/testnet-batch-mint.ts",
     "clean": "hardhat clean",
     "test:diamond": "ANIMA_IMPL=diamond hardhat test",
     "test:both": "hardhat test && ANIMA_IMPL=diamond hardhat test"
