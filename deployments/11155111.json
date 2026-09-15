@@ -1083,5 +1083,33 @@
         "status": "reverted"
       }
     ]
+  },
+  "batchMint": {
+    "count": 10,
+    "recipient": "0xc591C669162cD4da8aB9BfA2c2e68d538A312C00",
+    "tokenIds": [
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23"
+    ],
+    "transactions": [
+      "0x18d9832ca921cd33c479324a501235a1e0b8f4713755aca8b04e065b76fbadb1",
+      "0xe794e3544dcdf4605743b0b93f794668149efbce0329586ffba4756e6b5fffa0",
+      "0x9a8adfc1ff858e855980c75b93d5a71a29d9f67cffdec489159825d3d367d4e5",
+      "0xa560b434892e5c2105d7392466e5ff18638ccbd3b236c0f5e2773f1c659da9e6",
+      "0xfffabd98ac1a392ce728627587c4519429e1d38e56cd0af7f9690c826b72cfc6",
+      "0xfeced7a750e892a0b9569a60433b55ce395461cd55941e0aacbbca6f4a15e66d",
+      "0x330d2aff84f4fe907f3146fc16e7f4c7624fab69d220ff8b8ac8f377121606a4",
+      "0xee36ceef7ad03de6d8337ed83ff3169245a88e30b255ccb46b8e9f7294ea5aca",
+      "0xbb5e4d7d2766af811ae26251bb2ac4d73e69916dba067fc6d0d01ee3a299519f",
+      "0xec013e91eebcc29c35c5d9ea758ea43b2780569a1449c6fba6fd4dfb616b4691"
+    ]
   }
 }
