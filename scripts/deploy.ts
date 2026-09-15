@@ -27,6 +27,8 @@ interface Config {
   royaltyReceiver: Address;
   royaltyBps: bigint;
   protocolTreasury: Address;
+  /** Dedicated backend signer authorized to submit finalized fiat settlements. */
+  paymentProcessor: Address;
   /** Seconds collateral remains slashable after a withdrawal is requested. MUST exceed the
    *  longest dispute window of any module that reserves against the vault. */
   unbondingPeriod: number;
@@ -36,6 +38,12 @@ export async function deploy(config: Config) {
   const { viem } = await network.connect();
   const [deployer] = await viem.getWalletClients();
   const owner = deployer.account.address;
+  if (
+    config.paymentProcessor === zeroAddress ||
+    config.paymentProcessor.toLowerCase() === owner.toLowerCase()
+  ) {
+    throw new Error("PAYMENT_PROCESSOR must be a dedicated non-deployer address");
+  }
   const log = (label: string, address: string) => console.log(`  ${label.padEnd(24)} ${address}`);
 
   console.log(`\ndeployer ${owner}\n`);
@@ -121,7 +129,7 @@ export async function deploy(config: Config) {
     config.protocolTreasury,
     owner,
   ]);
-  await fiatGateway.write.setProcessor([owner, true]);
+  await fiatGateway.write.setProcessor([config.paymentProcessor, true]);
   log("FiatMintGateway", fiatGateway.address);
 
   const launchpad = await viem.deployContract("AgentLaunchpad", [
@@ -185,7 +193,8 @@ Next steps, none of which are optional:
   2. Deploy OmniAgentMirror on each destination chain and setPeer in BOTH directions.
   3. Set a liquidity deployer on AgentLaunchpad before any launch can graduate.
   4. Transfer ownership of every contract to a multisig or timelock. Ownable2Step means the new
-     owner must accept, so a typo cannot brick governance.
+     owner must accept, so a typo cannot brick governance. Processor authorization is independent
+     of ownership; verify FiatMintGateway authorizes only the configured payment processor.
   5. Deploy AttesterQuorumVerifier and point AnimaAgent at it only once a real attester set and
      an approved enclave measurement exist.
 `);
@@ -204,6 +213,7 @@ if (process.env.ANIMA_DEPLOY === "1") {
     royaltyReceiver: (process.env.ROYALTY_RECEIVER ?? zeroAddress) as Address,
     royaltyBps: 500n,
     protocolTreasury: (process.env.PROTOCOL_TREASURY ?? zeroAddress) as Address,
+    paymentProcessor: (process.env.PAYMENT_PROCESSOR ?? zeroAddress) as Address,
     unbondingPeriod: 7 * 86400,
   });
 }
