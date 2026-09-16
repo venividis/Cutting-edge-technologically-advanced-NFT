@@ -1111,5 +1111,195 @@
       "0xbb5e4d7d2766af811ae26251bb2ac4d73e69916dba067fc6d0d01ee3a299519f",
       "0xec013e91eebcc29c35c5d9ea758ea43b2780569a1449c6fba6fd4dfb616b4691"
     ]
+  },
+  "batchExercise": {
+    "chainId": 11155111,
+    "actor": "0xFE186E85052445Aa062a2dB1B29E3Cb241F6269a",
+    "tokenIds": [
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23"
+    ],
+    "evidence": [
+      {
+        "label": "set agent 14 URI",
+        "hash": "0xbe985de49eb65113097831830983fb97e4dbcdf35ab62dac79c7c3daf3fb0f50",
+        "block": "11712240"
+      },
+      {
+        "label": "set agent 14 URI",
+        "hash": "0x74888efbe9cc2bbcfd65d37fde764de78ad53a5d58ac1818aaffd6c032dd5808",
+        "block": "11712242"
+      },
+      {
+        "label": "set agent 14 metadata",
+        "hash": "0xb82057b84eed041450cacb0633674b4dd0594104e5f62167cafae64a7236e7b9",
+        "block": "11712243"
+      },
+      {
+        "label": "declare agent 14 model",
+        "hash": "0xc3649e9f62724c515f17f3a86b16751893c699c2b74d1b28fbddd4048866e6c4",
+        "block": "11712244"
+      },
+      {
+        "label": "commit agent 14 manifest",
+        "hash": "0x5926c3203c07f6d0d9ee9f5b8cf733186584463d7ede39812455a148ceacca5c",
+        "block": "11712245"
+      },
+      {
+        "label": "update agent 14 brain",
+        "hash": "0xa76d4574f5fc9ff3aa156047ea8776374c40b3e04138b19c79470794653c4714",
+        "block": "11712249"
+      },
+      {
+        "label": "deploy agent 15 account",
+        "hash": "0xab9970d6b15166d729176639209c48d86c3ccfd685927c79d60405dde6fbbdca",
+        "block": "11712252"
+      },
+      {
+        "label": "set agent 15 policy",
+        "hash": "0x0d3eb9603b7fc4ba3676e11067c53202eb721e516c30c37a7506d9d744649b71",
+        "block": "11712253"
+      },
+      {
+        "label": "set agent 15 operator",
+        "hash": "0x7d764c09627acb4dff155f921a700757ca5afbca690698d3e1f8e2da06d8df25",
+        "block": "11712254"
+      },
+      {
+        "label": "set agent 15 guardian",
+        "hash": "0x6b9ed2639b2e84f6cd46a32196d18bce0dc445b0366c0cb421677f970204321c",
+        "block": "11712255"
+      },
+      {
+        "label": "activate agent 15",
+        "hash": "0x2d38c242bc4acd58ffe39f0cb19235b0995fcfc499da383ca0455bb1a40a5f45",
+        "block": "11712256"
+      },
+      {
+        "label": "fund exercise actor",
+        "hash": "0x614a28b9e8b24551cfdbe052061d056ab607a13b490d988aea8e373c99c4c6ba",
+        "block": "11712260"
+      },
+      {
+        "label": "guardian pauses agent 15",
+        "hash": "0xbd53c67f76dfe2ce97fb351a111f1d894647913d21a5b2152bf73f9b1bb18367",
+        "block": "11712261"
+      },
+      {
+        "label": "lease agent 16",
+        "hash": "0xc3ec18918ce9467c17ccb4bf20a9b4d8b91a4e0c15a994877efa26bc2d19c44f",
+        "block": "11712263"
+      },
+      {
+        "label": "clear agent 16 lease",
+        "hash": "0x3f31358e617c97c03f7daf276a093b7be5c6a581890c0f559da35f69b2a52281",
+        "block": "11712264"
+      },
+      {
+        "label": "approve agent 17",
+        "hash": "0xf3a63879d314042130745d5dd7f954ee0c36c5392f073146bb4fee4334cee3e6",
+        "block": "11712265"
+      },
+      {
+        "label": "actor transfers agent 17",
+        "hash": "0x3882f3de93f2c8a1ef68fca1b3b74c3ba2f7a17944f28e9c9d5fa121a48ad782",
+        "block": "11712267"
+      },
+      {
+        "label": "actor returns agent 17",
+        "hash": "0xb1768ee72284646e09e9f4edcd9d3bc02843df93fae91e3d827d60d5bbd05e9a",
+        "block": "11712269"
+      },
+      {
+        "label": "safe-transfer agent 18",
+        "hash": "0xe50304ed02196c5893f67a9f3300fbf9a359d5dfcee8c422231f392e6abfa745",
+        "block": "11712270"
+      },
+      {
+        "label": "safe-return agent 18 with data",
+        "hash": "0xe02f13de81194915e1d67a4663766269637bcbcd7dd109cd81687508e292c0f2",
+        "block": "11712271"
+      },
+      {
+        "label": "grant global approval",
+        "hash": "0x962a7a6d578cb98fea5adb2fd82e3e36dc1790d71a25d009d5e40d5299faf241",
+        "block": "11712272"
+      },
+      {
+        "label": "bound global approval expiry",
+        "hash": "0x9551d97a6fcfaf01f3871dd3d777a5c2038153c018a6ad57a25b048dfb2fd076",
+        "block": "11712273"
+      },
+      {
+        "label": "revoke all approvals",
+        "hash": "0x6cf583ec67554649e97a27eaed47ad0faa501eb7bc7e3c37e922adf69634d81a",
+        "block": "11712274"
+      },
+      {
+        "label": "bind agent 20 wallet",
+        "hash": "0x9ac561cb1d69dc58cb555a8dee9807b3e5b5e42a7ceb6c6d7f409602ca20c45f",
+        "block": "11712275"
+      },
+      {
+        "label": "unset agent 20 wallet",
+        "hash": "0x7ff3aca9005482eca6de5583adabbfcd49550ef5d7a05d06a2e3197434d5430c",
+        "block": "11712276"
+      },
+      {
+        "label": "set agent 21 royalty",
+        "hash": "0xa27f5577d5b747b340fc1d0fa46b9af0df7bf13a8dd02c938dff4f1934878ed7",
+        "block": "11712277"
+      },
+      {
+        "label": "activate agent 22",
+        "hash": "0xa5bfde81ba56f4e4f46f3cba2166294e7e02ac5ba2f8b6c50333b64892d7c712",
+        "block": "11712278"
+      },
+      {
+        "label": "pause agent 22",
+        "hash": "0x79cff8da9a51283d8a1d1757cb562fe3222045a1248397e6bb17691e8503efd9",
+        "block": "11712279"
+      },
+      {
+        "label": "retire agent 22",
+        "hash": "0xbf33d7396c42f97ddb0ae448ea6e320a075d1b9d31853f4c972e5bb423b98fef",
+        "block": "11712280"
+      },
+      {
+        "label": "configure agent 23 before sale",
+        "hash": "0x128343391aec2e4859e5eace59b438a3c5d30c6e6fad8550e9c0e103e4acaab1",
+        "block": "11712281"
+      },
+      {
+        "label": "lease agent 23 before sale",
+        "hash": "0x111555416d04aca7349edb32f5c9bbfe43acfaf5b5ae0f26c85be54ac5b9be25",
+        "block": "11712282"
+      },
+      {
+        "label": "transfer agent 23",
+        "hash": "0x1188dc6d15497913539506b13101e95184a23f08e2810d73892899d39063c603",
+        "block": "11712283"
+      }
+    ],
+    "completed": true,
+    "completedAt": "2026-09-15T20:53:03.293Z",
+    "assertions": [
+      "metadata/model/manifest/brain",
+      "ERC-6551/policy/operator/guardian",
+      "ERC-4907 lease",
+      "approval and both transfer overloads",
+      "approval epoch revocation",
+      "signed wallet binding",
+      "royalties and lifecycle",
+      "sale authority reset"
+    ]
   }
 }
