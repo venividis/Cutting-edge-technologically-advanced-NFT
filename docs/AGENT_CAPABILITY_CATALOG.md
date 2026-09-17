@@ -53,8 +53,8 @@ The controller can publish an `AutonomyPolicy`, allowlist target/selector leaves
 session keys with native-value budgets. Execution enforces lifecycle status, policy expiry,
 per-transaction and rolling daily native limits, allowlisted targets, delegatecall policy, token
 allowances, and transfer-reset epochs. `auditRoot`, `state`, `token`, `execute`, `executeBatch`,
-`grantSession`, `grantScopedSession`, `revokeSession`, `validateUserOp`, and rescue paths make authority inspectable and
-recoverable. Scoped sessions additionally pin complete calldata, exact native value, target runtime code, expected account state, call count and cadence for unattended automation. This is an execution shell; an off-chain model still chooses actions.
+`grantSession`, `revokeSession`, `validateUserOp`, and rescue paths make authority inspectable and
+recoverable. **The recorded Base Sepolia account implementation does not support `grantScopedSession`; scoped sessions are unavailable on this live deployment.** The source implementation can additionally pin complete calldata, exact native value, target runtime code, expected account state, call count and cadence, but integrators must not use that API until a directory entry explicitly identifies a compatible account implementation. This is an execution shell; an off-chain model still chooses actions.
 
 ## Immutable agent extensions
 

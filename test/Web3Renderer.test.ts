@@ -25,8 +25,12 @@ describe("AnimaWeb3Renderer", () => {
     assert.match(html, /data-panel="advanced"/);
     assert.match(html, /ACTIVATE ACCOUNT/);
     assert.match(html, /SIMULATE &amp; EXECUTE/);
-    assert.match(html, /createWalletClient/);
-    assert.match(html, /simulateContract/);
+    assert.match(html, /eth_sendTransaction/);
+    assert.match(html, /eth_call/);
+    assert.match(html, /COMMITTED/);
+    assert.match(html, /RE-KEYED/);
+    assert.match(html, /THRESHOLD/);
+    assert.doesNotMatch(html, /esm\.sh|<script[^>]+src=/);
     assert.doesNotMatch(html, /github\.io/);
     assert.ok(html.toLowerCase().includes(getAddress(p.alice.account.address).toLowerCase()));
     assert.ok(html.toLowerCase().includes(getAddress(await p.anima.read.accountOf([id])).toLowerCase()));
