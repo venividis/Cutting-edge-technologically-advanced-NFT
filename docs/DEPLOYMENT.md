@@ -131,9 +131,11 @@ Deploy the collection's ERC-4804 manual-mode browser after minting:
 DEPLOYER_PRIVATE_KEY=... npm run testnet:web3-renderer -- --network sepolia
 ```
 
-The renderer is deliberately a compact, immutable, trustless state page rather than a wallet
-application. Its token pages link to the Sanctuary's interactive owner console. Set
-`ANIMA_REDEPLOY_RENDERER=true` after changing the renderer; the deployment record retains the
+The renderer is an immutable, trustless, self-rendering agent console. Each token URL serves its
+complete responsive GUI directly from the renderer contract: live identity and memory reads, wallet
+connection, lifecycle controls, ERC-6551 activation, guardian/operator management, provenance, and
+an advanced simulate-before-signing console. It does not redirect owners to GitHub Pages.
+Set `ANIMA_REDEPLOY_RENDERER=true` after changing the renderer; the deployment record retains the
 previous address in `contracts.web3RendererHistory`.
 
 For the live Base Sepolia collection, a repository administrator can instead run the
@@ -146,8 +148,8 @@ publishes clickable collection and token URLs in the workflow summary, and commi
 
 The command records `contracts.web3Renderer` and prints a W3link URL for every minted token,
 for example `https://<renderer>.sep.w3link.io/token/14/live`. The renderer is intentionally separate
-from the immutable NFT: its fallback route reads the current owner, lifecycle status, and
-deterministic ERC-6551 account directly from ANIMA without changing token state.
+from the immutable NFT: its fallback route builds the GUI from current ANIMA state, while owner
+commands are simulated and submitted through the connected EIP-1193 wallet.
 
 - **Set an explicit LayerZero DVN and executor configuration.** LayerZero's security lives in
   that configuration, not in this repository. Defaults are a choice, and not one you made.
