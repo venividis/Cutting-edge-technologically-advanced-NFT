@@ -230,6 +230,76 @@ describe("AgentAccount — the leash", () => {
   });
 });
 
+describe("AgentAccount — exact scoped sessions", () => {
+  it("pins target bytecode, complete calldata, native value, call count, and cadence", async () => {
+    const p = await deployProtocol();
+    const { account, accountAddress } = await armedAgent(p);
+    await p.usdc.write.mint([accountAddress, 1000n]);
+    const transfer = encodeFunctionData({
+      abi: p.usdc.abi,
+      functionName: "transfer",
+      args: [p.bob.account.address, 100n],
+    });
+
+    await account.write.grantScopedSession([
+      p.carol.account.address,
+      0n,
+      FOREVER,
+      0n,
+      p.usdc.address,
+      keccak256(transfer),
+      0n,
+      2,
+      60,
+    ], { account: p.alice.account });
+
+    await account.write.execute([p.usdc.address, 0n, transfer, 0], { account: p.carol.account });
+    assert.equal(await p.usdc.read.balanceOf([p.bob.account.address]), 100n);
+    assert.equal((await account.read.sessionScopeOf([p.carol.account.address])).callsRemaining, 1);
+
+    const changedRecipient = encodeFunctionData({
+      abi: p.usdc.abi,
+      functionName: "transfer",
+      args: [p.deployer.account.address, 100n],
+    });
+    await expectRevert(
+      account.write.execute([p.usdc.address, 0n, changedRecipient, 0], { account: p.carol.account }),
+      "SessionScopeMismatch",
+    );
+    await expectRevert(
+      account.write.execute([p.usdc.address, 1n, transfer, 0], { account: p.carol.account }),
+      "SessionScopeMismatch",
+    );
+    await expectRevert(
+      account.write.execute([p.usdc.address, 0n, transfer, 0], { account: p.carol.account }),
+      "SessionScopeMismatch",
+    );
+
+    await p.networkHelpers.time.increase(60);
+    await account.write.execute([p.usdc.address, 0n, transfer, 0], { account: p.carol.account });
+    assert.equal((await account.read.sessionScopeOf([p.carol.account.address])).callsRemaining, 0);
+    await expectRevert(
+      account.write.execute([p.usdc.address, 0n, transfer, 0], { account: p.carol.account }),
+      "SessionScopeMismatch",
+    );
+  });
+
+  it("lets an owner deliberately replace an exact grant with the legacy broad session", async () => {
+    const p = await deployProtocol();
+    const { account } = await armedAgent(p);
+    await account.write.grantScopedSession([
+      p.carol.account.address, 0n, FOREVER, 1n, p.bob.account.address, keccak256("0x"), 0n, 1, 0,
+    ], { account: p.alice.account });
+    await account.write.setAllowedCall([p.bob.account.address, "0x00000000", true], { account: p.alice.account });
+    await expectRevert(
+      account.write.execute([p.bob.account.address, 0n, "0x", 0], { account: p.carol.account }),
+      "SessionScopeMismatch",
+    );
+    await account.write.grantSession([p.carol.account.address, 0n, FOREVER, 1n], { account: p.alice.account });
+    assert.equal((await account.read.sessionScopeOf([p.carol.account.address])).target, zeroAddress);
+  });
+});
+
 describe("AgentAccount — ERC-1271", () => {
   it("validates the owner's signature and refuses a session key's", async () => {
     const p = await deployProtocol();

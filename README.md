@@ -10,12 +10,16 @@
 > **AI agents and integrators:** start with the [machine integration guide](docs/AGENT_INTEGRATION.md),
 > [manifest schema](schemas/anima-agent-manifest-v1.schema.json), and
 > [example manifest](examples/manifests/base-sepolia-example.json). The public site also serves
-> [`llms.txt`](https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/llms.txt).
+> [`llms.txt`](https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/llms.txt), a
+> [capability catalog](docs/AGENT_CAPABILITY_CATALOG.md), and a machine directory at
+> [`/.well-known/anima.json`](public/.well-known/anima.json).
+> The [MASTER integration review](docs/MASTER_NFT_INTEGRATION_2026-09-17.md) documents the
+> exact-call session and immutable-extension compatibility imported from MASTER-NFT-PROJECT.
 
 An identity, a wallet, private state, a declared model, a published leash, and a bond you
 can take from it when it fails.
 
-> Status: reference implementation. 27 contracts, 268 tests, 25 review findings fixed.
+> Status: reference implementation. 27 contracts, 283 tests in each implementation mode, 25 review findings fixed.
 > Two interchangeable builds of the token — a monolith and an immutable EIP-2535 diamond —
 > proved equivalent by running the same suite against both.
 > **Live on Base Sepolia** ([token](https://sepolia.basescan.org/address/0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3)), with a full agent lifecycle run on chain.
@@ -328,7 +332,7 @@ escrow state machine).
 
 Stated here rather than buried, because a standard that hides them is worse than useless.
 
-- **Unaudited.** 268 tests and an adversarial review pass are not an audit.
+- **Unaudited.** 283 tests and an adversarial review pass are not an audit.
 - **Sealing protects future state, not past.** A prior owner who already exported plaintext
   keeps it. No cryptography fixes this; `SealPolicy` exists so you can price it.
 - **The attester quorum is a trust assumption.** Collusion of `threshold` attesters forges a
@@ -508,8 +512,8 @@ public.
 ```bash
 npm install
 npx hardhat build      # solc 0.8.28, viaIR, cancun
-npx hardhat test       # 268 tests against the monolith
-npm run test:diamond   # the same 268 against the EIP-2535 build
+npx hardhat test       # 283 tests against the monolith
+npm run test:diamond   # the same 283 against the EIP-2535 build
 npm run test:both      # both, in sequence
 ```
 

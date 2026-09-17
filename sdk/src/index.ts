@@ -13,6 +13,7 @@ import {
   getAddress,
   keccak256,
   parseAbiParameters,
+  sha256,
   toFunctionSelector,
   toHex,
   type Address,
@@ -83,20 +84,24 @@ export interface PrivateEnvelopeContext {
 /* -------------------------------------------------------------------------- */
 
 /**
- * The document an agent serves at its `agentURI`. Its capability fields are A2A-inspired, while
- * `anima` carries the on-chain declarations. It is not itself a conforming A2A Agent Card; an
- * A2A provider should publish the card required by its supported A2A protocol version as well.
+ * The ERC-8004 registration-v1 document an agent serves at its `agentURI`. `anima` carries the
+ * additional on-chain declarations. This is not itself an A2A Agent Card; an A2A provider
+ * advertises the versioned card as one entry in `services`.
  */
 export interface AgentManifest {
-  /** Optional URL of the JSON Schema used to validate this document. */
+  /** ERC-8004 registration document discriminator. */
+  type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1";
+  /** Optional URL of the stricter ANIMA JSON Schema used to validate this document. */
   $schema?: string;
-  /** Transport-neutral capability summary. */
+  /** ERC-721 compatible presentation fields. */
   name: string;
   description: string;
-  version: string;
-  url?: string;
-  capabilities?: { streaming?: boolean; pushNotifications?: boolean };
-  skills?: Array<{ id: string; name: string; description: string; tags?: string[] }>;
+  image: string;
+  services: AgentService[];
+  x402Support: boolean;
+  active: boolean;
+  registrations: AgentRegistration[];
+  supportedTrust?: Array<"reputation" | "crypto-economic" | "tee-attestation" | string>;
 
   /** ANIMA additions. */
   anima: {
@@ -134,7 +139,84 @@ export interface AgentManifest {
 
     /** Derivatives the agent is permitted to trade, mirroring its on-chain desk limits. */
     markets?: Array<{ market: string; venue: Address; maxLeverageX100: number }>;
+
+    /** Immutable, permission-declaring packages selected for this agent. */
+    extensions?: Array<{
+      releaseId: Hex;
+      registry?: Address;
+      required?: boolean;
+    }>;
   };
+}
+
+export interface AgentRegistration {
+  agentId: number;
+  /** `{namespace}:{chainId}:{identityRegistry}`, for example `eip155:84532:0x…`. */
+  agentRegistry: string;
+}
+
+export interface AgentService {
+  /** Standard names include `web`, `A2A`, `MCP`, `OASF`, `ENS`, `DID`, and `email`. */
+  name: string;
+  endpoint: string;
+  version?: string;
+  /** OASF services may include taxonomy identifiers directly in their service descriptor. */
+  skills?: number[];
+  domains?: number[];
+}
+
+export interface VerifyManifestOptions {
+  expectedRegistry?: string;
+  expectedAgentId?: string | number | bigint;
+}
+
+export interface FetchManifestOptions extends VerifyManifestOptions {
+  /** Defaults to 1 MiB. Applied while streaming, not after an unbounded allocation. */
+  maxBytes?: number;
+  /** Defaults to ten seconds. */
+  timeoutMs?: number;
+  fetch?: typeof globalThis.fetch;
+}
+
+export interface VerifiedManifest {
+  manifest: AgentManifest;
+  bytes: Uint8Array;
+  hash: Hex;
+}
+
+export const EXTENSION_SCHEMA = "anima.extension-release/1" as const;
+export const EXTENSION_HOST_API = "anima.host/1" as const;
+export const EXTENSION_CAPABILITIES = [
+  "identity.read",
+  "journal.propose",
+  "state.read",
+  "state.write",
+  "transaction.propose",
+] as const;
+
+export type ExtensionCapability = typeof EXTENSION_CAPABILITIES[number];
+
+export interface ExtensionManifest {
+  schema: typeof EXTENSION_SCHEMA;
+  name: string;
+  version: number;
+  publisher: Address;
+  format: "files" | "html";
+  archive: {
+    compression: "raw" | "gzip";
+    storedHash: Hex;
+    storedBytes: number;
+    expandedHash: Hex;
+    expandedBytes: number;
+  };
+  entrypoint: string;
+  hostAPI: typeof EXTENSION_HOST_API;
+  dependencies: Hex[];
+  capabilities: ExtensionCapability[];
+  stateSchema: Hex;
+  predecessor: Hex;
+  resources?: { maxRuntimeMs: number; maxStateBytes: number };
+  provenance?: { sourceHash: Hex; buildHash: Hex };
 }
 
 export interface AgentGui {
@@ -217,6 +299,99 @@ export function manifestHash(manifest: AgentManifest): Hex {
 }
 
 /**
+ * Hash first, parse second, then bind the registration back to the identity requested by the
+ * caller. This order prevents an attacker-controlled manifest from consuming parser work before
+ * its on-chain commitment has been checked.
+ */
+export function verifyManifestBytes(
+  bytes: Uint8Array,
+  expectedHash: Hex,
+  options: VerifyManifestOptions = {},
+): VerifiedManifest {
+  const hash = keccak256(bytes);
+  if (hash.toLowerCase() !== expectedHash.toLowerCase()) throw new Error("manifest hash mismatch");
+
+  let manifest: AgentManifest;
+  try {
+    manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as AgentManifest;
+  } catch {
+    throw new Error("manifest is not valid UTF-8 JSON");
+  }
+  if (manifest === null || typeof manifest !== "object" ||
+      manifest.type !== "https://eips.ethereum.org/EIPS/eip-8004#registration-v1") {
+    throw new Error("manifest is not an ERC-8004 registration-v1 document");
+  }
+  if (!Array.isArray(manifest.registrations) || manifest.registrations.length === 0) {
+    throw new Error("manifest has no registrations");
+  }
+  if (options.expectedRegistry !== undefined || options.expectedAgentId !== undefined) {
+    const registry = options.expectedRegistry?.toLowerCase();
+    const id = options.expectedAgentId?.toString();
+    const matches = manifest.registrations.some((entry) => {
+      if (entry === null || typeof entry !== "object" || typeof entry.agentRegistry !== "string" ||
+          !Number.isSafeInteger(entry.agentId) || entry.agentId < 0) return false;
+      return (registry === undefined || entry.agentRegistry.toLowerCase() === registry) &&
+        (id === undefined || String(entry.agentId) === id);
+    });
+    if (!matches) throw new Error("manifest does not register the requested on-chain agent");
+  }
+  return { manifest, bytes, hash };
+}
+
+/** Fetches a committed HTTPS manifest with finite time and memory before verifying it. */
+export async function fetchVerifiedManifest(
+  uri: string,
+  expectedHash: Hex,
+  options: FetchManifestOptions = {},
+): Promise<VerifiedManifest> {
+  const url = new URL(uri);
+  if (url.protocol !== "https:" || url.username || url.password) {
+    throw new Error("manifest fetch requires an HTTPS URL without credentials");
+  }
+  const maxBytes = options.maxBytes ?? 1024 * 1024;
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error("maxBytes must be a positive safe integer");
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new Error("timeoutMs must be a positive safe integer");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await (options.fetch ?? globalThis.fetch)(url, {
+      headers: { accept: "application/json" },
+      redirect: "error",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`manifest fetch failed: ${response.status}`);
+    const declared = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > maxBytes) throw new Error("manifest exceeds maxBytes");
+    if (!response.body) throw new Error("manifest response has no body");
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > maxBytes) {
+        await reader.cancel();
+        throw new Error("manifest exceeds maxBytes");
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return verifyManifestBytes(bytes, expectedHash, options);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * RFC 8785 canonical JSON.
  *
  * ECMAScript's `JSON.stringify` already produces JCS-conformant output for object and string
@@ -271,6 +446,137 @@ function assertWellFormed(s: string): void {
       i++;
     } else if (code >= 0xdc00 && code <= 0xdfff) {
       throw new Error("unpaired low surrogate in manifest string");
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         immutable extension packages                       */
+/* -------------------------------------------------------------------------- */
+
+const LOWER_HASH = /^0x[0-9a-f]{64}$/;
+const LOWER_ADDRESS = /^0x[0-9a-f]{40}$/;
+const EXTENSION_LIMITS = {
+  manifestBytes: 16_384,
+  storedBytes: 11_776_000,
+  expandedBytes: 16_777_216,
+  dependencies: 16,
+  graphReleases: 64,
+  graphDepth: 16,
+  stateBytes: 32_768,
+} as const;
+
+/**
+ * Validate the portable immutable-package profile adopted from MASTER-NFT-PROJECT.
+ * Validation grants no wallet permission and does not execute or fetch package bytes.
+ */
+export function validateExtensionManifest(manifest: ExtensionManifest): ExtensionManifest {
+  if (manifest === null || typeof manifest !== "object" || manifest.schema !== EXTENSION_SCHEMA ||
+      manifest.hostAPI !== EXTENSION_HOST_API) throw new Error("unsupported extension schema or host API");
+  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(manifest.name) ||
+      !LOWER_ADDRESS.test(manifest.publisher) || /^0x0+$/.test(manifest.publisher)) {
+    throw new Error("invalid extension publisher or name");
+  }
+  if (!Number.isSafeInteger(manifest.version) || manifest.version < 1 || manifest.version > 0xffffffff) {
+    throw new Error("invalid extension version");
+  }
+  if (manifest.format !== "files" && manifest.format !== "html") throw new Error("unsupported extension format");
+  if (!isSafeExtensionPath(manifest.entrypoint)) throw new Error("unsafe extension entrypoint");
+
+  const archive = manifest.archive;
+  if (!archive || (archive.compression !== "raw" && archive.compression !== "gzip") ||
+      !LOWER_HASH.test(archive.storedHash) || !LOWER_HASH.test(archive.expandedHash) ||
+      !safeBound(archive.storedBytes, 1, EXTENSION_LIMITS.storedBytes) ||
+      !safeBound(archive.expandedBytes, 1, EXTENSION_LIMITS.expandedBytes)) {
+    throw new Error("invalid extension archive");
+  }
+  if (archive.compression === "raw" &&
+      (archive.storedHash !== archive.expandedHash || archive.storedBytes !== archive.expandedBytes)) {
+    throw new Error("raw extension archive descriptors differ");
+  }
+  assertSortedUnique(manifest.dependencies, EXTENSION_LIMITS.dependencies, (value) => LOWER_HASH.test(value), "dependencies");
+  assertSortedUnique(
+    manifest.capabilities,
+    EXTENSION_CAPABILITIES.length,
+    (value) => (EXTENSION_CAPABILITIES as readonly string[]).includes(value),
+    "capabilities",
+  );
+  if (!LOWER_HASH.test(manifest.stateSchema) || !LOWER_HASH.test(manifest.predecessor)) {
+    throw new Error("invalid extension state or predecessor hash");
+  }
+  if (manifest.capabilities.some((capability) => capability.startsWith("state.")) &&
+      /^0x0+$/.test(manifest.stateSchema)) throw new Error("state capability requires a state schema");
+  if (manifest.resources &&
+      (!safeBound(manifest.resources.maxRuntimeMs, 1_000, 300_000) ||
+       !safeBound(manifest.resources.maxStateBytes, 0, EXTENSION_LIMITS.stateBytes))) {
+    throw new Error("invalid extension resource budget");
+  }
+  if (manifest.provenance &&
+      (!LOWER_HASH.test(manifest.provenance.sourceHash) || !LOWER_HASH.test(manifest.provenance.buildHash))) {
+    throw new Error("invalid extension provenance");
+  }
+  if (new TextEncoder().encode(canonicalise(manifest)).length > EXTENSION_LIMITS.manifestBytes) {
+    throw new Error("extension manifest too large");
+  }
+  return manifest;
+}
+
+export function serialiseExtensionManifest(manifest: ExtensionManifest): string {
+  validateExtensionManifest(manifest);
+  return canonicalise(manifest);
+}
+
+/** SHA-256 is retained for byte compatibility with the MASTER portable package format. */
+export function extensionManifestHash(manifest: ExtensionManifest): Hex {
+  return sha256(toHex(serialiseExtensionManifest(manifest)));
+}
+
+/** Resolve an exact, bounded dependency DAG without fetching or executing arbitrary code. */
+export async function resolveExtensionGraph(
+  roots: Hex[],
+  read: (id: Hex) => Promise<ExtensionManifest>,
+  options: { maxReleases?: number; maxDepth?: number } = {},
+): Promise<ExtensionManifest[]> {
+  const maxReleases = options.maxReleases ?? EXTENSION_LIMITS.graphReleases;
+  const maxDepth = options.maxDepth ?? EXTENSION_LIMITS.graphDepth;
+  if (!safeBound(maxReleases, 1, EXTENSION_LIMITS.graphReleases) ||
+      !safeBound(maxDepth, 1, EXTENSION_LIMITS.graphDepth) || roots.length === 0 || roots.length > maxReleases) {
+    throw new Error("invalid extension graph bounds");
+  }
+  const visiting = new Set<Hex>();
+  const complete = new Map<Hex, ExtensionManifest>();
+  const ordered: ExtensionManifest[] = [];
+  const visit = async (id: Hex, depth: number): Promise<void> => {
+    if (!LOWER_HASH.test(id)) throw new Error("invalid extension release id");
+    if (visiting.has(id)) throw new Error("cyclic extension dependencies");
+    if (complete.has(id)) return;
+    if (depth > maxDepth || visiting.size + complete.size >= maxReleases) throw new Error("extension graph budget exceeded");
+    visiting.add(id);
+    const manifest = validateExtensionManifest(await read(id));
+    if (extensionManifestHash(manifest) !== id) throw new Error("extension release hash mismatch");
+    for (const dependency of manifest.dependencies) await visit(dependency, depth + 1);
+    visiting.delete(id);
+    complete.set(id, manifest);
+    ordered.push(manifest);
+  };
+  for (const root of roots) await visit(root, 1);
+  return ordered;
+}
+
+function isSafeExtensionPath(value: string): boolean {
+  return typeof value === "string" && value.length <= 240 && !value.includes("..") &&
+    value.split("/").every((part) => /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(part) && part !== "." && part !== "..");
+}
+
+function safeBound(value: number, min: number, max: number): boolean {
+  return Number.isSafeInteger(value) && value >= min && value <= max;
+}
+
+function assertSortedUnique<T>(values: T[], max: number, valid: (value: T) => boolean, label: string): void {
+  if (!Array.isArray(values) || values.length > max) throw new Error(`invalid extension ${label}`);
+  for (let i = 0; i < values.length; i++) {
+    if (!valid(values[i]) || (i > 0 && String(values[i - 1]) >= String(values[i]))) {
+      throw new Error(`unsorted, duplicate, or invalid extension ${label}`);
     }
   }
 }

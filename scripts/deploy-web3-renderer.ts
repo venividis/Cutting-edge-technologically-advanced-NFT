@@ -27,7 +27,7 @@ async function main() {
   const animaCode = await publicClient.getCode({ address: anima });
   if (!animaCode || animaCode === "0x") throw new Error(`ANIMA has no code: ${anima}`);
 
-  let renderer = record.contracts.web3Renderer;
+  let renderer = process.env.ANIMA_REDEPLOY_RENDERER === "true" ? undefined : record.contracts.web3Renderer;
   if (renderer) {
     const code = await publicClient.getCode({ address: renderer });
     if (!code || code === "0x") throw new Error(`recorded renderer has no code: ${renderer}`);
@@ -37,6 +37,10 @@ async function main() {
     // deploy it, which makes recovery possible without the original collection deployer key.
     const deployed = await viem.deployContract("AnimaWeb3Renderer", [anima]);
     renderer = getAddress(deployed.address);
+    if (record.contracts.web3Renderer) {
+      record.contracts.web3RendererHistory ??= [];
+      record.contracts.web3RendererHistory.push(record.contracts.web3Renderer);
+    }
     record.contracts.web3Renderer = renderer;
     writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`);
     console.log(`renderer ${renderer} (deployed)`);

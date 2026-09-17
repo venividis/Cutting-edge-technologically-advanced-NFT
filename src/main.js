@@ -117,7 +117,7 @@ document.querySelectorAll('.sound, .sound-toggle').forEach(btn => btn.onclick = 
 const observer = new IntersectionObserver(entries => entries.forEach(e => e.isIntersecting && e.target.classList.add('visible')), { threshold: .12 });
 document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
-const ANIMA = '0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3';
+const ANIMA = '0xb3d92c766e3cb356db381feb21958a9ebb974365';
 const explorer = 'https://sepolia.basescan.org';
 const statuses = ['Dormant', 'Awake', 'Paused', 'Disputed', 'Retired'];
 const seals = ['Public', 'Committed', 'Re-keyed', 'Sealed TEE', 'Sealed ZK', 'Threshold'];
@@ -184,4 +184,8 @@ document.querySelector('.sanctuary-close').onclick=()=>{document.querySelector('
 document.querySelector('.connect').onclick=connect;document.querySelector('.refresh').onclick=discover;
 document.querySelector('.mint-entry').onclick=mintAgent;
 document.querySelector('.inspect-button').onclick=e=>{e.target.hidden=true;document.querySelector('.token-lookup').hidden=false};
-document.querySelector('.token-lookup').onsubmit=async e=>{e.preventDefault();try{const a=await loadAgent(BigInt(e.target.querySelector('input').value));const d=document.querySelector('.being-dialog');d.querySelector('.dialog-art').innerHTML=sigil(a.hue,300);d.querySelector('.dialog-copy').innerHTML=`<span class="section-no">LIVE ONCHAIN BEING</span><h2>Agent ${a.id}</h2><p class="role">${safe(a.model.modelId||'Model undeclared')}</p><blockquote>${statuses[a.status]} · ${seals[a.seal]} memory · epoch ${a.epoch}</blockquote><div class="stats"><span>Owner<b>${short(a.owner)}</b></span><span>Account<b>${short(a.account)}</b></span></div><a class="button primary" target="_blank" rel="noreferrer" href="${explorer}/token/${ANIMA}?a=${a.id}">See the proof ↗</a>`;d.showModal()}catch{toast('That agent was not found on Base Sepolia.')}};
+async function inspectAgent(id){try{const a=await loadAgent(BigInt(id));const d=document.querySelector('.being-dialog');d.querySelector('.dialog-art').innerHTML=sigil(a.hue,300);d.querySelector('.dialog-copy').innerHTML=`<span class="section-no">LIVE ONCHAIN BEING</span><h2>Agent ${a.id}</h2><p class="role">${safe(a.model.modelId||'Model undeclared')}</p><blockquote>${statuses[a.status]} · ${seals[a.seal]} memory · epoch ${a.epoch}</blockquote><div class="stats"><span>Owner<b>${short(a.owner)}</b></span><span>Account<b>${short(a.account)}</b></span></div><div class="dialog-actions"><button class="button primary manage-agent">Manage this agent</button><a class="button ghost" target="_blank" rel="noreferrer" href="${explorer}/token/${ANIMA}?a=${a.id}">See the proof ↗</a></div>`;d.querySelector('.manage-agent').onclick=()=>{d.close();openSanctuary();document.querySelector('.inspect-button').hidden=true;const form=document.querySelector('.token-lookup');form.hidden=false;form.querySelector('input').value=a.id};d.showModal()}catch{toast('That agent was not found on Base Sepolia.')}}
+document.querySelector('.token-lookup').onsubmit=async e=>{e.preventDefault();await inspectAgent(e.target.querySelector('input').value)};
+
+const linkedAgent=new URLSearchParams(location.search).get('agent');
+if(linkedAgent&&/^\d+$/.test(linkedAgent)){openSanctuary();document.querySelector('.inspect-button').hidden=true;const form=document.querySelector('.token-lookup');form.hidden=false;form.querySelector('input').value=linkedAgent;inspectAgent(linkedAgent)}

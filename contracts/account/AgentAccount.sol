@@ -66,6 +66,22 @@ contract AgentAccount is
         address grantedBy;
     }
 
+    /// @notice Optional exact-call restrictions for a session key.
+    /// @dev A zero `target` means the legacy policy/allowlist session. A nonzero target pins
+    ///      the complete calldata, target bytecode, call count and minimum interval. This is
+    ///      intentionally separate from {Session} so the established `sessionOf` ABI remains
+    ///      stable for existing integrations.
+    struct SessionScope {
+        address target;
+        bytes32 dataHash;
+        bytes32 targetCodeHash;
+        uint128 value;
+        uint256 expectedAccountState;
+        uint64 lastUsedAt;
+        uint32 minInterval;
+        uint32 callsRemaining;
+    }
+
     struct Call {
         address to;
         uint256 value;
@@ -94,6 +110,7 @@ contract AgentAccount is
     uint256 private _state;
 
     mapping(address signer => Session) private _sessions;
+    mapping(address signer => SessionScope) private _sessionScopes;
     /// @dev Namespaced by the owner who set it, so a buyer inherits an empty allowlist rather
     ///      than whatever surface the seller opened up.
     mapping(address grantedBy => mapping(address target => mapping(bytes4 selector => bool))) private _allowedCall;
@@ -114,6 +131,16 @@ contract AgentAccount is
     //////////////////////////////////////////////////////////////*/
 
     event SessionGranted(address indexed signer, uint64 validAfter, uint64 validUntil, uint128 spendCapWei);
+    event ScopedSessionGranted(
+        address indexed signer,
+        address indexed target,
+        bytes32 indexed dataHash,
+        bytes32 targetCodeHash,
+        uint128 value,
+        uint256 expectedAccountState,
+        uint32 calls,
+        uint32 minInterval
+    );
     event SessionRevoked(address indexed signer);
     event CallAllowed(address indexed target, bytes4 indexed selector, bool allowed);
     event Executed(address indexed signer, address indexed to, uint256 value, bytes4 selector, uint8 operation);
@@ -137,6 +164,7 @@ contract AgentAccount is
     error DailyCapExceeded(uint256 wouldBe, uint128 cap);
     error SessionCapExceeded(uint256 wouldBe, uint128 cap);
     error SessionNotValid(address signer);
+    error SessionScopeMismatch(address signer);
     error TargetNotAllowed(address to, bytes4 selector);
     error DelegateCallNotAllowed();
     error UnsupportedOperation(uint8 operation);
@@ -211,6 +239,37 @@ contract AgentAccount is
     /// @notice Grant the agent a key to operate with. Owner only.
     function grantSession(address signer, uint64 validAfter, uint64 validUntil, uint128 spendCapWei) external {
         _requireOwner();
+        _grantSession(signer, validAfter, validUntil, spendCapWei);
+        delete _sessionScopes[signer];
+    }
+
+    /// @notice Grant a session that can perform only one byte-exact action shape.
+    /// @dev This closes the selector-only gap for unattended automation: dynamic recipients,
+    ///      slippage limits and other calldata cannot be changed by the worker, and a target
+    ///      whose runtime bytecode changes invalidates the grant. Native value is pinned exactly
+    ///      and remains bounded independently by the ordinary session and agent-policy caps.
+    function grantScopedSession(
+        address signer,
+        uint64 validAfter,
+        uint64 validUntil,
+        uint128 spendCapWei,
+        address target,
+        bytes32 dataHash,
+        uint128 value,
+        uint32 calls,
+        uint32 minInterval
+    ) external {
+        _requireOwner();
+        bytes32 codeHash = target.codehash;
+        if (target == address(0) || dataHash == bytes32(0) || codeHash == bytes32(0) || calls == 0) {
+            revert SessionScopeMismatch(signer);
+        }
+        _grantSession(signer, validAfter, validUntil, spendCapWei);
+        _sessionScopes[signer] = SessionScope(target, dataHash, codeHash, value, _state, 0, minInterval, calls);
+        emit ScopedSessionGranted(signer, target, dataHash, codeHash, value, _state, calls, minInterval);
+    }
+
+    function _grantSession(address signer, uint64 validAfter, uint64 validUntil, uint128 spendCapWei) private {
         if (signer == address(0)) revert NotAuthorized(signer);
         _sessions[signer] = Session({
             validAfter: validAfter,
@@ -224,6 +283,10 @@ contract AgentAccount is
             ++_state;
         }
         emit SessionGranted(signer, validAfter, validUntil, spendCapWei);
+    }
+
+    function sessionScopeOf(address signer) external view returns (SessionScope memory) {
+        return _sessionScopes[signer];
     }
 
     /// @notice Revoke a session key immediately.
@@ -409,6 +472,8 @@ contract AgentAccount is
         if (operation == 1 && !p.allowDelegateCall) revert DelegateCallNotAllowed();
         if (operation > 1) revert UnsupportedOperation(operation);
 
+        _consumeScope(signer, to, value, keccak256(data), operation);
+
         bytes4 selector = data.length >= 4 ? bytes4(data[:4]) : bytes4(0);
         if (!p.allowUnlistedTargets && !allowedCall(to, selector)) {
             bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(to, selector))));
@@ -564,6 +629,8 @@ contract AgentAccount is
         if (operation == 1 && !p.allowDelegateCall) revert DelegateCallNotAllowed();
         if (operation > 1) revert UnsupportedOperation(operation);
 
+        _consumeScope(signer, to, value, keccak256(data), operation);
+
         bytes4 selector = _selectorOf(data);
         if (!p.allowUnlistedTargets && !allowedCall(to, selector)) revert TargetNotAllowed(to, selector);
 
@@ -579,6 +646,22 @@ contract AgentAccount is
             uint256 sessionWouldBe = uint256(s.spentWei) + value;
             if (sessionWouldBe > s.spendCapWei) revert SessionCapExceeded(sessionWouldBe, s.spendCapWei);
             s.spentWei = uint128(sessionWouldBe);
+        }
+    }
+
+    function _consumeScope(address signer, address to, uint256 value, bytes32 dataHash, uint8 operation) private {
+        SessionScope storage scope = _sessionScopes[signer];
+        if (scope.target == address(0)) return;
+        if (operation != 0 || to != scope.target || value != scope.value || dataHash != scope.dataHash
+            || _state != scope.expectedAccountState
+            || to.codehash != scope.targetCodeHash || scope.callsRemaining == 0
+            || (scope.lastUsedAt != 0 && block.timestamp < uint256(scope.lastUsedAt) + scope.minInterval)) {
+            revert SessionScopeMismatch(signer);
+        }
+        scope.lastUsedAt = uint64(block.timestamp);
+        scope.expectedAccountState = _state + 1;
+        unchecked {
+            --scope.callsRemaining;
         }
     }
 

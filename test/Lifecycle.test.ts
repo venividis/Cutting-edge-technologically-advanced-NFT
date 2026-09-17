@@ -39,13 +39,19 @@ describe("Lifecycle — an agent's whole life", () => {
     });
 
     const manifest: AgentManifest = {
+      type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
       name: "Atlas",
       description: "Research agent",
-      version: "1.0.0",
+      image: "https://atlas.example/avatar.png",
+      services: [{ name: "MCP", endpoint: "https://atlas.example/mcp", version: "2025-06-18" }],
+      x402Support: false,
+      active: true,
+      registrations: [{ agentId: Number(agentId), agentRegistry: `eip155:${chainId}:${p.anima.address}` }],
+      supportedTrust: ["reputation", "crypto-economic"],
       anima: {
         registry: `eip155:${chainId}:${p.anima.address}`,
         agentId: agentId.toString(),
-        mcp: [{ name: "search", url: "https://atlas.example/mcp", transport: "http" }],
+        mcp: [{ name: "search", url: "https://atlas.example/mcp", transport: "streamable-http" }],
         pricing: { unit: "1k tokens", amount: "1000", token: p.usdc.address },
       },
     };

@@ -13,10 +13,9 @@ ANIMA separates discovery into two independently useful layers:
 2. ANIMA's `manifestOf(agentId)` also returns a `manifestHash` and version. The hash is
    `keccak256` over the **exact bytes served by the URI**.
 
-The manifest is an A2A-inspired capability card with ANIMA extensions for on-chain identity,
-MCP endpoints, pricing, model commitments, handles, and interfaces. It is not a claim that every
-ANIMA manifest is a conforming A2A Agent Card. A provider that supports A2A should also publish its
-standards-conforming Agent Card at the well-known location required by the A2A version it supports.
+The manifest is an ERC-8004 `registration-v1` document with a namespaced `anima` extension for
+on-chain commitments, MCP transport details, pricing, model identity, handles, and interfaces. It
+may advertise a conforming A2A Agent Card as a service, but is not itself that Agent Card.
 
 MCP servers should use the standard `stdio` or `streamable-http` transport. `sse` exists in the
 schema only for compatibility with legacy MCP servers. A manifest advertises an MCP server; normal
@@ -89,12 +88,23 @@ The SDK's `serialiseManifest` implements the repository's canonical JSON encodin
 import { manifestHash, serialiseManifest, type AgentManifest } from "@anima/sdk";
 
 const manifest: AgentManifest = {
+  type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   name: "Atlas",
   description: "A bounded research agent",
-  version: "1.0.0",
-  skills: [{ id: "research", name: "Research", description: "Research with citations" }],
+  image: "https://atlas.example/avatar.png",
+  services: [
+    { name: "A2A", endpoint: "https://atlas.example/.well-known/agent-card.json", version: "1.0" },
+    { name: "MCP", endpoint: "https://atlas.example/mcp", version: "2025-06-18" },
+  ],
+  x402Support: false,
+  active: true,
+  registrations: [{
+    agentId: 2,
+    agentRegistry: "eip155:84532:0xb3d92c766e3cb356db381feb21958a9ebb974365",
+  }],
+  supportedTrust: ["reputation", "crypto-economic"],
   anima: {
-    registry: "eip155:84532:0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3",
+    registry: "eip155:84532:0xb3d92c766e3cb356db381feb21958a9ebb974365",
     agentId: "2",
     mcp: [{ name: "atlas", url: "https://atlas.example/mcp", transport: "streamable-http" }],
   },
@@ -108,6 +118,11 @@ console.log(manifestHash(manifest));
 Never calculate the hash and then allow a CDN, CMS, or formatter to rewrite the response. Fetch
 the deployed URI and verify it against the intended hash before submitting `setManifest`.
 
+Consumers can use `fetchVerifiedManifest(uri, committedHash, { expectedRegistry, expectedAgentId })`
+to enforce HTTPS, reject redirects, cap the streamed response at 1 MiB, apply a ten-second timeout,
+hash before parsing, and require the requested ERC-8004 registration. Applications should still
+validate the returned object against the JSON Schema and apply an explicit network egress policy.
+
 ## Decide whether to transact
 
 A valid manifest proves only that the token controller committed to those bytes. Before hiring or
@@ -117,6 +132,16 @@ summary. See the [security model](SECURITY.md) and [Base Sepolia deployment reco
 
 After selecting a transport, follow that transport's own handshake and authentication rules.
 Do not infer successful delivery, payment, or trustworthy output merely from endpoint discovery.
+
+## Immutable extension declarations
+
+`anima.extensions[]` can bind a registration to content-addressed releases using the
+MASTER-compatible `anima.extension-release/1` format. Use `serialiseExtensionManifest`,
+`extensionManifestHash`, and `resolveExtensionGraph` to validate its canonical bytes and finite
+dependency closure. An extension declaration is not an installation, an installation is not a
+session grant, and `transaction.propose` never means “may sign”. The current Base Sepolia ANIMA
+deployment does not include an extension registry; do not advertise a registry address unless its
+code and release records have been independently verified.
 
 ## SDK consumption
 

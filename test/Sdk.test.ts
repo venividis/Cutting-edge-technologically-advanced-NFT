@@ -6,6 +6,11 @@ import {
   workRoot as sdkWorkRoot,
   replayAuditLog,
   manifestHash,
+  verifyManifestBytes,
+  fetchVerifiedManifest,
+  extensionManifestHash,
+  resolveExtensionGraph,
+  serialiseExtensionManifest,
   agentWebUrl,
   serialiseManifest,
   lockedDownPolicy,
@@ -18,6 +23,7 @@ import {
   privateEnvelopeHash,
   ShardKind,
   type AgentManifest,
+  type ExtensionManifest,
 } from "../sdk/src/index.js";
 import { deployProtocol, mintAgent, shard, AgentStatus, ZERO32 } from "./helpers.js";
 
@@ -135,14 +141,18 @@ describe("SDK — agreement with the contracts", () => {
   it("produces a manifest hash the contract accepts", async () => {
     const p = await deployProtocol();
     const manifest: AgentManifest = {
+      type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
       name: "Atlas",
       description: "A research agent",
-      version: "1.0.0",
-      skills: [{ id: "research", name: "Research", description: "Finds and synthesises sources" }],
+      image: "https://atlas.example/avatar.png",
+      services: [{ name: "MCP", endpoint: "https://atlas.example/mcp", version: "2025-06-18" }],
+      x402Support: false,
+      active: true,
+      registrations: [{ agentId: 1, agentRegistry: `eip155:${await p.publicClient.getChainId()}:${p.anima.address}` }],
       anima: {
         registry: `eip155:${await p.publicClient.getChainId()}:${p.anima.address}`,
         agentId: "1",
-        mcp: [{ name: "search", url: "https://atlas.example/mcp", transport: "http" }],
+        mcp: [{ name: "search", url: "https://atlas.example/mcp", transport: "streamable-http" }],
         model: { modelId: "anthropic/claude-opus-5", weightsRoot: ZERO32, attestationKind: 1 },
       },
     };
@@ -207,6 +217,89 @@ describe("SDK — canonicalisation", () => {
 
   it("drops undefined object properties, which JSON cannot represent", async () => {
     assert.equal(canonicalise({ a: 1, b: undefined }), '{"a":1}');
+  });
+});
+
+describe("SDK — hostile manifest retrieval", () => {
+  const manifest: AgentManifest = {
+    type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+    name: "Atlas",
+    description: "A bounded test agent",
+    image: "https://atlas.example/avatar.png",
+    services: [{ name: "MCP", endpoint: "https://atlas.example/mcp", version: "2025-06-18" }],
+    x402Support: false,
+    active: true,
+    registrations: [{ agentId: 7, agentRegistry: "eip155:84532:0xb3d92c766e3cb356db381feb21958a9ebb974365" }],
+    anima: { registry: "eip155:84532:0xb3d92c766e3cb356db381feb21958a9ebb974365", agentId: "7" },
+  };
+  const body = serialiseManifest(manifest);
+  const bytes = new TextEncoder().encode(body);
+  const hash = manifestHash(manifest);
+
+  it("checks the byte commitment and requested ERC-8004 identity before returning JSON", () => {
+    assert.equal(verifyManifestBytes(bytes, hash, {
+      expectedRegistry: manifest.anima.registry,
+      expectedAgentId: 7n,
+    }).manifest.name, "Atlas");
+    assert.throws(() => verifyManifestBytes(bytes, ZERO32), /hash mismatch/);
+    assert.throws(() => verifyManifestBytes(bytes, hash, { expectedAgentId: 8n }), /requested on-chain agent/);
+  });
+
+  it("bounds network retrieval and refuses redirects and non-HTTPS URLs", async () => {
+    const fetch = async () => new Response(body, { status: 200, headers: { "content-type": "application/json" } });
+    assert.equal((await fetchVerifiedManifest("https://atlas.example/registration.json", hash, {
+      fetch: fetch as typeof globalThis.fetch,
+      expectedRegistry: manifest.anima.registry,
+      expectedAgentId: 7,
+    })).manifest.name, "Atlas");
+    await assert.rejects(() => fetchVerifiedManifest("http://atlas.example/card", hash, { fetch: fetch as typeof globalThis.fetch }), /HTTPS/);
+    await assert.rejects(() => fetchVerifiedManifest("https://atlas.example/card", hash, {
+      fetch: fetch as typeof globalThis.fetch,
+      maxBytes: 8,
+    }), /maxBytes/);
+  });
+});
+
+describe("SDK — immutable extension packages", () => {
+  const empty = ZERO32;
+  const make = (name: string, dependencies: `0x${string}`[] = []): ExtensionManifest => ({
+    schema: "anima.extension-release/1",
+    name,
+    version: 1,
+    publisher: "0x1111111111111111111111111111111111111111",
+    format: "files",
+    archive: {
+      compression: "raw",
+      storedHash: keccak256(toHex(`${name}:archive`)),
+      storedBytes: 128,
+      expandedHash: keccak256(toHex(`${name}:archive`)),
+      expandedBytes: 128,
+    },
+    entrypoint: "index.js",
+    hostAPI: "anima.host/1",
+    dependencies,
+    capabilities: ["identity.read"],
+    stateSchema: empty,
+    predecessor: empty,
+    resources: { maxRuntimeMs: 5_000, maxStateBytes: 0 },
+  });
+
+  it("retains MASTER package identities and resolves dependencies before dependants", async () => {
+    const dependency = make("shared-score");
+    const dependencyId = extensionManifestHash(dependency);
+    const root = make("research-tool", [dependencyId]);
+    const rootId = extensionManifestHash(root);
+    const releases = new Map([[dependencyId, dependency], [rootId, root]]);
+    const ordered = await resolveExtensionGraph([rootId], async (id) => releases.get(id)!);
+    assert.deepEqual(ordered.map((manifest) => manifest.name), ["shared-score", "research-tool"]);
+    assert.equal(serialiseExtensionManifest(root), canonicalise(root));
+  });
+
+  it("rejects undeclared permissions, mutable paths, cycles, and substituted releases", async () => {
+    assert.throws(() => serialiseExtensionManifest({ ...make("bad-capability"), capabilities: ["wallet.sign" as never] }), /capabilities/);
+    assert.throws(() => serialiseExtensionManifest({ ...make("bad-path"), entrypoint: "../secret" }), /entrypoint/);
+    const root = make("root", [keccak256(toHex("missing"))]);
+    await assert.rejects(() => resolveExtensionGraph([extensionManifestHash(root)], async () => root), /hash mismatch|cyclic/);
   });
 });
 

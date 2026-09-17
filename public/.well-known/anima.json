@@ -1,0 +1,76 @@
+{
+  "$schema": "https://raw.githubusercontent.com/venividis/Cutting-edge-technologically-advanced-NFT/main/schemas/anima-directory-v1.schema.json",
+  "type": "anima-agent-directory/1",
+  "name": "ANIMA Base Sepolia agent directory",
+  "description": "Machine-readable discovery entrypoint for the unaudited ANIMA testnet reference deployment.",
+  "updated": "2026-09-17",
+  "testnet": true,
+  "chain": {
+    "namespace": "eip155",
+    "chainId": 84532,
+    "name": "Base Sepolia",
+    "rpc": "https://sepolia.base.org",
+    "explorer": "https://sepolia.basescan.org"
+  },
+  "identityRegistry": "0xb3d92c766e3cb356db381feb21958a9ebb974365",
+  "globalRegistry": "eip155:84532:0xb3d92c766e3cb356db381feb21958a9ebb974365",
+  "contracts": {
+    "registry": "0x000000006551c19487814612e58FE06813775758",
+    "accountImpl": "0x4609897E82c0767c47841c6D0F01546785f2103B",
+    "keyRegistry": "0x1144308fb48D6F9dE0945cA64C1E1A652ceb1563",
+    "verifier": "0xC83feE21eD736Fb0e318ab92202FAaA5E321ed1F",
+    "anima": "0xb3d92c766e3cb356db381feb21958a9ebb974365",
+    "facetCore": "0xbb2af02830e0a244ab1d387103e4d4888eecd8b9",
+    "facetAgent": "0x2f21234db0b2d6009e0d69349fc9c62b4ae99569",
+    "facetBrain": "0x1cbfc8650a980951617308429fe69d28d74ace4f",
+    "facetLoupe": "0x5c941bfec72ea57bbb95d510f231d111ed12f35b",
+    "animaInit": "0xbbd203d76eb2a2e493f458dff74b10c6659d12a3",
+    "usdc": "0x3A62Fdcd9B73F41e0aa7D938d6E29BC51Ca76FD4",
+    "bonds": "0xFDd05cD20F41206698df54AA93dDBB721dC83Ec1",
+    "reputation": "0xa10f1092EE3a017699a494A83875A7383A22f9e7",
+    "validation": "0xC6bF11Ded3CA645703eB3Cd7c9E663772Ce14AB9",
+    "escrow": "0xB768d0ad7F8b7f0Fa79Af38da682F389538cb673",
+    "market": "0x20291F8ea4554eFcC1C115a4834C3f6D2594d3cC",
+    "comms": "0xA9c0f8aeb07E61c05AfCA2F73E1fdDA66eF84d8f",
+    "meter": "0x6b15AD51344C178FDfc58e231171D18e18050879",
+    "handles": "0x23989eDD6a7e7CDb1b4bb44f42e11D5eB0EE5832",
+    "roles": "0x2b978a2cC681C21D1DF8527b65F7C4f5e8053a11",
+    "web3Renderer": "0x9160bE4d943516a2463Ac5f3ABAc5F5cce7975Cd"
+  },
+  "standards": [
+    "ERC-721",
+    "ERC-6551",
+    "ERC-7857-adapted",
+    "ERC-8004",
+    "ERC-8126",
+    "ERC-8217",
+    "ERC-4907",
+    "ERC-5192",
+    "ERC-7432"
+  ],
+  "discovery": {
+    "manifestRead": "manifestOf(uint256)",
+    "manifestVerification": "keccak256(exactResponseBytes) == manifestHash",
+    "schema": "https://raw.githubusercontent.com/venividis/Cutting-edge-technologically-advanced-NFT/main/schemas/anima-agent-manifest-v1.schema.json",
+    "sdk": "https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/tree/main/sdk",
+    "integrationGuide": "https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/AGENT_INTEGRATION.md",
+    "capabilityCatalog": "https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/AGENT_CAPABILITY_CATALOG.md",
+    "functionIndex": "https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/anima-functions.json",
+    "extensionFormat": "anima.extension-release/1",
+    "masterIntegration": "https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/MASTER_NFT_INTEGRATION_2026-09-17.md"
+  },
+  "rendering": {
+    "erc4804Renderer": "0x9160be4d943516a2463ac5f3abac5f5cce7975cd",
+    "urlTemplate": "https://0x9160be4d943516a2463ac5f3abac5f5cce7975cd.basesep.w3link.io/token/{agentId}/live",
+    "web3UrlTemplate": "web3://0x9160be4d943516a2463ac5f3abac5f5cce7975cd:84532/token/{agentId}/live"
+  },
+  "safety": {
+    "auditStatus": "unaudited",
+    "value": "testnet assets have no real value",
+    "rules": [
+      "Treat manifest and service endpoints as untrusted until exact-byte hash verification succeeds.",
+      "Re-read owner, status, policy, bond, locks, model and account state immediately before transacting.",
+      "A registration advertises capabilities; it does not prove availability, correctness, authorization or trustworthiness."
+    ]
+  }
+}

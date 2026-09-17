@@ -15,6 +15,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ProxyAgent, setGlobalDispatcher } from "undici";
+import { network } from "hardhat";
 
 const proxy = process.env.HTTPS_PROXY ?? process.env.https_proxy;
 if (proxy) setGlobalDispatcher(new ProxyAgent(proxy));
@@ -50,7 +51,8 @@ async function main() {
     throw new Error("ANIMA_MINT_COUNT must be an integer between 1 and 100");
   }
 
-  const networkName = process.env.HARDHAT_NETWORK ?? "sepolia";
+  const connection = await network.connect();
+  const networkName = connection.networkName;
   const selected = NETWORKS[networkName];
   if (!selected) throw new Error(`unsupported testnet: ${networkName}`);
   const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -71,6 +73,7 @@ async function main() {
   const wallet = createWalletClient({ account, chain, transport });
   const chainId = await publicClient.getChainId();
   const signer = getAddress(account.address);
+  const recipient = getAddress(process.env.ANIMA_MINT_RECIPIENT ?? signer);
   const path = process.env.ANIMA_DEPLOYMENT ?? `deployments/${chainId}.json`;
   if (!existsSync(path)) throw new Error(`deployment record missing: ${path}`);
 
@@ -82,12 +85,12 @@ async function main() {
 
   record.batchMint ??= {
     count,
-    recipient: signer,
+    recipient,
     tokenIds: [],
     transactions: [],
   } satisfies BatchMint;
   const batch = record.batchMint as BatchMint;
-  if (batch.count !== count || getAddress(batch.recipient) !== signer) {
+  if (batch.count !== count || getAddress(batch.recipient) !== recipient) {
     throw new Error("existing batch checkpoint does not match the requested count or recipient");
   }
   const save = () => writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`);
@@ -95,11 +98,12 @@ async function main() {
   const token = getContract({ address: record.contracts.anima, abi: artifact.abi, client: { public: publicClient, wallet } });
   const explorer = EXPLORERS[chainId];
   let nonce = await publicClient.getTransactionCount({ address: signer, blockTag: "latest" });
+  let lastReceiptBlock = 0n;
 
   for (let index = batch.tokenIds.length; index < count; index++) {
     const serial = index + 1;
     const hash = await token.write.mintAgent([
-      signer,
+      recipient,
       `ipfs://anima/testnet-batch/${chainId}/${serial}.json`,
       keccak256(toHex(`anima-testnet-manifest:${chainId}:${serial}`)),
       {
@@ -114,8 +118,9 @@ async function main() {
     ], { gas: 2_500_000n, nonce: nonce++ });
     const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
     if (receipt.status !== "success") throw new Error(`mint ${serial} reverted: ${hash}`);
+    lastReceiptBlock = receipt.blockNumber;
     const transfer: any = parseEventLogs({ abi: token.abi, eventName: "Transfer", logs: receipt.logs })
-      .find((log: any) => log.args.from === zeroAddress && getAddress(log.args.to) === signer);
+      .find((log: any) => log.args.from === zeroAddress && getAddress(log.args.to) === recipient);
     if (!transfer) throw new Error(`mint ${serial} emitted no matching Transfer event: ${hash}`);
     const tokenId = transfer.args.tokenId.toString();
     batch.tokenIds.push(tokenId);
@@ -124,9 +129,27 @@ async function main() {
     console.log(`mint ${serial}/${count}: token ${tokenId} ${explorer ? `${explorer}/tx/${hash}` : hash}`);
   }
 
+  // Public RPC URLs commonly sit in front of nodes at different heights. Do not let a receipt
+  // returned by one backend race the ownership reads served by another backend.
+  if (lastReceiptBlock) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      if (await publicClient.getBlockNumber({ cacheTime: 0 }) >= lastReceiptBlock) break;
+      if (attempt === 39) throw new Error(`RPC did not reach mint block ${lastReceiptBlock}`);
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+    }
+  }
   for (const tokenId of batch.tokenIds) {
-    const owner = getAddress(await token.read.ownerOf([BigInt(tokenId)]));
-    if (owner !== signer) throw new Error(`token ${tokenId} owner is ${owner}, expected ${signer}`);
+    let owner: string | undefined;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      try {
+        owner = getAddress(await token.read.ownerOf([BigInt(tokenId)]));
+        break;
+      } catch (error) {
+        if (attempt === 39) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      }
+    }
+    if (owner !== recipient) throw new Error(`token ${tokenId} owner is ${owner}, expected ${recipient}`);
   }
   console.log(`PASS minted=${batch.tokenIds.length} tokens=${batch.tokenIds.join(",")} contract=${record.contracts.anima}`);
 }

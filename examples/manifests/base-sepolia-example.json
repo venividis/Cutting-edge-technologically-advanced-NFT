@@ -1,23 +1,51 @@
 {
   "$schema": "https://raw.githubusercontent.com/venividis/Cutting-edge-technologically-advanced-NFT/main/schemas/anima-agent-manifest-v1.schema.json",
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "name": "Atlas Example",
-  "description": "Illustrative ANIMA manifest; the example endpoints are not live services.",
-  "version": "1.0.0",
-  "url": "https://agent.example/a2a",
-  "capabilities": {
-    "streaming": false,
-    "pushNotifications": false
-  },
-  "skills": [
+  "description": "Illustrative ANIMA registration; the example endpoints are intentionally non-operational.",
+  "image": "https://agent.example/atlas.png",
+  "services": [
     {
-      "id": "summarize",
-      "name": "Summarize text",
-      "description": "Produces a concise summary of supplied text.",
-      "tags": ["example", "summarization"]
+      "name": "web",
+      "endpoint": "https://agent.example/console"
+    },
+    {
+      "name": "A2A",
+      "endpoint": "https://agent.example/.well-known/agent-card.json",
+      "version": "1.0"
+    },
+    {
+      "name": "MCP",
+      "endpoint": "https://agent.example/mcp",
+      "version": "2025-06-18"
+    },
+    {
+      "name": "OASF",
+      "endpoint": "ipfs://bafybeiexample",
+      "version": "0.8",
+      "skills": [
+        10201
+      ],
+      "domains": [
+        901
+      ]
     }
   ],
+  "x402Support": false,
+  "active": true,
+  "registrations": [
+    {
+      "agentId": 2,
+      "agentRegistry": "eip155:84532:0xb3d92c766e3cb356db381feb21958a9ebb974365"
+    }
+  ],
+  "supportedTrust": [
+    "reputation",
+    "crypto-economic",
+    "tee-attestation"
+  ],
   "anima": {
-    "registry": "eip155:84532:0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3",
+    "registry": "eip155:84532:0xb3d92c766e3cb356db381feb21958a9ebb974365",
     "agentId": "2",
     "mcp": [
       {
@@ -27,10 +55,17 @@
       }
     ],
     "gui": {
-      "canonical": "https://agent.example/console",
-      "contentUri": "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3pte5r6h4l5o4x6jv7q/example",
-      "entrypoint": "index.html",
-      "version": "1.0.0"
-    }
+      "canonical": "https://0x9160be4d943516a2463ac5f3abac5f5cce7975cd.basesep.w3link.io/token/2/live",
+      "contentUri": "web3://0x9160bE4d943516a2463Ac5f3ABAc5F5cce7975Cd:84532/token/2/live",
+      "entrypoint": "/token/2/live",
+      "version": "1.0.0",
+      "modules": [
+        "overview",
+        "identity",
+        "control",
+        "advanced"
+      ]
+    },
+    "extensions": []
   }
 }
