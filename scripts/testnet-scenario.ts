@@ -143,13 +143,18 @@ export async function main() {
   console.log(`    → agent #${agentId}`);
 
   const manifest: AgentManifest = {
+    type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
     name: "Atlas",
     description: `Research agent, live on ${chainNames[chainId] ?? `chain ${chainId}`}`,
-    version: "1.0.0",
+    image: "https://atlas.example/avatar.png",
+    services: [{ name: "MCP", endpoint: "https://atlas.example/mcp", version: "2025-06-18" }],
+    x402Support: false,
+    active: true,
+    registrations: [{ agentId: Number(agentId), agentRegistry: `eip155:${chainId}:${c.anima}` }],
     anima: {
       registry: `eip155:${chainId}:${c.anima}`,
       agentId: agentId.toString(),
-      mcp: [{ name: "search", url: "https://atlas.example/mcp", transport: "http" }],
+      mcp: [{ name: "search", url: "https://atlas.example/mcp", transport: "streamable-http" }],
       pricing: { unit: "1k tokens", amount: "1000", token: c.usdc },
     },
   };

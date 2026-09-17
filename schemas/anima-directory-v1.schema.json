@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/venividis/Cutting-edge-technologically-advanced-NFT/main/schemas/anima-directory-v1.schema.json",
+  "title": "ANIMA agent directory v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "name", "description", "updated", "testnet", "chain", "identityRegistry", "globalRegistry", "contracts", "standards", "discovery", "rendering", "safety"],
+  "properties": {
+    "$schema": { "type": "string", "format": "uri" },
+    "type": { "const": "anima-agent-directory/1" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "updated": { "type": "string", "format": "date" },
+    "testnet": { "type": "boolean" },
+    "chain": {
+      "type": "object", "additionalProperties": false,
+      "required": ["namespace", "chainId", "name", "rpc", "explorer"],
+      "properties": {
+        "namespace": { "const": "eip155" }, "chainId": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" }, "rpc": { "type": "string", "format": "uri" },
+        "explorer": { "type": "string", "format": "uri" }
+      }
+    },
+    "identityRegistry": { "$ref": "#/$defs/address" },
+    "globalRegistry": { "type": "string", "pattern": "^eip155:[1-9][0-9]*:0x[0-9a-f]{40}$" },
+    "contracts": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/address" } },
+    "standards": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "discovery": { "type": "object" },
+    "rendering": { "type": "object" },
+    "safety": { "type": "object" }
+  },
+  "$defs": { "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" } }
+}

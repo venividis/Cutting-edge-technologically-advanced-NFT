@@ -40,7 +40,8 @@
     "testnet:batch-exercise": "hardhat run scripts/testnet-batch-exercise.ts",
     "clean": "hardhat clean",
     "test:diamond": "ANIMA_IMPL=diamond hardhat test",
-    "test:both": "hardhat test && ANIMA_IMPL=diamond hardhat test"
+    "test:both": "hardhat test && ANIMA_IMPL=diamond hardhat test",
+    "catalog:generate": "node scripts/generate-agent-function-index.mjs"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",

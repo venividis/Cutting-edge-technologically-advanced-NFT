@@ -83,20 +83,24 @@ export interface PrivateEnvelopeContext {
 /* -------------------------------------------------------------------------- */
 
 /**
- * The document an agent serves at its `agentURI`. Its capability fields are A2A-inspired, while
- * `anima` carries the on-chain declarations. It is not itself a conforming A2A Agent Card; an
- * A2A provider should publish the card required by its supported A2A protocol version as well.
+ * The ERC-8004 registration-v1 document an agent serves at its `agentURI`. `anima` carries the
+ * additional on-chain declarations. This is not itself an A2A Agent Card; an A2A provider
+ * advertises the versioned card as one entry in `services`.
  */
 export interface AgentManifest {
-  /** Optional URL of the JSON Schema used to validate this document. */
+  /** ERC-8004 registration document discriminator. */
+  type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1";
+  /** Optional URL of the stricter ANIMA JSON Schema used to validate this document. */
   $schema?: string;
-  /** Transport-neutral capability summary. */
+  /** ERC-721 compatible presentation fields. */
   name: string;
   description: string;
-  version: string;
-  url?: string;
-  capabilities?: { streaming?: boolean; pushNotifications?: boolean };
-  skills?: Array<{ id: string; name: string; description: string; tags?: string[] }>;
+  image: string;
+  services: AgentService[];
+  x402Support: boolean;
+  active: boolean;
+  registrations: AgentRegistration[];
+  supportedTrust?: Array<"reputation" | "crypto-economic" | "tee-attestation" | string>;
 
   /** ANIMA additions. */
   anima: {
@@ -135,6 +139,41 @@ export interface AgentManifest {
     /** Derivatives the agent is permitted to trade, mirroring its on-chain desk limits. */
     markets?: Array<{ market: string; venue: Address; maxLeverageX100: number }>;
   };
+}
+
+export interface AgentRegistration {
+  agentId: number;
+  /** `{namespace}:{chainId}:{identityRegistry}`, for example `eip155:84532:0x…`. */
+  agentRegistry: string;
+}
+
+export interface AgentService {
+  /** Standard names include `web`, `A2A`, `MCP`, `OASF`, `ENS`, `DID`, and `email`. */
+  name: string;
+  endpoint: string;
+  version?: string;
+  /** OASF services may include taxonomy identifiers directly in their service descriptor. */
+  skills?: number[];
+  domains?: number[];
+}
+
+export interface VerifyManifestOptions {
+  expectedRegistry?: string;
+  expectedAgentId?: string | number | bigint;
+}
+
+export interface FetchManifestOptions extends VerifyManifestOptions {
+  /** Defaults to 1 MiB. Applied while streaming, not after an unbounded allocation. */
+  maxBytes?: number;
+  /** Defaults to ten seconds. */
+  timeoutMs?: number;
+  fetch?: typeof globalThis.fetch;
+}
+
+export interface VerifiedManifest {
+  manifest: AgentManifest;
+  bytes: Uint8Array;
+  hash: Hex;
 }
 
 export interface AgentGui {
@@ -214,6 +253,99 @@ export function serialiseManifest(manifest: AgentManifest): string {
 
 export function manifestHash(manifest: AgentManifest): Hex {
   return keccak256(toHex(serialiseManifest(manifest)));
+}
+
+/**
+ * Hash first, parse second, then bind the registration back to the identity requested by the
+ * caller. This order prevents an attacker-controlled manifest from consuming parser work before
+ * its on-chain commitment has been checked.
+ */
+export function verifyManifestBytes(
+  bytes: Uint8Array,
+  expectedHash: Hex,
+  options: VerifyManifestOptions = {},
+): VerifiedManifest {
+  const hash = keccak256(bytes);
+  if (hash.toLowerCase() !== expectedHash.toLowerCase()) throw new Error("manifest hash mismatch");
+
+  let manifest: AgentManifest;
+  try {
+    manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as AgentManifest;
+  } catch {
+    throw new Error("manifest is not valid UTF-8 JSON");
+  }
+  if (manifest === null || typeof manifest !== "object" ||
+      manifest.type !== "https://eips.ethereum.org/EIPS/eip-8004#registration-v1") {
+    throw new Error("manifest is not an ERC-8004 registration-v1 document");
+  }
+  if (!Array.isArray(manifest.registrations) || manifest.registrations.length === 0) {
+    throw new Error("manifest has no registrations");
+  }
+  if (options.expectedRegistry !== undefined || options.expectedAgentId !== undefined) {
+    const registry = options.expectedRegistry?.toLowerCase();
+    const id = options.expectedAgentId?.toString();
+    const matches = manifest.registrations.some((entry) => {
+      if (entry === null || typeof entry !== "object" || typeof entry.agentRegistry !== "string" ||
+          !Number.isSafeInteger(entry.agentId) || entry.agentId < 0) return false;
+      return (registry === undefined || entry.agentRegistry.toLowerCase() === registry) &&
+        (id === undefined || String(entry.agentId) === id);
+    });
+    if (!matches) throw new Error("manifest does not register the requested on-chain agent");
+  }
+  return { manifest, bytes, hash };
+}
+
+/** Fetches a committed HTTPS manifest with finite time and memory before verifying it. */
+export async function fetchVerifiedManifest(
+  uri: string,
+  expectedHash: Hex,
+  options: FetchManifestOptions = {},
+): Promise<VerifiedManifest> {
+  const url = new URL(uri);
+  if (url.protocol !== "https:" || url.username || url.password) {
+    throw new Error("manifest fetch requires an HTTPS URL without credentials");
+  }
+  const maxBytes = options.maxBytes ?? 1024 * 1024;
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error("maxBytes must be a positive safe integer");
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new Error("timeoutMs must be a positive safe integer");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await (options.fetch ?? globalThis.fetch)(url, {
+      headers: { accept: "application/json" },
+      redirect: "error",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`manifest fetch failed: ${response.status}`);
+    const declared = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > maxBytes) throw new Error("manifest exceeds maxBytes");
+    if (!response.body) throw new Error("manifest response has no body");
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > maxBytes) {
+        await reader.cancel();
+        throw new Error("manifest exceeds maxBytes");
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return verifyManifestBytes(bytes, expectedHash, options);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
