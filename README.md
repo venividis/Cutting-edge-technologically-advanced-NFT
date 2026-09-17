@@ -441,7 +441,8 @@ carries no value.
 This is testnet-only: the NFT and test ETH have no monetary value. Use a separate test wallet, not a
 wallet that holds valuable assets.
 
-1. Install MetaMask or Rabby, create/select a test wallet, and add **Base Sepolia** (chain ID
+1. Open the Sanctuary in **Brave** with Brave Wallet enabled (MetaMask and Rabby also work),
+   create/select a test wallet, and add **Base Sepolia** (chain ID
    `84532`, currency `ETH`, RPC `https://sepolia.base.org`, explorer
    `https://sepolia.basescan.org`). Most wallets add it automatically when the Sanctuary requests it.
 2. Get a small amount of Base Sepolia ETH from the
@@ -456,11 +457,16 @@ wallet that holds valuable assets.
    ```
 
 4. Select **Enter sanctuary**, then **I need to mint one first**. Approve the wallet connection and
-   network switch, give the agent a name, inspect the simulated request, and confirm the mint in the
-   wallet. Wait for “Agent # is alive”; the new on-chain card then appears automatically.
-5. Open the card's **Command Chamber**. **Materialize wallet** deploys its deterministic ERC-6551
-   account. **Awaken agent** changes it from Dormant to Awake; **Pause safely** stops autonomous use.
-   Each write is simulated first and still requires an explicit wallet confirmation.
+   network switch, give the agent a name, inspect the simulated request, and confirm the mint. The
+   NFT carries self-contained JSON and SVG metadata so Brave does not depend on this site, IPFS, or
+   a metadata server to display it.
+5. Approve the second request to activate the NFT's deterministic ERC-6551 web3 address. The
+   Sanctuary then asks Brave to add the ERC-721 to the wallet. If the wallet declines or does not
+   support automatic import, use **Add NFT to Brave**, or import it manually with network **Base
+   Sepolia**, contract `0x0aeb6f783ebade8fd5ffca74317266d4ea3e71b3`, and the token ID displayed
+   in the Command Chamber. **Copy address** copies the agent's ERC-6551 account, not the NFT contract.
+6. **Awaken agent** changes it from Dormant to Awake; **Pause safely** stops autonomous use. Each
+   write is simulated first and still requires an explicit wallet confirmation.
 
 On later visits, choose **Enter sanctuary → Connect wallet** and the page rediscovers every ANIMA
 held by that address. No connection is needed to inspect a known token ID. The console shows the
