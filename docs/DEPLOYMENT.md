@@ -122,6 +122,25 @@ DEPLOYER_PRIVATE_KEY=... npm run testnet:batch-mint -- --network sepolia
 Set `ANIMA_MINT_COUNT` to request a different batch size. The deployment record is updated after
 every confirmed mint, so rerunning the same command resumes rather than duplicating tokens.
 
+Deploy the collection's ERC-4804 manual-mode browser after minting:
+
+```bash
+DEPLOYER_PRIVATE_KEY=... npm run testnet:web3-renderer -- --network sepolia
+```
+
+The command records `contracts.web3Renderer` and prints a W3link URL for every checkpointed token,
+for example `https://<renderer>.sep.w3link.io/token/14/live`. The renderer is intentionally separate
+from the immutable NFT: its fallback route reads the current owner, lifecycle status, and
+deterministic ERC-6551 account directly from ANIMA without changing token state.
+
+Each token URL is a responsive owner console served by the renderer itself. It provides live
+identity and memory reads, wallet connection and network switching, simulated lifecycle/account/
+guardian/operator actions, and an advanced signature-and-arguments console for every other ANIMA
+function. The advanced console deliberately requires an explicit Solidity signature and JSON
+arguments: it keeps uncommon or role-restricted methods available without presenting dangerous
+admin calls as ordinary one-click actions. Browser writes always simulate before requesting a
+wallet signature.
+
 - **Set an explicit LayerZero DVN and executor configuration.** LayerZero's security lives in
   that configuration, not in this repository. Defaults are a choice, and not one you made.
 - **Deploy `OmniAgentMirror` per destination chain and `setPeer` in both directions.** A
