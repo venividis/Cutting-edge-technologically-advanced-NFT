@@ -3,8 +3,8 @@
 ```bash
 npm install
 npx hardhat build
-npx hardhat test          # 268 tests — do not deploy on a red suite
-npm run test:diamond      # the same 268 against the EIP-2535 build
+npx hardhat test          # 279 tests — do not deploy on a red suite
+npm run test:diamond      # the same 279 against the EIP-2535 build
 ```
 
 ## Order and why it matters
@@ -121,12 +121,22 @@ DEPLOYER_PRIVATE_KEY=... npm run testnet:batch-mint -- --network sepolia
 
 Set `ANIMA_MINT_COUNT` to request a different batch size. The deployment record is updated after
 every confirmed mint, so rerunning the same command resumes rather than duplicating tokens.
+Set `ANIMA_MINT_RECIPIENT` to mint the entire batch directly to a different address; when omitted,
+the deployer receives the tokens. The recipient is stored in the batch checkpoint, and a resumed
+run must use the same recipient.
 
 Deploy the collection's ERC-4804 manual-mode browser after minting:
 
 ```bash
 DEPLOYER_PRIVATE_KEY=... npm run testnet:web3-renderer -- --network sepolia
 ```
+
+The renderer is an immutable, trustless, self-rendering agent console. Each token URL serves its
+complete responsive GUI directly from the renderer contract: live identity and memory reads, wallet
+connection, lifecycle controls, ERC-6551 activation, guardian/operator management, provenance, and
+an advanced simulate-before-signing console. It does not redirect owners to GitHub Pages.
+Set `ANIMA_REDEPLOY_RENDERER=true` after changing the renderer; the deployment record retains the
+previous address in `contracts.web3RendererHistory`.
 
 For the live Base Sepolia collection, a repository administrator can instead run the
 **Deploy the ANIMA onchain browser** workflow from GitHub Actions. Add a funded
@@ -138,8 +148,8 @@ publishes clickable collection and token URLs in the workflow summary, and commi
 
 The command records `contracts.web3Renderer` and prints a W3link URL for every minted token,
 for example `https://<renderer>.sep.w3link.io/token/14/live`. The renderer is intentionally separate
-from the immutable NFT: its fallback route reads the current owner, lifecycle status, and
-deterministic ERC-6551 account directly from ANIMA without changing token state.
+from the immutable NFT: its fallback route builds the GUI from current ANIMA state, while owner
+commands are simulated and submitted through the connected EIP-1193 wallet.
 
 - **Set an explicit LayerZero DVN and executor configuration.** LayerZero's security lives in
   that configuration, not in this repository. Defaults are a choice, and not one you made.

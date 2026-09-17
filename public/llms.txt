@@ -11,10 +11,14 @@ ANIMA is an unaudited, testnet reference implementation of an agent-native ERC-7
 - [Security model](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/SECURITY.md)
 - [Manifest JSON Schema](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/schemas/anima-agent-manifest-v1.schema.json)
 - [Example manifest](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/examples/manifests/base-sepolia-example.json)
+- [Machine directory](https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/.well-known/anima.json)
+- [Complete ABI function index](https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/anima-functions.json)
+- [Complete agent capability catalog](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/AGENT_CAPABILITY_CATALOG.md)
+- [Agent NFT and discovery research](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/docs/AGENT_ECOSYSTEM_RESEARCH_2026-09-17.md)
 - [Base Sepolia deployment record](https://github.com/venividis/Cutting-edge-technologically-advanced-NFT/blob/main/deployments/84532.json)
 
 ## Machine integration
 
-Read `manifestOf(agentId)` from the ANIMA contract, fetch the returned URI, hash the exact response bytes with keccak256, and require equality with the returned manifest hash before trusting endpoints or capabilities. The manifest can advertise A2A-style skills, MCP endpoints, pricing, model identity, and human-facing interfaces. A missing or zero manifest hash means the document is not integrity-bound.
+Read `manifestOf(agentId)` from the ANIMA contract, fetch the returned URI, hash the exact response bytes with keccak256, and require equality with the returned manifest hash before parsing it. The manifest is an ERC-8004 registration-v1 document and can advertise A2A, MCP, OASF, ENS, DID, email and other services. Require a registration entry matching the registry and agent ID queried. The namespaced ANIMA extension adds pricing, model commitments, mesh handles, markets and independently recoverable GUI metadata. A valid hash proves byte identity, not endpoint safety or availability.
 
 The reference TypeScript helpers live in `sdk/src/index.ts`; the SDK package builds to ordinary ESM JavaScript and declarations with `npm run sdk:build`.
