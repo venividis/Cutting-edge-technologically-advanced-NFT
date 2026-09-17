@@ -21,6 +21,8 @@ describe("AnimaWeb3Renderer", () => {
     assert.match(html, /ANIMA <i>#1/);
     assert.ok(html.toLowerCase().includes(getAddress(p.alice.account.address).toLowerCase()));
     assert.ok(html.toLowerCase().includes(getAddress(await p.anima.read.accountOf([id])).toLowerCase()));
+    assert.match(html, /Open the interactive owner console/);
+    assert.match(html, /\?agent=1/);
   });
 
   it("serves usage and not-found pages without reverting", async () => {

@@ -22,6 +22,9 @@ contract AnimaWeb3Renderer {
 
     IAnimaWeb3View public immutable ANIMA;
 
+    string private constant SANCTUARY =
+        "https://venividis.github.io/Cutting-edge-technologically-advanced-NFT/?agent=";
+
     error ZeroAddress();
 
     constructor(IAnimaWeb3View anima_) {
@@ -84,7 +87,9 @@ contract AnimaWeb3Renderer {
             '</code><label>ERC-6551 WEB3 ACCOUNT</label><code>', account.toHexString(),
             '</code><label>LIFECYCLE STATUS</label><code>', uint256(status).toString(),
             '</code><label>COLLECTION</label><code>', address(ANIMA).toHexString(),
-            '</code></section><p class="foot">Rendered entirely from contract state through ERC-4804.</p>',
+            '</code></section><a class="action" href="', SANCTUARY, idText,
+            '">Open the interactive owner console &rarr;</a><p class="hint">Connect the receiving wallet there to manage status, activate the ERC-6551 account, inspect state, and add the NFT to your wallet.</p>',
+            '<p class="foot">This immutable ERC-4804 page is the trustless onchain view. Transactions live in the full Sanctuary app.</p>',
             "</main></body></html>"
         );
     }
@@ -98,7 +103,7 @@ contract AnimaWeb3Renderer {
         return string.concat(
             '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
             "<title>", title,
-            '</title><style>html{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#07070b;color:#eee9df;font:16px Georgia,serif}body:before{content:"";position:fixed;inset:0;background:radial-gradient(circle at 50% 35%,#6547aa55,transparent 38%)}main{position:relative;width:min(760px,92vw);padding:64px 24px;text-align:center}.eyebrow,label,.mono,.foot,code{font-family:ui-monospace,monospace}.eyebrow,label{letter-spacing:.16em;color:#bda7ed}h1{font-size:clamp(42px,9vw,88px);line-height:.95;margin:24px 0}i{color:#c9b5f5}.orb{font-size:72px;color:#c7a9ff;text-shadow:0 0 38px #986cff;margin:30px}section{display:grid;gap:10px;text-align:left;padding:28px;border:1px solid #ffffff24;background:#ffffff08}label{font-size:11px;margin-top:14px}code{overflow-wrap:anywhere;color:#fff}.foot{color:#898396;margin-top:28px;font-size:12px}</style></head><body>'
+            '</title><style>html{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#07070b;color:#eee9df;font:16px Georgia,serif}body:before{content:"";position:fixed;inset:0;background:radial-gradient(circle at 50% 35%,#6547aa55,transparent 38%)}main{position:relative;width:min(760px,92vw);padding:64px 24px;text-align:center}.eyebrow,label,.mono,.foot,code,.hint{font-family:ui-monospace,monospace}.eyebrow,label{letter-spacing:.16em;color:#bda7ed}h1{font-size:clamp(42px,9vw,88px);line-height:.95;margin:24px 0}i{color:#c9b5f5}.orb{font-size:72px;color:#c7a9ff;text-shadow:0 0 38px #986cff;margin:30px}section{display:grid;gap:10px;text-align:left;padding:28px;border:1px solid #ffffff24;background:#ffffff08}label{font-size:11px;margin-top:14px}code{overflow-wrap:anywhere;color:#fff}.action{display:inline-block;margin-top:24px;padding:16px 22px;border-radius:999px;background:#c9b5f5;color:#09090b;text-decoration:none;font:700 14px ui-monospace,monospace}.hint{max-width:620px;margin:16px auto;color:#aaa2b7;font-size:12px;line-height:1.6}.foot{color:#898396;margin-top:28px;font-size:12px}</style></head><body>'
         );
     }
 }

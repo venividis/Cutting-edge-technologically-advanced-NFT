@@ -121,12 +121,20 @@ DEPLOYER_PRIVATE_KEY=... npm run testnet:batch-mint -- --network sepolia
 
 Set `ANIMA_MINT_COUNT` to request a different batch size. The deployment record is updated after
 every confirmed mint, so rerunning the same command resumes rather than duplicating tokens.
+Set `ANIMA_MINT_RECIPIENT` to mint the entire batch directly to a different address; when omitted,
+the deployer receives the tokens. The recipient is stored in the batch checkpoint, and a resumed
+run must use the same recipient.
 
 Deploy the collection's ERC-4804 manual-mode browser after minting:
 
 ```bash
 DEPLOYER_PRIVATE_KEY=... npm run testnet:web3-renderer -- --network sepolia
 ```
+
+The renderer is deliberately a compact, immutable, trustless state page rather than a wallet
+application. Its token pages link to the Sanctuary's interactive owner console. Set
+`ANIMA_REDEPLOY_RENDERER=true` after changing the renderer; the deployment record retains the
+previous address in `contracts.web3RendererHistory`.
 
 For the live Base Sepolia collection, a repository administrator can instead run the
 **Deploy the ANIMA onchain browser** workflow from GitHub Actions. Add a funded
