@@ -21,7 +21,8 @@
     "comms": "0xA9c0f8aeb07E61c05AfCA2F73E1fdDA66eF84d8f",
     "meter": "0x6b15AD51344C178FDfc58e231171D18e18050879",
     "handles": "0x23989eDD6a7e7CDb1b4bb44f42e11D5eB0EE5832",
-    "roles": "0x2b978a2cC681C21D1DF8527b65F7C4f5e8053a11"
+    "roles": "0x2b978a2cC681C21D1DF8527b65F7C4f5e8053a11",
+    "web3Renderer": "0xbD714258d540F1b720466e95724b9a00d05C3A29"
   },
   "cast": {
     "client": {
