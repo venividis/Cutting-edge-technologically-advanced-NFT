@@ -128,7 +128,15 @@ Deploy the collection's ERC-4804 manual-mode browser after minting:
 DEPLOYER_PRIVATE_KEY=... npm run testnet:web3-renderer -- --network sepolia
 ```
 
-The command records `contracts.web3Renderer` and prints a W3link URL for every checkpointed token,
+For the live Base Sepolia collection, a repository administrator can instead run the
+**Deploy the ANIMA onchain browser** workflow from GitHub Actions. Add a funded
+`DEPLOYER_PRIVATE_KEY` secret to the `base-sepolia` environment first; the key does not need to be
+the original collection deployer because the renderer is immutable and has no administrative
+functions. The workflow deploys the renderer, records its address in `deployments/84532.json`,
+publishes clickable collection and token URLs in the workflow summary, and commits the address to
+`main`. Running it again safely reuses the recorded contract.
+
+The command records `contracts.web3Renderer` and prints a W3link URL for every minted token,
 for example `https://<renderer>.sep.w3link.io/token/14/live`. The renderer is intentionally separate
 from the immutable NFT: its fallback route reads the current owner, lifecycle status, and
 deterministic ERC-6551 account directly from ANIMA without changing token state.

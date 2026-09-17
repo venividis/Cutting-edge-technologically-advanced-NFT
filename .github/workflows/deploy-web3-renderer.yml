@@ -1,0 +1,48 @@
+name: Deploy the ANIMA onchain browser
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: base-sepolia-web3-renderer
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: base-sepolia
+    steps:
+      - name: Read the repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Require a deployment key
+        env:
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+        run: test -n "$DEPLOYER_PRIVATE_KEY" || { echo 'Add DEPLOYER_PRIVATE_KEY to the base-sepolia environment.' >&2; exit 1; }
+      - name: Deploy or reuse the renderer
+        id: renderer
+        env:
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+        run: npm run testnet:web3-renderer -- --network baseSepolia
+      - name: Publish the renderer address
+        run: |
+          if git diff --quiet -- deployments/84532.json; then
+            echo 'The recorded renderer was reused.'
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add deployments/84532.json
+          git commit -m "Record Base Sepolia Web3 renderer"
+          git push
