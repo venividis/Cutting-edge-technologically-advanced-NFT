@@ -22,7 +22,11 @@
     "meter": "0x6b15AD51344C178FDfc58e231171D18e18050879",
     "handles": "0x23989eDD6a7e7CDb1b4bb44f42e11D5eB0EE5832",
     "roles": "0x2b978a2cC681C21D1DF8527b65F7C4f5e8053a11",
-    "web3Renderer": "0xbD714258d540F1b720466e95724b9a00d05C3A29"
+    "web3Renderer": "0x9160bE4d943516a2463Ac5f3ABAc5F5cce7975Cd",
+    "web3RendererHistory": [
+      "0xbD714258d540F1b720466e95724b9a00d05C3A29",
+      "0x1E07De2923542769Cc72a43a024d7c5AABDf5bC8"
+    ]
   },
   "cast": {
     "client": {
@@ -1029,6 +1033,20 @@
         "hash": "0x839bb1ca82cd0fdc2062acd6942416ea6d0f6d6c3b65f4e54cd6f2fb131d22ce",
         "status": "reverted"
       }
+    ]
+  },
+  "batchMint": {
+    "count": 3,
+    "recipient": "0xb88Fbf05268802100E5E55ADBa211d6453aF8b5b",
+    "tokenIds": [
+      "30",
+      "31",
+      "32"
+    ],
+    "transactions": [
+      "0xc0d891c06de9adaab8e40c8bad2417b3ad5ac112ae9b1c5209899436628567ea",
+      "0x98817276899214c5234b729cff80c504cbebf36630df72c4055371e045615f56",
+      "0x2e2792354f0c101e756828d2f18a2ad5776d73d0c6b6bb143736d88122bf5002"
     ]
   }
 }

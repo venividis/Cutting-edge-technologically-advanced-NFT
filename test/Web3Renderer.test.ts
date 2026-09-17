@@ -18,7 +18,16 @@ describe("AnimaWeb3Renderer", () => {
     assert.equal(await renderer.read.resolveMode(), toHex("manual", { size: 32 }));
     const html = await page(p.publicClient, renderer.address, `/token/${id}/live`);
     assert.match(html, /<!doctype html>/);
-    assert.match(html, /ANIMA <i>#1/);
+    assert.match(html, /Not merely owned/);
+    assert.match(html, /data-panel="overview"/);
+    assert.match(html, /data-panel="identity"/);
+    assert.match(html, /data-panel="control"/);
+    assert.match(html, /data-panel="advanced"/);
+    assert.match(html, /ACTIVATE ACCOUNT/);
+    assert.match(html, /SIMULATE &amp; EXECUTE/);
+    assert.match(html, /createWalletClient/);
+    assert.match(html, /simulateContract/);
+    assert.doesNotMatch(html, /github\.io/);
     assert.ok(html.toLowerCase().includes(getAddress(p.alice.account.address).toLowerCase()));
     assert.ok(html.toLowerCase().includes(getAddress(await p.anima.read.accountOf([id])).toLowerCase()));
   });
