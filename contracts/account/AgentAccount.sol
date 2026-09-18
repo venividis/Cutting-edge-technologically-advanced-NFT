@@ -170,6 +170,7 @@ contract AgentAccount is
     error UnsupportedOperation(uint8 operation);
     error InvalidUserOpCallData();
     error UseExecuteUserOp();
+    error EmptyBatch();
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTION
@@ -366,6 +367,10 @@ contract AgentAccount is
     /// @notice Atomic batch. Agents plan multi-step actions; forcing them to be separate
     ///         transactions is what creates the half-executed states that lose money.
     function executeBatch(Call[] calldata calls) external payable nonReentrant returns (bytes[] memory results) {
+        // Besides doing no useful work, an unauthenticated empty batch used to advance
+        // `_state` because the authorization loop below never ran. That let anyone
+        // invalidate every exact scoped session granted against the current state.
+        if (calls.length == 0) revert EmptyBatch();
         results = new bytes[](calls.length);
         for (uint256 i; i < calls.length; ++i) {
             _authorize(msg.sender, calls[i].to, calls[i].value, calls[i].data, 0, new bytes32[](0));

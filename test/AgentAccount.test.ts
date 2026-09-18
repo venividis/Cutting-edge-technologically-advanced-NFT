@@ -231,6 +231,28 @@ describe("AgentAccount — the leash", () => {
 });
 
 describe("AgentAccount — exact scoped sessions", () => {
+  it("rejects empty batches without advancing state or invalidating scoped grants", async () => {
+    const p = await deployProtocol();
+    const { account } = await armedAgent(p);
+    await account.write.grantScopedSession([
+      p.carol.account.address, 0n, FOREVER, 1n, p.bob.account.address, keccak256("0x"), 0n, 1, 0,
+    ], { account: p.alice.account });
+
+    const stateBefore = await account.read.state();
+    const scopeBefore = await account.read.sessionScopeOf([p.carol.account.address]);
+    await expectRevert(
+      account.write.executeBatch([[]], { account: p.deployer.account }),
+      "EmptyBatch",
+    );
+    assert.equal(await account.read.state(), stateBefore);
+    assert.equal(
+      (await account.read.sessionScopeOf([p.carol.account.address])).expectedAccountState,
+      scopeBefore.expectedAccountState,
+    );
+
+    await account.write.execute([p.bob.account.address, 0n, "0x", 0], { account: p.carol.account });
+  });
+
   it("pins target bytecode, complete calldata, native value, call count, and cadence", async () => {
     const p = await deployProtocol();
     const { account, accountAddress } = await armedAgent(p);
